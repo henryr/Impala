@@ -31,6 +31,7 @@ include "Results.thrift"
 include "RuntimeProfile.thrift"
 include "ImpalaService.thrift"
 include "Llama.thrift"
+include "DebugOptions.thrift"
 
 // constants for TQueryOptions.num_nodes
 const i32 NUM_NODES_ALL = 0
@@ -270,9 +271,7 @@ struct TPlanFragmentExecParams {
   3: list<TPlanFragmentDestination> destinations
 
   // Debug options: perform some action in a particular phase of a particular node
-  4: optional Types.TPlanNodeId debug_node_id
-  5: optional PlanNodes.TExecNodePhase debug_phase
-  6: optional PlanNodes.TDebugAction debug_action
+  4: optional DebugOptions.TDebugCmd debug_cmd
 
   // The pool to which this request has been submitted. Used to update pool statistics
   // for admission control.

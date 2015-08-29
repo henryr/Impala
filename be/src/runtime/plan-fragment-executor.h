@@ -177,6 +177,9 @@ class PlanFragmentExecutor {
   /// was encountered.
   Status status_;
 
+  TDebugCmd debug_cmd_;
+  bool has_debug_cmd_;
+
   /// Protects status_
   /// lock ordering:
   /// 1. report_thread_lock_

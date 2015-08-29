@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <sstream>
 #include <boost/foreach.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include "common/version.h"
 #include "runtime/collection-value.h"
@@ -37,6 +38,7 @@ extern void DumpStackTraceToString(std::string* s);
 
 #include "common/names.h"
 
+using boost::algorithm::iequals;
 using boost::char_separator;
 using boost::tokenizer;
 using namespace beeswax;
@@ -65,6 +67,26 @@ namespace impala {
     return ss.str();\
   }
 
+// Macro to stamp out Get*ByName(str, val) methods that return a bool indicating if 'str'
+// is in the enum, setting 'val' to the enum val if so.
+#define THRIFT_ENUM_LOOKUP_FN(E)                                \
+  bool Get##E##ByName(const string& key, E::type* val) {        \
+    map<int, const char*>::const_iterator entry =               \
+        _##E##_VALUES_TO_NAMES.begin();                         \
+    for (; entry != _##E##_VALUES_TO_NAMES.end(); ++entry) {    \
+      if (iequals(key, entry->second)) {                        \
+        *val = static_cast<E::type>(entry->first);              \
+        return true;                                            \
+      }                                                         \
+    }                                                           \
+    return false;                                               \
+  }
+
+THRIFT_ENUM_LOOKUP_FN(TBackendSelectorFn);
+THRIFT_ENUM_LOOKUP_FN(TExecNodePhase);
+THRIFT_ENUM_LOOKUP_FN(TDebugActionCmd);
+THRIFT_ENUM_LOOKUP_FN(TExecNodeSelectorFn);
+
 THRIFT_ENUM_OUTPUT_FN(TFunctionBinaryType);
 THRIFT_ENUM_OUTPUT_FN(TCatalogObjectType);
 THRIFT_ENUM_OUTPUT_FN(TDdlType);
@@ -89,7 +111,8 @@ THRIFT_ENUM_PRINT_FN(QueryState);
 THRIFT_ENUM_PRINT_FN(Encoding);
 THRIFT_ENUM_PRINT_FN(TMetricKind);
 THRIFT_ENUM_PRINT_FN(TUnit);
-
+THRIFT_ENUM_PRINT_FN(TExecNodePhase);
+THRIFT_ENUM_PRINT_FN(TDebugActionCmd);
 
 ostream& operator<<(ostream& os, const TUniqueId& id) {
   os << PrintId(id);

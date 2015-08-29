@@ -291,7 +291,8 @@ Status HdfsScanNode::CreateAndPrepareScanner(HdfsPartitionDescriptor* partition,
           partition->file_format()));
   }
   DCHECK(scanner->get() != NULL);
-  Status status = ExecDebugAction(TExecNodePhase::PREPARE_SCANNER, runtime_state_);
+  Status status = Status::OK();
+  // TODO: ExecDebugAction(TExecNodePhase::PREPARE_SCANNER, runtime_state_);
   if (status.ok()) status = scanner->get()->Prepare(context);
   if (!status.ok()) scanner->reset();
   return status;

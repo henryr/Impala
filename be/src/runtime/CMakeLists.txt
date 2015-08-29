@@ -28,6 +28,7 @@ add_library(Runtime
   data-stream-mgr.cc
   data-stream-sender.cc
   data-stream-recvr.cc
+  debug-options.cc
   descriptors.cc
   disk-io-mgr.cc
   disk-io-mgr-reader-context.cc
@@ -84,3 +85,4 @@ ADD_BE_TEST(hdfs-fs-cache-test)
 ADD_BE_TEST(tmp-file-mgr-test)
 ADD_BE_TEST(row-batch-serialize-test)
 ADD_BE_TEST(collection-value-builder-test)
+ADD_BE_TEST(debug-options-test)

@@ -18,6 +18,7 @@
 #include <unistd.h>  // for sleep()
 
 #include <thrift/protocol/TDebugProtocol.h>
+#include <re2/re2.h>
 
 #include "codegen/codegen-anyval.h"
 #include "codegen/llvm-codegen.h"
@@ -42,6 +43,7 @@
 #include "exec/topn-node.h"
 #include "exec/union-node.h"
 #include "exec/unnest-node.h"
+#include "runtime/debug-options.h"
 #include "runtime/descriptors.h"
 #include "runtime/mem-tracker.h"
 #include "runtime/mem-pool.h"
@@ -53,6 +55,7 @@
 #include "common/names.h"
 
 using namespace llvm;
+using boost::algorithm::iequals;
 
 // TODO: remove when we remove hash-join-node.cc and aggregation-node.cc
 DEFINE_bool(enable_partitioned_hash_join, true, "Enable partitioned hash join");
@@ -111,8 +114,7 @@ ExecNode::ExecNode(ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl
     type_(tnode.node_type),
     pool_(pool),
     row_descriptor_(descs, tnode.row_tuples, tnode.nullable_tuples),
-    debug_phase_(TExecNodePhase::INVALID),
-    debug_action_(TDebugAction::WAIT),
+    has_debug_cmd_(false),
     limit_(tnode.limit),
     num_rows_returned_(0),
     rows_returned_counter_(NULL),
@@ -362,16 +364,29 @@ Status ExecNode::CreateNode(ObjectPool* pool, const TPlanNode& tnode,
   return Status::OK();
 }
 
-void ExecNode::SetDebugOptions(
-    int node_id, TExecNodePhase::type phase, TDebugAction::type action,
-    ExecNode* root) {
-  if (root->id_ == node_id) {
-    root->debug_phase_ = phase;
-    root->debug_action_ = action;
-    return;
+void ExecNode::SetDebugOptions(const TDebugCmd& cmd, ExecNode* root) {
+  bool applicable = false;
+
+  switch (cmd.node_selector.choice_fn) {
+    case TExecNodeSelectorFn::ALL:
+      applicable = true;
+      break;
+    case TExecNodeSelectorFn::NODE_ID:
+      applicable = cmd.node_selector.int_arg == root->id();
+      break;
+    case TExecNodeSelectorFn::REGEX:
+      re2::RE2 re(cmd.node_selector.str_arg);
+      applicable = RE2::FullMatch(PrintPlanNodeType(root->type_), re);
+      break;
   }
+
+  if (applicable) {
+    root->has_debug_cmd_ = true;
+    root->debug_cmd_ = cmd;
+  }
+
   for (int i = 0; i < root->children_.size(); ++i) {
-    SetDebugOptions(node_id, phase, action, root->children_[i]);
+    SetDebugOptions(cmd, root->children_[i]);
   }
 }
 
@@ -409,18 +424,14 @@ void ExecNode::InitRuntimeProfile(const string& name) {
 }
 
 Status ExecNode::ExecDebugAction(TExecNodePhase::type phase, RuntimeState* state) {
-  DCHECK(phase != TExecNodePhase::INVALID);
-  if (debug_phase_ != phase) return Status::OK();
-  if (debug_action_ == TDebugAction::FAIL) {
-    return Status(TErrorCode::INTERNAL_ERROR, "Debug Action: FAIL");
-  }
-  if (debug_action_ == TDebugAction::WAIT) {
-    while (!state->is_cancelled()) {
-      sleep(1);
-    }
-    return Status::CANCELLED;
-  }
-  return Status::OK();
+  if (!has_debug_cmd_) return Status::OK();
+  if (phase != debug_cmd_.debug_phase) return Status::OK();
+
+  LOG(INFO) << "Executing debug action '"
+            << PrintTDebugActionCmd(debug_cmd_.action.cmd) << "' for node "
+            << id() << " in phase " << PrintTExecNodePhase(phase);
+
+  return DebugOptions::ExecDebugAction(debug_cmd_, phase, state);
 }
 
 bool ExecNode::EvalConjuncts(ExprContext* const* ctxs, int num_ctxs, TupleRow* row) {

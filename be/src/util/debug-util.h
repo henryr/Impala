@@ -73,6 +73,13 @@ std::string PrintTUnit(const TUnit::type& type);
 std::string PrintPath(const TableDescriptor& tbl_desc, const SchemaPath& path);
 /// Returns the numeric path without column/field names, e.g. "[0,1,2]"
 std::string PrintNumericPath(const SchemaPath& path);
+std::string PrintTExecNodePhase(const TExecNodePhase::type& type);
+std::string PrintTDebugActionCmd(const TDebugActionCmd::type& type);
+
+bool GetTBackendSelectorFnByName(const std::string& key, TBackendSelectorFn::type* val);
+bool GetTExecNodePhaseByName(const std::string& key, TExecNodePhase::type* val);
+bool GetTDebugActionCmdByName(const std::string& key, TDebugActionCmd::type* val);
+bool GetTExecNodeSelectorFnByName(const std::string& key, TExecNodeSelectorFn::type* val);
 
 // Convenience wrapper around Thrift's debug string function
 template<typename ThriftStruct> std::string PrintThrift(const ThriftStruct& t) {

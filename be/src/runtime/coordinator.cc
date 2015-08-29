@@ -41,6 +41,7 @@
 #include "runtime/client-cache.h"
 #include "runtime/data-stream-sender.h"
 #include "runtime/data-stream-mgr.h"
+#include "runtime/debug-options.h"
 #include "runtime/exec-env.h"
 #include "runtime/hdfs-fs-cache.h"
 #include "runtime/plan-fragment-executor.h"
@@ -86,27 +87,6 @@ DEFINE_bool(insert_inherit_permissions, false, "If true, new directories created
 
 namespace impala {
 
-// container for debug options in TPlanFragmentExecParams (debug_node, debug_action,
-// debug_phase)
-struct DebugOptions {
-  int fragment_instance_idx;
-  int node_id;
-  TDebugAction::type action;
-  TExecNodePhase::type phase;  // INVALID: debug options invalid
-
-  DebugOptions()
-    : fragment_instance_idx(-1), node_id(-1), action(TDebugAction::WAIT),
-      phase(TExecNodePhase::INVALID) {}
-
-  // If these debug options apply to the candidate fragment instance, returns true
-  // otherwise returns false.
-  bool IsApplicable(int candidate_fragment_instance_idx) {
-    if (phase == TExecNodePhase::INVALID) return false;
-    return (fragment_instance_idx == -1 ||
-        fragment_instance_idx == candidate_fragment_instance_idx);
-  }
-};
-
 /// Execution state of a particular fragment instance.
 ///
 /// Concurrent accesses:
@@ -132,8 +112,8 @@ class Coordinator::FragmentInstanceState {
     profile_ = obj_pool->Add(new RuntimeProfile(obj_pool, profile_name));
   }
 
-  /// Called to set the initial status of the fragment instance after the
-  /// ExecRemoteFragment() RPC has returned.
+  /// Called to set the initial status of the backend after the ExecRemoteFragment() RPC
+  /// has returned.
   void SetInitialStatus(const Status& status) {
     DCHECK(!rpc_sent_);
     status_ = status;
@@ -319,56 +299,6 @@ Coordinator::~Coordinator() {
   query_mem_tracker_.reset();
 }
 
-TExecNodePhase::type GetExecNodePhase(const string& key) {
-  map<int, const char*>::const_iterator entry =
-      _TExecNodePhase_VALUES_TO_NAMES.begin();
-  for (; entry != _TExecNodePhase_VALUES_TO_NAMES.end(); ++entry) {
-    if (iequals(key, (*entry).second)) {
-      return static_cast<TExecNodePhase::type>(entry->first);
-    }
-  }
-  return TExecNodePhase::INVALID;
-}
-
-// TODO: templatize this
-TDebugAction::type GetDebugAction(const string& key) {
-  map<int, const char*>::const_iterator entry =
-      _TDebugAction_VALUES_TO_NAMES.begin();
-  for (; entry != _TDebugAction_VALUES_TO_NAMES.end(); ++entry) {
-    if (iequals(key, (*entry).second)) {
-      return static_cast<TDebugAction::type>(entry->first);
-    }
-  }
-  return TDebugAction::WAIT;
-}
-
-static void ProcessQueryOptions(
-    const TQueryOptions& query_options, DebugOptions* debug_options) {
-  DCHECK(debug_options != NULL);
-  if (!query_options.__isset.debug_action || query_options.debug_action.empty()) {
-    debug_options->phase = TExecNodePhase::INVALID;  // signal not set
-    return;
-  }
-  vector<string> components;
-  split(components, query_options.debug_action, is_any_of(":"), token_compress_on);
-  if (components.size() < 3 || components.size() > 4) return;
-  if (components.size() == 3) {
-    debug_options->fragment_instance_idx = -1;
-    debug_options->node_id = atoi(components[0].c_str());
-    debug_options->phase = GetExecNodePhase(components[1]);
-    debug_options->action = GetDebugAction(components[2]);
-  } else {
-    debug_options->fragment_instance_idx = atoi(components[0].c_str());
-    debug_options->node_id = atoi(components[1].c_str());
-    debug_options->phase = GetExecNodePhase(components[2]);
-    debug_options->action = GetDebugAction(components[3]);
-  }
-  DCHECK(!(debug_options->phase == TExecNodePhase::CLOSE &&
-           debug_options->action == TDebugAction::WAIT))
-      << "Do not use CLOSE:WAIT debug actions "
-      << "because nodes cannot be cancelled in Close()";
-}
-
 Status Coordinator::Exec(QuerySchedule& schedule,
     vector<ExprContext*>* output_expr_ctxs) {
   const TQueryExecRequest& request = schedule.request();
@@ -416,13 +346,12 @@ Status Coordinator::Exec(QuerySchedule& schedule,
     // Prepare output_expr_ctxs before optimizing the LLVM module. The other exprs of this
     // coordinator fragment have been prepared in executor_->Prepare().
     DCHECK(output_expr_ctxs != NULL);
-    RETURN_IF_ERROR(Expr::CreateExprTrees(
-        runtime_state()->obj_pool(), request.fragments[0].output_exprs,
-        output_expr_ctxs));
+    RETURN_IF_ERROR(Expr::CreateExprTrees(runtime_state()->obj_pool(),
+        request.fragments[0].output_exprs, output_expr_ctxs));
     MemTracker* output_expr_tracker = runtime_state()->obj_pool()->Add(new MemTracker(
         -1, -1, "Output exprs", runtime_state()->instance_mem_tracker(), false));
-    RETURN_IF_ERROR(Expr::Prepare(
-        *output_expr_ctxs, runtime_state(), row_desc(), output_expr_tracker));
+    RETURN_IF_ERROR(Expr::Prepare(*output_expr_ctxs, runtime_state(), row_desc(),
+        output_expr_tracker));
   } else {
     // The coordinator instance may require a query mem tracker even if there is no
     // coordinator fragment. For example, result-caching tracks memory via the query mem
@@ -466,8 +395,6 @@ Status Coordinator::Exec(QuerySchedule& schedule,
 Status Coordinator::StartRemoteFragments(QuerySchedule* schedule) {
   int32_t num_fragment_instances = schedule->num_fragment_instances();
   DCHECK_GT(num_fragment_instances , 0);
-  DebugOptions debug_options;
-  ProcessQueryOptions(schedule->query_options(), &debug_options);
   const TQueryExecRequest& request = schedule->request();
 
   fragment_instance_states_.resize(num_fragment_instances);
@@ -483,8 +410,25 @@ Status Coordinator::StartRemoteFragments(QuerySchedule* schedule) {
   int fragment_instance_idx = 0;
   bool has_coordinator_fragment =
       request.fragments[0].partition.type == TPartitionType::UNPARTITIONED;
+
   // Start one fragment instance per fragment per host (number of hosts running each
   // fragment may not be constant).
+
+  DebugOptions debug_options;
+  bool have_debug_options = !schedule->query_options().debug_action.empty();
+  set<int32_t> debug_fragment_instances;
+  if (have_debug_options) {
+    RETURN_IF_ERROR(debug_options.Parse(schedule->query_options().debug_action));
+    debug_options.ComputeApplicableBackends(request.fragments, (*schedule->exec_params()),
+        &debug_fragment_instances);
+    query_profile_->AddInfoString("Debug options",
+        Substitute("$0, applies to $1 of $2 fragment instances",
+            schedule->query_options().debug_action, debug_fragment_instances.size(),
+            num_fragment_instances));
+    VLOG_QUERY << "Found " << debug_fragment_instances.size() << " applicable fragment instances out of "
+               << num_fragment_instances << " for " << schedule->query_options().debug_action;
+  }
+
   for (int fragment_idx = (has_coordinator_fragment ? 1 : 0);
        fragment_idx < request.fragments.size(); ++fragment_idx) {
     const FragmentExecParams* params = &(*schedule->exec_params())[fragment_idx];
@@ -494,8 +438,12 @@ Status Coordinator::StartRemoteFragments(QuerySchedule* schedule) {
     // Start one fragment for every fragment_instance required by the schedule
     for (int per_fragment_instance_idx = 0; per_fragment_instance_idx < num_hosts;
          ++per_fragment_instance_idx) {
-      DebugOptions* fragment_instance_debug_options =
-          debug_options.IsApplicable(fragment_instance_idx) ? &debug_options : NULL;
+      DebugOptions* fragment_instance_debug_options = NULL;
+      if (have_debug_options &&
+          debug_fragment_instances.find(fragment_instance_idx) !=
+          debug_fragment_instances.end()) {
+        fragment_instance_debug_options = &debug_options;
+      }
       exec_env_->fragment_exec_thread_pool()->Offer(
           bind<void>(mem_fn(&Coordinator::ExecRemoteFragment), this,
               params, // fragment_exec_params
@@ -1186,9 +1134,7 @@ void Coordinator::ExecRemoteFragment(const FragmentExecParams* fragment_exec_par
       fragment_instance_idx, fragment_idx, per_fragment_instance_idx,
       MakeNetworkAddress(FLAGS_hostname, FLAGS_be_port), &rpc_params);
   if (debug_options != NULL) {
-    rpc_params.params.__set_debug_node_id(debug_options->node_id);
-    rpc_params.params.__set_debug_action(debug_options->action);
-    rpc_params.params.__set_debug_phase(debug_options->phase);
+    rpc_params.params.__set_debug_cmd(debug_options->cmd());
   }
   FragmentInstanceState* exec_state = obj_pool()->Add(
       new FragmentInstanceState(fragment_instance_idx, fragment_idx, fragment_exec_params,

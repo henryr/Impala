@@ -127,8 +127,7 @@ class ExecNode {
                            const DescriptorTbl& descs, ExecNode** root);
 
   /// Set debug action for node with given id in 'tree'
-  static void SetDebugOptions(int node_id, TExecNodePhase::type phase,
-                              TDebugAction::type action, ExecNode* tree);
+  static void SetDebugOptions(const TDebugCmd& cmd, ExecNode* tree);
 
   /// Collect all nodes of given 'node_type' that are part of this subtree, and return in
   /// 'nodes'.
@@ -234,8 +233,10 @@ class ExecNode {
 
   /// debug-only: if debug_action_ is not INVALID, node will perform action in
   /// debug_phase_
-  TExecNodePhase::type debug_phase_;
-  TDebugAction::type debug_action_;
+  TDebugCmd debug_cmd_;
+  bool has_debug_cmd_;
+  // TExecNodePhase::type debug_phase_;
+  // TDebugAction::type debug_action_;
 
   int64_t limit_;  // -1: no limit
   int64_t num_rows_returned_;

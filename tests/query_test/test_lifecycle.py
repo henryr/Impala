@@ -29,11 +29,11 @@ class TestFragmentLifecycle(ImpalaTestSuite):
   @pytest.mark.execute_serially
   def test_failure_in_prepare(self):
     # Fail the scan node
-    self.client.execute("SET DEBUG_ACTION='-1:0:PREPARE:FAIL'");
+    self.client.execute("SET DEBUG_ACTION='ALL():NODE_ID(0):PREPARE:FAIL(10)'");
     try:
       self.client.execute("SELECT COUNT(*) FROM functional.alltypes")
-      assert "Query should have thrown an error"
-    except ImpalaBeeswaxException:
+      assert False, "Query should have thrown an error"
+    except ImpalaBeeswaxException, e:
       pass
     verifiers = [ MetricVerifier(i.service) for i in ImpalaCluster().impalads ]
 
@@ -46,13 +46,13 @@ class TestFragmentLifecycle(ImpalaTestSuite):
     # cancellation.
 
     # Fail the scan node
-    self.client.execute("SET DEBUG_ACTION='-1:0:PREPARE:FAIL'");
+    self.client.execute("SET DEBUG_ACTION='ALL():NODE_ID(0):PREPARE:FAIL()'");
 
     # Force a query plan that will have three fragments or more.
     try:
       self.client.execute("SELECT COUNT(*) FROM functional.alltypes a JOIN [SHUFFLE] \
         functional.alltypes b on a.id = b.id")
-      assert "Query should have thrown an error"
+      assert False, "Query should have thrown an error"
     except ImpalaBeeswaxException:
       pass
 

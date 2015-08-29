@@ -150,6 +150,7 @@ set (SRC_FILES
   TCLIService.thrift
   cli_service.thrift # TODO: Remove when thirdparty Hive supports V6
   DataSinks.thrift
+  DebugOptions.thrift
   Descriptors.thrift
   ExecStats.thrift
   Frontend.thrift

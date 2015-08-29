@@ -22,6 +22,7 @@ namespace cpp impala
 namespace java com.cloudera.impala.thrift
 
 include "CatalogObjects.thrift"
+include "DebugOptions.thrift"
 include "ExecStats.thrift"
 include "Exprs.thrift"
 include "Types.thrift"
@@ -43,23 +44,6 @@ enum TPlanNodeType {
   SINGULAR_ROW_SRC_NODE,
   UNNEST_NODE,
   SUBPLAN_NODE,
-}
-
-// phases of an execution node
-// must be kept in sync with tests/failure/test_failpoints.py
-enum TExecNodePhase {
-  PREPARE,
-  PREPARE_SCANNER,
-  OPEN,
-  GETNEXT,
-  CLOSE,
-  INVALID
-}
-
-// what to do when hitting a debug point (TImpalaQueryOptions.DEBUG_ACTION)
-enum TDebugAction {
-  WAIT,
-  FAIL
 }
 
 // The information contained in subclasses of ScanNode captured in two separate
