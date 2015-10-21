@@ -10,12 +10,11 @@
 //
 //   http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing,
-// software distributed under the License is distributed on an
-// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-// KIND, either express or implied.  See the License for the
-// specific language governing permissions and limitations
-// under the License.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 #ifndef GUTIL_WALLTIME_H_
 #define GUTIL_WALLTIME_H_
 
@@ -61,7 +60,24 @@ bool WallTime_Parse_Timezone(const char* time_spec,
 WallTime WallTime_Now();
 
 typedef int64 MicrosecondsInt64;
+typedef int64 NanosecondsInt64;
 
+namespace walltime_internal {
+
+#if defined(__APPLE__)
+
+extern GoogleOnceType timebase_info_once;
+extern mach_timebase_info_data_t timebase_info;
+extern void InitializeTimebaseInfo();
+
+inline void GetCurrentTime(mach_timespec_t* ts) {
+  clock_serv_t cclock;
+  host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+  clock_get_time(cclock, ts);
+  mach_port_deallocate(mach_task_self(), cclock);
+}
+
+// <<<<<<< HEAD
 namespace walltime_internal {
 
 #if defined(__APPLE__)
@@ -132,6 +148,12 @@ inline MicrosecondsInt64 GetClockTimeMicros(clockid_t clock) {
   return ts.tv_sec * 1e6 + ts.tv_nsec / 1e3;
 }
 
+inline NanosecondsInt64 GetClockTimeNanos(clockid_t clock) {
+  timespec ts;
+  clock_gettime(clock, &ts);
+  return ts.tv_sec * 1e9 + ts.tv_nsec;
+}
+
 #endif // defined(__APPLE__)
 
 } // namespace walltime_internal
@@ -142,6 +164,15 @@ inline MicrosecondsInt64 GetCurrentTimeMicros() {
   return walltime_internal::GetCurrentTimeMicros();
 #else
   return walltime_internal::GetClockTimeMicros(CLOCK_REALTIME);
+#endif  // defined(__APPLE__)
+}
+
+// Returns the time since the Epoch measured in microseconds.
+inline NanosecondsInt64 GetMonoTimeNanos() {
+#if defined(__APPLE__)
+  return walltime_internal::GetMonoTimeNanos();
+#else
+  return walltime_internal::GetClockTimeNanos(CLOCK_MONOTONIC);
 #endif  // defined(__APPLE__)
 }
 
