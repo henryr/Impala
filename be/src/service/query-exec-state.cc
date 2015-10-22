@@ -437,10 +437,10 @@ Status ImpalaServer::QueryExecState::ExecQueryOrDmlRequest(
   Status status = exec_env_->scheduler()->Schedule(coord_.get(), schedule_.get());
   if (FLAGS_enable_rm) {
     if (status.ok()) {
-      stringstream reservation_request_ss;
-      reservation_request_ss << schedule_->reservation_request();
-      summary_profile_.AddInfoString("Resource reservation request",
-          reservation_request_ss.str());
+      // stringstream reservation_request_ss;
+      // reservation_request_ss << schedule_->reservation_request();
+      // summary_profile_.AddInfoString("Resource reservation request",
+      //     reservation_request_ss.str());
     }
   }
 
@@ -451,10 +451,10 @@ Status ImpalaServer::QueryExecState::ExecQueryOrDmlRequest(
 
   if (FLAGS_enable_rm && schedule_->HasReservation()) {
     // Add the granted reservation to the query profile.
-    stringstream reservation_ss;
-    reservation_ss << *schedule_->reservation();
-    summary_profile_.AddInfoString("Granted resource reservation", reservation_ss.str());
-    query_events_->MarkEvent("Resources reserved");
+    // stringstream reservation_ss;
+    // reservation_ss << *schedule_->reservation();
+    // summary_profile_.AddInfoString("Granted resource reservation", reservation_ss.str());
+    // query_events_->MarkEvent("Resources reserved");
   }
   status = coord_->Exec(*schedule_, &output_expr_ctxs_);
   {

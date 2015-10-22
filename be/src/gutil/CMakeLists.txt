@@ -41,7 +41,7 @@ set(GUTIL_SRCS
   bits.cc
   callback_internal.cc
   cpu.cc
-  dynamic_annotations.c
+  dynamic_annotations.cc
   hash/city.cc
   hash/hash.cc
   hash/jenkins.cc
@@ -73,9 +73,9 @@ set(GUTIL_SRCS
   utf/rune.c
   walltime.cc)
 
-set(GUTIL_LIBS
-  glog
-  protobuf)
+# set(GUTIL_LIBS
+#   glog
+#   protobuf)
 
 if (NOT APPLE)
   set(GUTIL_LIBS
@@ -88,10 +88,17 @@ endif()
 #   DEPS ${GUTIL_LIBS}
 #   # Disable warnings which trigger a lot in the Google code:
 #   COMPILE_FLAGS "-funsigned-char -Wno-deprecated -Wno-char-subscripts")
-add_library(gutil ${GUTIL_SRCS})
-
 # Disable warnings which trigger a lot in the Google code:
 SET_TARGET_PROPERTIES(gutil PROPERTIES
   COMPILE_FLAGS "${CXX_COMMON_FLAGS} -funsigned-char -Wno-deprecated -Wno-char-subscripts -fPIC")
 
-add_kudu_test(strings/string_util-test)
+TARGET_LINK_LIBRARIES(gutil glogstatic gflagsstatic)
+SET(GUTIL_LIBS gutil)
+
+# ADD_EXPORTABLE_LIBRARY(gutil
+#   SRCS ${GUTIL_SRCS}
+#   DEPS ${GUTIL_LIBS}
+#   # Disable warnings which trigger a lot in the Google code:
+#   COMPILE_FLAGS "-funsigned-char -Wno-deprecated -Wno-char-subscripts")
+
+# add_kudu_test(strings/string_util-test)

@@ -408,17 +408,17 @@ class ResourceBroker {
   QueryResourceMgrsMap query_resource_mgrs_;
 };
 
-std::ostream& operator<<(std::ostream& os,
-    const TResourceBrokerReservationRequest& request);
+// std::ostream& operator<<(std::ostream& os,
+//     const TResourceBrokerReservationRequest& request);
 
-std::ostream& operator<<(std::ostream& os,
-    const TResourceBrokerReservationResponse& reservation);
+// std::ostream& operator<<(std::ostream& os,
+//     const TResourceBrokerReservationResponse& reservation);
 
-std::ostream& operator<<(std::ostream& os,
-    const TResourceBrokerExpansionRequest& request);
+// std::ostream& operator<<(std::ostream& os,
+//     const TResourceBrokerExpansionRequest& request);
 
-std::ostream& operator<<(std::ostream& os,
-    const TResourceBrokerExpansionResponse& expansion);
+// std::ostream& operator<<(std::ostream& os,
+//     const TResourceBrokerExpansionResponse& expansion);
 }
 
 #endif

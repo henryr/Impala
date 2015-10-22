@@ -24,7 +24,7 @@
 #define _GNU_SOURCE   // Linux wants that for strptime in time.h
 #endif
 
-#include "kudu/gutil/walltime.h"
+#include "gutil/walltime.h"
 
 #include <stdio.h>
 #include <string.h>

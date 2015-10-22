@@ -30,10 +30,10 @@ using std::string;
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 
-#include "kudu/gutil/once.h"
+#include "gutil/once.h"
 #endif  // defined(__APPLE__)
 
-#include "kudu/gutil/integral_types.h"
+#include "gutil/integral_types.h"
 
 typedef double WallTime;
 
@@ -175,5 +175,5 @@ class CycleClock {
   CycleClock();
 };
 
-#include "kudu/gutil/cycleclock-inl.h"  // inline method bodies
+#include "gutil/cycleclock-inl.h"  // inline method bodies
 #endif  // GUTIL_WALLTIME_H_

@@ -166,10 +166,10 @@ string TNetworkAddressToString(const TNetworkAddress& address) {
   return ss.str();
 }
 
-// ostream& operator<<(ostream& out, const TNetworkAddress& hostport) {
-//   out << hostport.hostname << ":" << dec << hostport.port;
-//   return out;
-// }
+ostream& operator<<(ostream& out, const TNetworkAddress& hostport) {
+  out << hostport.hostname << ":" << dec << hostport.port;
+  return out;
+}
 
 /// Pick a random port in the range of ephemeral ports
 /// https://tools.ietf.org/html/rfc6335

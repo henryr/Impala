@@ -36,84 +36,84 @@ string PrintId(const TUniqueId& id, const string& separator) {
   return PrintId(impala::CastTUniqueId<TUniqueId, impala::TUniqueId>(id), separator);
 }
 
-// ostream& operator<<(ostream& os, const TUniqueId& id) {
-//   os << hex << id.hi << ":" << id.lo;
-//   return os;
-// }
+ostream& operator<<(ostream& os, const TUniqueId& id) {
+  os << hex << id.hi << ":" << id.lo;
+  return os;
+}
 
-// ostream& operator<<(ostream& os, const TNetworkAddress& address) {
-//   os << address.hostname << ":" << dec << address.port;
-//   return os;
-// }
+ostream& operator<<(ostream& os, const TNetworkAddress& address) {
+  os << address.hostname << ":" << dec << address.port;
+  return os;
+}
 
-// ostream& operator<<(ostream& os, const TResource& resource) {
-//   os << "Resource("
-//      << "client_resource_id=" << resource.client_resource_id << " "
-//      << "v_cpu_cores=" << dec << resource.v_cpu_cores << " "
-//      << "memory_mb=" << dec << resource.memory_mb << " "
-//      << "asked_location=" << resource.askedLocation << " "
-//      << "enforcement=" << resource.enforcement << ")";
-//   return os;
-// }
+ostream& operator<<(ostream& os, const TResource& resource) {
+  os << "Resource("
+     << "client_resource_id=" << resource.client_resource_id << " "
+     << "v_cpu_cores=" << dec << resource.v_cpu_cores << " "
+     << "memory_mb=" << dec << resource.memory_mb << " "
+     << "asked_location=" << resource.askedLocation << " "
+     << "enforcement=" << resource.enforcement << ")";
+  return os;
+}
 
-// ostream& operator<<(ostream& os, const TAllocatedResource& resource) {
-//   os << "Allocated Resource("
-//      << "reservation_id=" << resource.reservation_id << " "
-//      << "client_resource_id=" << resource.client_resource_id << " "
-//      << "rm_resource_id=" << resource.rm_resource_id << " "
-//      << "v_cpu_cores=" << dec << resource.v_cpu_cores << " "
-//      << "memory_mb=" << dec << resource.memory_mb << " "
-//      << "location=" << resource.location << ")";
-//   return os;
-// }
+ostream& operator<<(ostream& os, const TAllocatedResource& resource) {
+  os << "Allocated Resource("
+     << "reservation_id=" << resource.reservation_id << " "
+     << "client_resource_id=" << resource.client_resource_id << " "
+     << "rm_resource_id=" << resource.rm_resource_id << " "
+     << "v_cpu_cores=" << dec << resource.v_cpu_cores << " "
+     << "memory_mb=" << dec << resource.memory_mb << " "
+     << "location=" << resource.location << ")";
+  return os;
+}
 
-// ostream& operator<<(ostream& os, const llama::TLlamaAMGetNodesRequest& request) {
-//   os << "GetNodes Request(llama handle=" << request.am_handle << ")";
-//   return os;
-// }
+ostream& operator<<(ostream& os, const llama::TLlamaAMGetNodesRequest& request) {
+  os << "GetNodes Request(llama handle=" << request.am_handle << ")";
+  return os;
+}
 
-// ostream& operator<<(ostream& os, const llama::TLlamaAMReservationRequest& request) {
-//   os << "Reservation Request("
-//      << "llama handle=" << request.am_handle << " "
-//      << "queue=" << request.queue << " "
-//      << "user=" << request.user << " "
-//      << "gang=" << request.gang << " "
-//      << "resources=[";
-//   for (int i = 0; i < request.resources.size(); ++i) {
-//     os << request.resources[i];
-//     if (i + 1 != request.resources.size()) os << ",";
-//   }
-//   os << "])";
-//   return os;
-// }
+ostream& operator<<(ostream& os, const llama::TLlamaAMReservationRequest& request) {
+  os << "Reservation Request("
+     << "llama handle=" << request.am_handle << " "
+     << "queue=" << request.queue << " "
+     << "user=" << request.user << " "
+     << "gang=" << request.gang << " "
+     << "resources=[";
+  for (int i = 0; i < request.resources.size(); ++i) {
+    os << request.resources[i];
+    if (i + 1 != request.resources.size()) os << ",";
+  }
+  os << "])";
+  return os;
+}
 
-// ostream& operator<<(ostream& os,
-//     const llama::TLlamaAMReservationExpansionRequest& request) {
-//   os << "Expansion Request("
-//      << "llama handle=" << request.am_handle << " "
-//      << "reservation id=" << request.expansion_of << " "
-//      << "resource=" << request.resource << ")";
-//   return os;
-// }
+ostream& operator<<(ostream& os,
+    const llama::TLlamaAMReservationExpansionRequest& request) {
+  os << "Expansion Request("
+     << "llama handle=" << request.am_handle << " "
+     << "reservation id=" << request.expansion_of << " "
+     << "resource=" << request.resource << ")";
+  return os;
+}
 
-// ostream& operator<<(ostream& os, const llama::TLlamaAMReleaseRequest& request) {
-//   os << "Release Request("
-//      << "llama handle=" << request.am_handle << " "
-//      << "reservation id=" << request.reservation_id << ")";
-//   return os;
-// }
+ostream& operator<<(ostream& os, const llama::TLlamaAMReleaseRequest& request) {
+  os << "Release Request("
+     << "llama handle=" << request.am_handle << " "
+     << "reservation id=" << request.reservation_id << ")";
+  return os;
+}
 
-// llama::TUniqueId& operator<<(llama::TUniqueId& dest, const impala::TUniqueId& src) {
-//   dest.lo = src.lo;
-//   dest.hi = src.hi;
-//   return dest;
-// }
+llama::TUniqueId& operator<<(llama::TUniqueId& dest, const impala::TUniqueId& src) {
+  dest.lo = src.lo;
+  dest.hi = src.hi;
+  return dest;
+}
 
-// impala::TUniqueId& operator<<(impala::TUniqueId& dest, const llama::TUniqueId& src) {
-//   dest.lo = src.lo;
-//   dest.hi = src.hi;
-//   return dest;
-// }
+impala::TUniqueId& operator<<(impala::TUniqueId& dest, const llama::TUniqueId& src) {
+  dest.lo = src.lo;
+  dest.hi = src.hi;
+  return dest;
+}
 
 bool operator==(const impala::TUniqueId& impala_id, const llama::TUniqueId& llama_id) {
   return impala_id.lo == llama_id.lo && impala_id.hi == llama_id.hi;

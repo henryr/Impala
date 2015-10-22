@@ -23,7 +23,7 @@ PROTOBUF_GENERATE_CPP(
   PROTO_FILES rpc_header.proto)
 ADD_EXPORTABLE_LIBRARY(rpc_header_proto
   SRCS ${RPC_HEADER_PROTO_SRCS}
-  DEPS protobuf
+#  DEPS protobuf
   NONLINK_DEPS ${RPC_HEADER_PROTO_TGTS})
 
 PROTOBUF_GENERATE_CPP(
@@ -32,8 +32,8 @@ PROTOBUF_GENERATE_CPP(
   BINARY_ROOT ${CMAKE_CURRENT_BINARY_DIR}/../..
   PROTO_FILES rpc_introspection.proto)
 set(RPC_INTROSPECTION_PROTO_LIBS
-  rpc_header_proto
-  protobuf)
+  rpc_header_proto)
+  #protobuf)
 ADD_EXPORTABLE_LIBRARY(rpc_introspection_proto
   SRCS ${RPC_INTROSPECTION_PROTO_SRCS}
   DEPS ${RPC_INTROSPECTION_PROTO_LIBS}
@@ -70,9 +70,9 @@ set(KRPC_LIBS
   rpc_header_proto
   rpc_introspection_proto
   kudu_util
-  gutil
-  libev
-  cyrus_sasl)
+  gutil)
+  # libev
+  #cyrus_sasl)
 
 ADD_EXPORTABLE_LIBRARY(krpc
   SRCS ${KRPC_SRCS}

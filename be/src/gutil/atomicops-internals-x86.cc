@@ -23,13 +23,13 @@
 // This module gets enough CPU information to optimize the
 // atomicops module on x86.
 
-#include "kudu/gutil/atomicops-internals-x86.h"
+#include "gutil/atomicops-internals-x86.h"
 
 #include <string.h>
 
 #include <glog/logging.h>
-#include "kudu/gutil/logging-inl.h"
-#include "kudu/gutil/integral_types.h"
+#include "gutil/logging-inl.h"
+#include "gutil/integral_types.h"
 
 // This file only makes sense with atomicops-internals-x86.h -- it
 // depends on structs that are defined in that file.  If atomicops.h

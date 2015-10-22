@@ -11,7 +11,7 @@
 #define BASE_MACROS_H_
 
 #include <stddef.h>         // For size_t
-#include "kudu/gutil/port.h"
+#include "gutil/port.h"
 
 // The swigged version of an abstract class must be concrete if any methods
 // return objects of the abstract type. We keep it abstract in C++ and

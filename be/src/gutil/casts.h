@@ -16,9 +16,9 @@
 
 #include <glog/logging.h>
 
-#include "kudu/gutil/macros.h"
-#include "kudu/gutil/template_util.h"
-#include "kudu/gutil/type_traits.h"
+#include "gutil/macros.h"
+#include "gutil/template_util.h"
+#include "gutil/type_traits.h"
 
 // Use implicit_cast as a safe version of static_cast or const_cast
 // for implicit conversions. For example:

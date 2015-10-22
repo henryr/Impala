@@ -53,12 +53,12 @@ using std::vector;
 
 #include <glog/logging.h>
 
-#include "kudu/gutil/integral_types.h"
-#include "kudu/gutil/logging-inl.h"
-#include "kudu/gutil/strings/charset.h"
-#include "kudu/gutil/strings/split_internal.h"
-#include "kudu/gutil/strings/stringpiece.h"
-#include "kudu/gutil/strings/strip.h"
+#include "gutil/integral_types.h"
+#include "gutil/logging-inl.h"
+#include "gutil/strings/charset.h"
+#include "gutil/strings/split_internal.h"
+#include "gutil/strings/stringpiece.h"
+#include "gutil/strings/strip.h"
 
 namespace strings {
 

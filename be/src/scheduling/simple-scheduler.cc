@@ -783,7 +783,7 @@ void SimpleScheduler::AddToActiveResourceMaps(
       iter != reservation.allocated_resources.end();
       ++iter) {
     TUniqueId client_resource_id;
-    client_resource_id << iter->second.client_resource_id;
+    //    client_resource_id << iter->second.client_resource_id;
     active_client_resources_[client_resource_id] = coord;
   }
 }
@@ -797,7 +797,7 @@ void SimpleScheduler::RemoveFromActiveResourceMaps(
       iter != reservation.allocated_resources.end();
       ++iter) {
     TUniqueId client_resource_id;
-    client_resource_id << iter->second.client_resource_id;
+    //    client_resource_id << iter->second.client_resource_id;
     active_client_resources_.erase(client_resource_id);
   }
 }

@@ -61,8 +61,8 @@
 
 #include <glog/logging.h>
 
-#include "kudu/gutil/logging-inl.h"
-#include "kudu/gutil/once.h"
+#include "gutil/logging-inl.h"
+#include "gutil/once.h"
 
 namespace util {
 namespace gtl {

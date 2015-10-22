@@ -1,6 +1,6 @@
 // Copyright 2002 and onwards Google Inc.
 
-#include "kudu/gutil/stringprintf.h"
+#include "gutil/stringprintf.h"
 
 #include <errno.h>
 #include <stdarg.h> // For va_list and related operations
@@ -8,8 +8,8 @@
 #include <vector>
 using std::vector;
 #include <glog/logging.h>
-#include "kudu/gutil/logging-inl.h"
-#include "kudu/gutil/macros.h"
+#include "gutil/logging-inl.h"
+#include "gutil/macros.h"
 
 #ifdef _MSC_VER
 enum { IS__MSC_VER = 1 };

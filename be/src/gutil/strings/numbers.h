@@ -20,11 +20,11 @@ using std::string;
 #include <vector>
 using std::vector;
 
-#include "kudu/gutil/int128.h"
-#include "kudu/gutil/integral_types.h"
-#include "kudu/gutil/macros.h"
-#include "kudu/gutil/port.h"
-#include "kudu/gutil/stringprintf.h"
+#include "gutil/int128.h"
+#include "gutil/integral_types.h"
+#include "gutil/macros.h"
+#include "gutil/port.h"
+#include "gutil/stringprintf.h"
 
 
 // START DOXYGEN NumbersFunctions grouping

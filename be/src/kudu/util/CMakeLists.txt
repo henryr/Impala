@@ -26,7 +26,7 @@ PROTOBUF_GENERATE_CPP(
   PROTO_FILES histogram.proto)
 ADD_EXPORTABLE_LIBRARY(histogram_proto
   SRCS ${HISTOGRAM_PROTO_SRCS}
-  DEPS protobuf
+  #DEPS protobuf
   NONLINK_DEPS ${HISTOGRAM_PROTO_TGTS})
 
 #######################################
@@ -40,7 +40,7 @@ PROTOBUF_GENERATE_CPP(
   PROTO_FILES pb_util.proto)
 ADD_EXPORTABLE_LIBRARY(pb_util_proto
   SRCS ${PB_UTIL_PROTO_SRCS}
-  DEPS protobuf
+  # DEPS protobuf
   NONLINK_DEPS ${PB_UTIL_PROTO_TGTS})
 
 #######################################
@@ -54,7 +54,7 @@ PROTOBUF_GENERATE_CPP(
   PROTO_FILES version_info.proto)
 ADD_EXPORTABLE_LIBRARY(version_info_proto
   SRCS ${VERSION_INFO_PROTO_SRCS}
-  DEPS protobuf
+  # DEPS protobuf
   NONLINK_DEPS ${VERSION_INFO_PROTO_TGTS})
 
 # ############################################################
@@ -174,17 +174,18 @@ set(UTIL_SRCS
 # endif()
 
 set(UTIL_LIBS
-  boost_system
-  boost_thread
-  crcutil
-  gflags
-  glog
-  gutil
+  #boost_system
+  #boost_thread
+  # crcutil
+  #gflags
+  #glog
+  #gutil
   histogram_proto
   pb_util_proto
-  protobuf
-  version_info_proto
-  zlib)
+  #protobuf
+  #version_info_proto
+  #zlib)
+  )
 
 # if(NOT APPLE)
 #   set(UTIL_LIBS

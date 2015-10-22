@@ -144,28 +144,28 @@ Status WaitForServer(const string& host, int port, int num_retries,
   return Status("Server did not come up");
 }
 
-// std::ostream& operator<<(std::ostream& out, const TColumnValue& colval) {
-//   if (colval.__isset.bool_val) {
-//     out << ((colval.bool_val) ? "true" : "false");
-//   } else if (colval.__isset.double_val) {
-//     out << colval.double_val;
-//   } else if (colval.__isset.byte_val) {
-//     out << colval.byte_val;
-//   } else if (colval.__isset.short_val) {
-//     out << colval.short_val;
-//   } else if (colval.__isset.int_val) {
-//     out << colval.int_val;
-//   } else if (colval.__isset.long_val) {
-//     out << colval.long_val;
-//   } else if (colval.__isset.string_val) {
-//     out << colval.string_val;
-//   } else if (colval.__isset.binary_val) {
-//     out << colval.binary_val; // Stored as a std::string
-//   } else {
-//     out << "NULL";
-//   }
-//   return out;
-// }
+std::ostream& operator<<(std::ostream& out, const TColumnValue& colval) {
+  if (colval.__isset.bool_val) {
+    out << ((colval.bool_val) ? "true" : "false");
+  } else if (colval.__isset.double_val) {
+    out << colval.double_val;
+  } else if (colval.__isset.byte_val) {
+    out << colval.byte_val;
+  } else if (colval.__isset.short_val) {
+    out << colval.short_val;
+  } else if (colval.__isset.int_val) {
+    out << colval.int_val;
+  } else if (colval.__isset.long_val) {
+    out << colval.long_val;
+  } else if (colval.__isset.string_val) {
+    out << colval.string_val;
+  } else if (colval.__isset.binary_val) {
+    out << colval.binary_val; // Stored as a std::string
+  } else {
+    out << "NULL";
+  }
+  return out;
+}
 
 bool TNetworkAddressComparator(const TNetworkAddress& a, const TNetworkAddress& b) {
   int cmp = a.hostname.compare(b.hostname);

@@ -73,7 +73,7 @@ using std::vector;
 
 #include <glog/logging.h>
 
-#include "kudu/gutil/logging-inl.h"
+#include "gutil/logging-inl.h"
 
 //
 // Find*()

@@ -104,10 +104,10 @@
 
 #include <algorithm>  // For std::swap().
 
-#include "kudu/gutil/basictypes.h"
-#include "kudu/gutil/template_util.h"
-#include "kudu/gutil/type_traits.h"
-#include "kudu/gutil/move.h"
+#include "gutil/basictypes.h"
+#include "gutil/template_util.h"
+#include "gutil/type_traits.h"
+#include "gutil/move.h"
 
 namespace kudu {
 
