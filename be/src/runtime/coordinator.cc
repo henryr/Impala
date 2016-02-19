@@ -479,8 +479,11 @@ void Coordinator::UpdateFilterRoutingTable(const vector<TPlanNode>& plan_nodes,
         for (int i = 0; i < num_hosts; ++i) src_idxs.push_back(fragment_instance_idx + i);
 
         // If this is a broadcast join, only build and publish it on
-        // MAX_BROADCAST_FILTER_PRODUCERS instances.
-        if (filter.is_broadcast_join && num_hosts > MAX_BROADCAST_FILTER_PRODUCERS) {
+        // MAX_BROADCAST_FILTER_PRODUCERS instances. The exceptional case is when the
+        // filter only has a local target, and therefore it will not be published globall
+        // and should be generated everywhere.
+        if (filter.is_broadcast_join && !filter.has_local_target
+            && num_hosts > MAX_BROADCAST_FILTER_PRODUCERS) {
           random_shuffle(src_idxs.begin(), src_idxs.end());
           src_idxs.resize(MAX_BROADCAST_FILTER_PRODUCERS);
         }
@@ -605,7 +608,11 @@ string Coordinator::FilterDebugString() {
     row.push_back(lexical_cast<string>(state.dst_fragment_instance_idxs.size()));
     row.push_back(Substitute("$0 ($1)", state.pending_count,
         state.src_fragment_instance_idxs.size()));
-    row.push_back(state.desc.is_broadcast_join ? "true" : "false");
+    if (state.desc.is_broadcast_join) {
+      row.push_back(state.desc.has_local_target ? "LOCAL" : "GLOBAL");
+    } else {
+      row.push_back("-");
+    }
     row.push_back(state.desc.is_bound_by_partition_columns ? "true" : "false");
     if (state.first_arrival_time == 0L) {
       row.push_back("N/A");
@@ -1925,32 +1932,35 @@ void Coordinator::UpdateFilter(const TUpdateFilterParams& params) {
       LOG(INFO) << "Could not find filter with id: " << params.filter_id;
       return;
     }
+    FilterState* state = &it->second;
+    DCHECK(!state->desc.has_local_target)
+        << "Coordinator received filter that has local target";
 
     // Receiving unnecessary updates for a broadcast.
-    if (it->second.pending_count == 0) return;
-    if (it->second.first_arrival_time == 0L) {
-      it->second.first_arrival_time = query_events_->ElapsedTime();
+    if (state->pending_count == 0) return;
+    if (state->first_arrival_time == 0L) {
+      state->first_arrival_time = query_events_->ElapsedTime();
     }
-    --it->second.pending_count;
+    --state->pending_count;
 
     if (filters_received_->value() == 0) {
       query_events_->MarkEvent("First dynamic filter received");
     }
     filters_received_->Add(1);
-    if (it->second.bloom_filter == NULL) {
-      it->second.bloom_filter =
+    if (state->bloom_filter == NULL) {
+      state->bloom_filter =
           obj_pool()->Add(bloom_filter.release());
     } else {
       // TODO: Implement BloomFilter::Or(const ThriftBloomFilter&)
-      it->second.bloom_filter->Or(*bloom_filter);
+      state->bloom_filter->Or(*bloom_filter);
     }
 
-    if (it->second.pending_count > 0) return;
+    if (state->pending_count > 0) return;
     // No more filters are pending on this filter ID. Create a distribution payload and
     // offer it to the queue.
-    it->second.completion_time = query_events_->ElapsedTime();
-    fragment_instance_idxs = it->second.dst_fragment_instance_idxs;
-    it->second.bloom_filter->ToThrift(&rpc_params->bloom_filter);
+    state->completion_time = query_events_->ElapsedTime();
+    fragment_instance_idxs = state->dst_fragment_instance_idxs;
+    state->bloom_filter->ToThrift(&rpc_params->bloom_filter);
   }
 
   rpc_params->filter_id = params.filter_id;
