@@ -367,8 +367,11 @@ class Coordinator {
     TPlanNodeId src;
     TPlanNodeId dst;
 
-    // Index into fragment_instance_states_
-    std::vector<int> fragment_instance_idxs;
+    // Index into fragment_instance_states_ for source fragment instances.
+    boost::unordered_set<int> src_fragment_instance_idxs;
+
+    // Index into fragment_instance_states_ for destination fragment instances.
+    boost::unordered_set<int> dst_fragment_instance_idxs;
 
     /// Number of remaining backends to hear from before filter is complete.
     int pending_count;
@@ -518,6 +521,11 @@ class Coordinator {
   /// and then waiting for all of the RPCs to complete. Returns an error if there was any
   /// error starting the fragments.
   Status StartRemoteFragments(QuerySchedule* schedule);
+
+  /// Build the filter routing table by iterating over all plan nodes and collecting the
+  /// filters that they either produce or consume.
+  void UpdateFilterRoutingTable(const std::vector<TPlanNode>& plan_nodes, int num_hosts,
+      int fragment_instance_idx);
 };
 
 }

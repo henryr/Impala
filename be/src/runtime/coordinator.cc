@@ -90,6 +90,9 @@ DEFINE_bool(insert_inherit_permissions, false, "If true, new directories created
 
 namespace impala {
 
+// Maximum number of fragment instances that can publish each broadcast filter.
+static const int MAX_BROADCAST_FILTER_PRODUCERS = 3;
+
 // container for debug options in TPlanFragmentExecParams (debug_node, debug_action,
 // debug_phase)
 struct DebugOptions {
@@ -463,6 +466,39 @@ Status Coordinator::Exec(QuerySchedule& schedule,
   return Status::OK();
 }
 
+void Coordinator::UpdateFilterRoutingTable(const vector<TPlanNode>& plan_nodes,
+    int num_hosts, int fragment_instance_idx) {
+  for (const TPlanNode& plan_node: plan_nodes) {
+    if (plan_node.__isset.hash_join_node && plan_node.__isset.runtime_filters) {
+      BOOST_FOREACH(const TRuntimeFilterDesc& filter, plan_node.runtime_filters) {
+        FilterState* f = &(filter_routing_table_[filter.filter_id]);
+        f->desc = filter;
+        f->src = plan_node.node_id;
+        f->pending_count = filter.is_broadcast_join ? 1 : num_hosts;
+        vector<int> src_idxs;
+        for (int i = 0; i < num_hosts; ++i) src_idxs.push_back(fragment_instance_idx + i);
+
+        // If this is a broadcast join, only build and publish it on
+        // MAX_BROADCAST_FILTER_PRODUCERS instances.
+        if (filter.is_broadcast_join && num_hosts > MAX_BROADCAST_FILTER_PRODUCERS) {
+          random_shuffle(src_idxs.begin(), src_idxs.end());
+          src_idxs.resize(MAX_BROADCAST_FILTER_PRODUCERS);
+        }
+        f->src_fragment_instance_idxs.insert(src_idxs.begin(), src_idxs.end());
+      }
+    } else if (
+        plan_node.__isset.hdfs_scan_node && plan_node.__isset.runtime_filters) {
+      BOOST_FOREACH(const TRuntimeFilterDesc& filter, plan_node.runtime_filters) {
+        FilterState* f = &(filter_routing_table_[filter.filter_id]);
+        f->dst = plan_node.node_id;
+        for (int i = 0; i < num_hosts; ++i) {
+          f->dst_fragment_instance_idxs.insert(fragment_instance_idx + i);
+        }
+      }
+    }
+  }
+}
+
 Status Coordinator::StartRemoteFragments(QuerySchedule* schedule) {
   int32_t num_fragment_instances = schedule->num_fragment_instances();
   DCHECK_GT(num_fragment_instances , 0);
@@ -494,31 +530,8 @@ Status Coordinator::StartRemoteFragments(QuerySchedule* schedule) {
     DCHECK_GT(num_hosts, 0);
 
     if (filter_routing_enabled) {
-      // Build the filter routing table by iterating over all plan nodes in this fragment
-      // and collecting the filters that they either produce or consume.
-      BOOST_FOREACH(const TPlanNode& plan_node,
-          request.fragments[fragment_idx].plan.nodes) {
-        if (plan_node.__isset.hash_join_node && plan_node.__isset.runtime_filters) {
-          BOOST_FOREACH(const TRuntimeFilterDesc& filter, plan_node.runtime_filters) {
-            FilterState* f = &(filter_routing_table_[filter.filter_id]);
-            f->desc = filter;
-            f->src = plan_node.node_id;
-            // TODO: consider only sending filter requests to ~3 backends for broadcast
-            // filters, to reduce load during aggregation.
-            f->pending_count = filter.is_broadcast_join ? 1 : num_hosts;
-          }
-        } else if (
-            plan_node.__isset.hdfs_scan_node && plan_node.__isset.runtime_filters) {
-          BOOST_FOREACH(const TRuntimeFilterDesc& filter, plan_node.runtime_filters) {
-            FilterState* f = &(filter_routing_table_[filter.filter_id]);
-            f->dst = plan_node.node_id;
-            for (int i = fragment_instance_idx; i < fragment_instance_idx + num_hosts;
-                 ++i) {
-              f->fragment_instance_idxs.push_back(i);
-            }
-          }
-        }
-      }
+      UpdateFilterRoutingTable(request.fragments[fragment_idx].plan.nodes, num_hosts,
+          fragment_instance_idx);
     }
 
     fragment_profiles_[fragment_idx].num_instances = num_hosts;
@@ -589,8 +602,9 @@ string Coordinator::FilterDebugString() {
     row.push_back(lexical_cast<string>(v.first));
     row.push_back(lexical_cast<string>(state.src));
     row.push_back(lexical_cast<string>(state.dst));
-    row.push_back(lexical_cast<string>(state.fragment_instance_idxs.size()));
-    row.push_back(lexical_cast<string>(state.pending_count));
+    row.push_back(lexical_cast<string>(state.dst_fragment_instance_idxs.size()));
+    row.push_back(Substitute("$0 ($1)", state.pending_count,
+        state.src_fragment_instance_idxs.size()));
     row.push_back(state.desc.is_broadcast_join ? "true" : "false");
     row.push_back(state.desc.is_bound_by_partition_columns ? "true" : "false");
     if (state.first_arrival_time == 0L) {
@@ -1758,6 +1772,25 @@ void Coordinator::SetExecPlanFragmentParams(QuerySchedule& schedule,
     const TNetworkAddress& coord, TExecPlanFragmentParams* rpc_params) {
   rpc_params->__set_protocol_version(ImpalaInternalServiceVersion::V1);
   rpc_params->__set_fragment(fragment);
+  // Remove filters that weren't selected during filter routing table construction.
+  for (TPlanNode& plan_node: rpc_params->fragment.plan.nodes) {
+    if (plan_node.__isset.hash_join_node && plan_node.__isset.runtime_filters) {
+      vector<TRuntimeFilterDesc> required_filters;
+      for (const TRuntimeFilterDesc& desc: plan_node.runtime_filters) {
+        FilterRoutingTable::iterator filter_it =
+            filter_routing_table_.find(desc.filter_id);
+        if (filter_it == filter_routing_table_.end()) continue;
+        FilterState* f = &filter_it->second;
+        if (f->src_fragment_instance_idxs.find(fragment_instance_idx) ==
+            f->src_fragment_instance_idxs.end()) {
+          DCHECK(desc.is_broadcast_join);
+          continue;
+        }
+        required_filters.push_back(desc);
+      }
+      plan_node.__set_runtime_filters(required_filters);
+    }
+  }
   SetExecPlanDescriptorTable(fragment, rpc_params);
 
   TNetworkAddress exec_host = params.hosts[per_fragment_instance_idx];
@@ -1883,7 +1916,7 @@ void DistributeFilters(shared_ptr<TPublishFilterParams> params, TNetworkAddress 
 void Coordinator::UpdateFilter(const TUpdateFilterParams& params) {
   // Make a 'master' copy that will be shared by all concurrent delivery RPC attempts.
   shared_ptr<TPublishFilterParams> rpc_params(new TPublishFilterParams());
-  vector<int32_t> fragment_instance_idxs;
+  unordered_set<int32_t> fragment_instance_idxs;
   unique_ptr<BloomFilter> bloom_filter(new BloomFilter(params.bloom_filter, NULL, NULL));
   {
     lock_guard<SpinLock> l(filter_lock_);
@@ -1916,7 +1949,7 @@ void Coordinator::UpdateFilter(const TUpdateFilterParams& params) {
     // No more filters are pending on this filter ID. Create a distribution payload and
     // offer it to the queue.
     it->second.completion_time = query_events_->ElapsedTime();
-    fragment_instance_idxs = it->second.fragment_instance_idxs;
+    fragment_instance_idxs = it->second.dst_fragment_instance_idxs;
     it->second.bloom_filter->ToThrift(&rpc_params->bloom_filter);
   }
 
@@ -1925,13 +1958,12 @@ void Coordinator::UpdateFilter(const TUpdateFilterParams& params) {
       << "Filters received before fragments started!";
   exec_complete_barrier_->Wait();
 
-  for (int i = 0; i < fragment_instance_idxs.size(); ++i) {
-    FragmentInstanceState* fragment_inst =
-        fragment_instance_states_[fragment_instance_idxs[i]];
-    DCHECK(fragment_inst != NULL) << "Missing fragment instance: " << i;
+  for (int idx: fragment_instance_idxs) {
+    FragmentInstanceState* fragment_inst = fragment_instance_states_[idx];
+    DCHECK(fragment_inst != NULL) << "Missing fragment instance: " << idx;
 
     exec_env_->rpc_pool()->Offer(bind<void>(DistributeFilters, rpc_params,
-            fragment_inst->impalad_address(), fragment_inst->fragment_instance_id()));
+        fragment_inst->impalad_address(), fragment_inst->fragment_instance_id()));
   }
 }
 
