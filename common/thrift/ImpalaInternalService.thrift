@@ -148,13 +148,13 @@ struct TQueryOptions {
   36: optional bool disable_streaming_preaggregations = 0
 
   // If true, runtime filter propagation is enabled
-  37: optional Types.TRuntimeFilterMode runtime_filter_mode = 1
+  37: optional Types.TRuntimeFilterMode runtime_filter_mode = 2
 
   // Size in bytes of runtime bloom filters
   38: optional i32 runtime_bloom_filter_size = 0
 
   // Time in ms to wait until partition filters are delivered
-  39: optional i32 runtime_filter_wait_time_ms = 0
+  39: optional i32 runtime_filter_wait_time_ms = 5000
 
   // If true, per-row runtime filtering is disabled
   40: optional bool disable_row_runtime_filtering = false
