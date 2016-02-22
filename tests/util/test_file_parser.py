@@ -78,7 +78,7 @@ def parse_query_test_file(file_name, valid_section_names=None, encoding=None):
   section_names = valid_section_names
   if section_names is None:
     section_names = ['QUERY', 'RESULTS', 'TYPES', 'LABELS', 'SETUP', 'CATCH', 'ERRORS',
-        'USER', 'RUNTIME_PROFILE']
+                     'USER', 'RUNTIME_PROFILE', 'COMMENT']
   return parse_test_file(file_name, section_names, encoding=encoding,
       skip_unknown_sections=False)
 
@@ -175,6 +175,7 @@ def parse_test_file_text(text, valid_section_names, skip_unknown_sections=True):
         else:
           raise RuntimeError, 'Unknown subsection: %s' % subsection_name
 
+      if subsection_name == 'COMMENT': continue
       if subsection_name == 'QUERY' and subsection_comment:
         parsed_sections['QUERY_NAME'] = subsection_comment
 
