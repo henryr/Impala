@@ -137,7 +137,6 @@ public class HashJoinNode extends JoinNode {
     for (Expr e: otherJoinConjuncts_) {
       msg.hash_join_node.addToOther_join_conjuncts(e.treeToThrift());
     }
-    msg.hash_join_node.setAdd_probe_filters(addProbeFilters_);
   }
 
   @Override
