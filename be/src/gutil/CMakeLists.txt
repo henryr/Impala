@@ -48,6 +48,7 @@ set(GUTIL_SRCS
   int128.cc
   mathlimits.cc
   once.cc
+  atomicops-internals-x86.cc
   ref_counted.cc
   ref_counted_memory.cc
   spinlock.cc
