@@ -18,6 +18,7 @@
 #ifndef IMPALA_EXEC_KUDU_TABLE_SINK_H
 #define IMPALA_EXEC_KUDU_TABLE_SINK_H
 
+#include "gutil/macros.h" // HNR: Hack to get macros available to toolchain Kudu headers
 #include <boost/scoped_ptr.hpp>
 #include <kudu/client/client.h>
 

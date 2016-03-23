@@ -28,6 +28,7 @@
 #include "runtime/mem-tracker.h"
 #include "runtime/row-batch.h"
 #include "util/runtime-profile-counters.h"
+#include "gutil/macros.h"
 
 #include "common/names.h"
 

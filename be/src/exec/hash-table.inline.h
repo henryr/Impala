@@ -390,7 +390,7 @@ inline int64_t HashTable::CurrentMemSize() const {
 }
 
 inline int64_t HashTable::NumInsertsBeforeResize() const {
-  return max<int64_t>(0,
+  return std::max<int64_t>(0,
       static_cast<int64_t>(num_buckets_ * MAX_FILL_FACTOR) - num_filled_buckets_);
 }
 

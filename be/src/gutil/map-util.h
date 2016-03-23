@@ -72,7 +72,8 @@ using std::pair;
 using std::vector;
 
 #include <glog/logging.h>
-#include "gutil/logging-inl.h"
+
+#include "kudu/gutil/logging-inl.h"
 
 //
 // Find*()
@@ -97,7 +98,7 @@ template <class Collection>
 const typename Collection::value_type::second_type&
 FindOrDie(const Collection& collection,
           const typename Collection::value_type::first_type& key) {
-  typename Collection::const_iterator it = collection.find(key);
+  auto it = collection.find(key);
   CHECK(it != collection.end()) << "Map key not found: " << key;
   return it->second;
 }
@@ -107,7 +108,7 @@ template <class Collection>
 typename Collection::value_type::second_type&
 FindOrDie(Collection& collection,  // NOLINT
           const typename Collection::value_type::first_type& key) {
-  typename Collection::iterator it = collection.find(key);
+  auto it = collection.find(key);
   CHECK(it != collection.end()) << "Map key not found: " << key;
   return it->second;
 }
@@ -146,7 +147,7 @@ const typename Collection::value_type::second_type&
 FindWithDefault(const Collection& collection,
                 const typename Collection::value_type::first_type& key,
                 const typename Collection::value_type::second_type& value) {
-  typename Collection::const_iterator it = collection.find(key);
+  auto it = collection.find(key);
   if (it == collection.end()) {
     return value;
   }
@@ -159,7 +160,7 @@ template <class Collection>
 const typename Collection::value_type::second_type*
 FindOrNull(const Collection& collection,
            const typename Collection::value_type::first_type& key) {
-  typename Collection::const_iterator it = collection.find(key);
+  auto it = collection.find(key);
   if (it == collection.end()) {
     return 0;
   }
@@ -171,11 +172,36 @@ template <class Collection>
 typename Collection::value_type::second_type*
 FindOrNull(Collection& collection,  // NOLINT
            const typename Collection::value_type::first_type& key) {
-  typename Collection::iterator it = collection.find(key);
+  auto it = collection.find(key);
   if (it == collection.end()) {
     return 0;
   }
   return &it->second;
+}
+
+// Returns a pointer to the const value associated with the greatest key
+// that's less than or equal to the given key, or NULL if no such key exists.
+template <class Collection>
+const typename Collection::value_type::second_type*
+FindFloorOrNull(const Collection& collection,
+                const typename Collection::value_type::first_type& key) {
+  auto it = collection.upper_bound(key);
+  if (it == collection.begin()) {
+    return 0;
+  }
+  return &(--it)->second;
+}
+
+// Same as above but returns a pointer to the non-const value.
+template <class Collection>
+typename Collection::value_type::second_type*
+FindFloorOrNull(Collection& collection,  // NOLINT
+                const typename Collection::value_type::first_type& key) {
+  auto it = collection.upper_bound(key);
+  if (it == collection.begin()) {
+    return 0;
+  }
+  return &(--it)->second;
 }
 
 // Returns the pointer value associated with the given key. If none is found,
@@ -188,7 +214,7 @@ template <class Collection>
 typename Collection::value_type::second_type
 FindPtrOrNull(const Collection& collection,
               const typename Collection::value_type::first_type& key) {
-  typename Collection::const_iterator it = collection.find(key);
+  auto it = collection.find(key);
   if (it == collection.end()) {
     return typename Collection::value_type::second_type(0);
   }
@@ -203,7 +229,7 @@ template <class Collection>
 typename Collection::value_type::second_type
 FindPtrOrNull(Collection& collection,  // NOLINT
               const typename Collection::value_type::first_type& key) {
-  typename Collection::iterator it = collection.find(key);
+  auto it = collection.find(key);
   if (it == collection.end()) {
     return typename Collection::value_type::second_type(0);
   }
@@ -216,7 +242,7 @@ template <class Collection, class Key, class Value>
 bool FindCopy(const Collection& collection,
               const Key& key,
               Value* const value) {
-  typename Collection::const_iterator it = collection.find(key);
+  auto it = collection.find(key);
   if (it == collection.end()) {
     return false;
   }
@@ -233,7 +259,7 @@ bool FindCopy(const Collection& collection,
 // Returns true iff the given collection contains the given key.
 template <class Collection, class Key>
 bool ContainsKey(const Collection& collection, const Key& key) {
-  typename Collection::const_iterator it = collection.find(key);
+  auto it = collection.find(key);
   return it != collection.end();
 }
 
@@ -349,7 +375,6 @@ template <class Collection>
 void InsertOrDie(Collection* const collection,
                  const typename Collection::value_type::first_type& key,
                  const typename Collection::value_type::second_type& data) {
-  typedef typename Collection::value_type value_type;
   CHECK(InsertIfNotPresent(collection, key, data))
       << "duplicate key: " << key;
 }
@@ -360,7 +385,6 @@ void InsertOrDieNoPrint(
     Collection* const collection,
     const typename Collection::value_type::first_type& key,
     const typename Collection::value_type::second_type& data) {
-  typedef typename Collection::value_type value_type;
   CHECK(InsertIfNotPresent(collection, key, data)) << "duplicate key.";
 }
 
@@ -642,7 +666,7 @@ template <class Collection>
 typename Collection::value_type::second_type EraseKeyReturnValuePtr(
     Collection* const collection,
     const typename Collection::value_type::first_type& key) {
-  typename Collection::iterator it = collection->find(key);
+  auto it = collection->find(key);
   if (it == collection->end()) {
     return NULL;
   }
@@ -738,9 +762,8 @@ void AppendValuesFromMap(const MapContainer& map_container,
   if (value_container->empty()) {
     value_container->reserve(map_container.size());
   }
-  for (typename MapContainer::const_iterator it = map_container.begin();
-       it != map_container.end(); ++it) {
-    value_container->push_back(it->second);
+  for (const auto& entry : map_container) {
+    value_container->push_back(entry.second);
   }
 }
 

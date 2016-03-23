@@ -115,6 +115,7 @@ export USE_KUDU_DEBUG_BUILD
 
 # Kudu doesn't compile on some old Linux distros. KUDU_IS_SUPPORTED enables building Kudu
 # into the backend. The frontend build is OS independent since it is Java.
+export KUDU_IS_SUPPORTED=false
 if [[ -z "${KUDU_IS_SUPPORTED-}" ]]; then
   KUDU_IS_SUPPORTED=true
   if [[ -z "$KUDU_BUILD_DIR" ]]; then
@@ -272,6 +273,7 @@ export IMPALA_POSTGRES_JDBC_DRIVER_VERSION=9.0-801
 export IMPALA_RAPIDJSON_VERSION=0.11
 export IMPALA_RE2_VERSION=20130115-p1
 export IMPALA_SNAPPY_VERSION=1.1.3
+export IMPALA_PROTOBUF_VERSION=2.6.1
 export IMPALA_SQUEASEL_VERSION=3.3
 # TPC utilities used for test/benchmark data generation.
 export IMPALA_TPC_DS_VERSION=2.1.0

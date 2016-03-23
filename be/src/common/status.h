@@ -23,11 +23,12 @@
 #include <vector>
 
 #include "common/compiler-util.h"
-#include "common/logging.h"
 #include "gen-cpp/Status_types.h"  // for TStatus
 #include "gen-cpp/ErrorCodes_types.h"  // for TErrorCode
 #include "gen-cpp/TCLIService_types.h" // for HS2 TStatus
 #include "util/error-util.h" // for ErrorMessage
+#include "common/logging.h"
+
 
 #define STATUS_API_VERSION 2
 

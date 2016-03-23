@@ -97,10 +97,10 @@ THRIFT_ENUM_PRINT_FN(TUnit);
 THRIFT_ENUM_PRINT_FN(TImpalaQueryOptions);
 
 
-ostream& operator<<(ostream& os, const TUniqueId& id) {
-  os << PrintId(id);
-  return os;
-}
+// ostream& operator<<(ostream& os, const TUniqueId& id) {
+//   os << PrintId(id);
+//   return os;
+// }
 
 string PrintId(const TUniqueId& id, const string& separator) {
   stringstream out;

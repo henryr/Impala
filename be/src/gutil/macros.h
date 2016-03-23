@@ -11,7 +11,7 @@
 #define BASE_MACROS_H_
 
 #include <stddef.h>         // For size_t
-#include "gutil/port.h"
+#include "kudu/gutil/port.h"
 
 // The swigged version of an abstract class must be concrete if any methods
 // return objects of the abstract type. We keep it abstract in C++ and
@@ -39,10 +39,8 @@ template <bool>
 struct CompileAssert {
 };
 
-#ifndef COMPILE_ASSERT
 #define COMPILE_ASSERT(expr, msg) \
-  typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1]
-#endif
+  typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1] ATTRIBUTE_UNUSED
 
 // Implementation details of COMPILE_ASSERT:
 //
@@ -100,7 +98,6 @@ struct CompileAssert {
 // http://gcc.gnu.org/PR51213 in gcc-4.7 / Crosstool v16.
 // TODO(user): Remove "&& !defined(__clang_)" when =delete is
 // gcc-4.7 before =delete is allowed, go back to the C++98 definition.
-#ifndef DISALLOW_COPY_AND_ASSIGN
 #if LANG_CXX11 && !defined(__clang__)
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
   TypeName(const TypeName&) = delete;      \
@@ -109,7 +106,6 @@ struct CompileAssert {
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
   TypeName(const TypeName&);               \
   void operator=(const TypeName&)
-#endif
 #endif
 
 // An older, politically incorrect name for the above.
@@ -204,6 +200,14 @@ char (&ArraySizeHelper(const T (&array)[N]))[N];
 // A macro to turn a symbol into a string
 #define AS_STRING(x)   AS_STRING_INTERNAL(x)
 #define AS_STRING_INTERNAL(x)   #x
+
+// Macro that allows definition of a variable appended with the current line
+// number in the source file. Typically for use by other macros to allow the
+// user to declare multiple variables with the same "base" name inside the same
+// lexical block.
+#define VARNAME_LINENUM(varname) VARNAME_LINENUM_INTERNAL(varname ## _L, __LINE__)
+#define VARNAME_LINENUM_INTERNAL(v, line) VARNAME_LINENUM_INTERNAL2(v, line)
+#define VARNAME_LINENUM_INTERNAL2(v, line) v ## line
 
 // The following enum should be used only as a constructor argument to indicate
 // that the variable has static storage class, and that the constructor should

@@ -20,7 +20,7 @@
 #define IMPALA_UTIL_CPU_INFO_H
 
 #include <string>
-#include <boost/cstdint.hpp>
+#include <cstdint>
 
 #include "common/logging.h"
 

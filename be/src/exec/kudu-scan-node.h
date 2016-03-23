@@ -18,6 +18,7 @@
 #ifndef IMPALA_EXEC_KUDU_SCAN_NODE_H_
 #define IMPALA_EXEC_KUDU_SCAN_NODE_H_
 
+#include "gutil/macros.h" // HNR: Hack to get macros available to toolchain Kudu headers
 #include <boost/scoped_ptr.hpp>
 #include <gtest/gtest.h>
 #include <kudu/client/client.h>

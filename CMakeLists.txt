@@ -61,6 +61,8 @@ function(set_dep_root NAME)
   string(REPLACE "_" "-" NAME_LOWER ${NAME_LOWER})
   set(VAL_NAME "IMPALA_${NAME}_VERSION")
   set(${NAME}_ROOT $ENV{IMPALA_TOOLCHAIN}/${NAME_LOWER}-$ENV{${VAL_NAME}} PARENT_SCOPE)
+  set(VAR_NAME "${NAME}_ROOT")
+  message(STATUS "Set dependency root for ${NAME} to $ENV{IMPALA_TOOLCHAIN}/${NAME_LOWER}-$ENV{${VAL_NAME}}")
 endfunction()
 
 # Define root path for all dependencies, this is in the form of
@@ -79,6 +81,7 @@ set_dep_root(LLVM)
 set(LLVM_DEBUG_ROOT $ENV{IMPALA_TOOLCHAIN}/llvm-$ENV{IMPALA_LLVM_DEBUG_VERSION})
 set_dep_root(LZ4)
 set_dep_root(OPENLDAP)
+set_dep_root(PROTOBUF)
 set_dep_root(RE2)
 set_dep_root(RAPIDJSON)
 set_dep_root(SNAPPY)
@@ -254,6 +257,13 @@ set(LIBS ${LIBS} ${RE2_LIBRARIES})
 message(STATUS "Re2 include dir: " ${RE2_INCLUDE_DIR})
 message(STATUS "Re2 library: " ${RE2_STATIC_LIB})
 
+find_package(Protobuf REQUIRED)
+include_directories(SYSTEM ${PROTOBUF_INCLUDE_DIR})
+message(STATUS "Protobuf library: " ${PROTOBUF_STATIC_LIBRARY})
+# TODO - how do we decide whether to use shared or static?
+#set(LIBS ${LIBS} ${PROTOBUF_STATIC_LIBRARY})# ${PROTOBUF_PROTOC_STATIC_LIBRARY})
+find_package(KRPC REQUIRED)
+
 # find rapidjson headers
 find_package(RapidJson REQUIRED)
 include_directories(${RAPIDJSON_INCLUDE_DIR})
@@ -329,3 +339,5 @@ if (DUMP_INCLUDE_PATHS)
 endif(DUMP_INCLUDE_PATHS)
 
 SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libstdc++")
+
+##### HNR

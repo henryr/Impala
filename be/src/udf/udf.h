@@ -20,7 +20,7 @@
 #define IMPALA_UDF_UDF_H
 
 #include <assert.h>
-#include <boost/cstdint.hpp>
+#include <cstdint>
 #include <string.h>
 
 /// This is the only Impala header required to develop UDFs and UDAs. This header

@@ -18,6 +18,7 @@
 #ifndef IMPALA_UTIL_KUDU_UTIL_H_
 #define IMPALA_UTIL_KUDU_UTIL_H_
 
+#include "gutil/macros.h" // HNR: Hack to get macros available to toolchain Kudu headers
 #include <kudu/client/callbacks.h>
 #include <kudu/client/client.h>
 

@@ -81,7 +81,7 @@ SET(CXX_GCC_FLAGS "-g -Wno-unused-local-typedefs")
 SET(CXX_FLAGS_DEBUG "${CXX_GCC_FLAGS} -ggdb -gdwarf-2")
 # -Werror: compile warnings should be errors when using the toolchain compiler.
 #   Only enable for debug builds because this is what we test in pre-commit tests.
-SET(CXX_FLAGS_DEBUG "${CXX_FLAGS_DEBUG} -Werror")
+# SET(CXX_FLAGS_DEBUG "${CXX_FLAGS_DEBUG} -Werror")
 SET(CXX_FLAGS_RELEASE "${CXX_GCC_FLAGS} -O3 -DNDEBUG -gdwarf-2")
 SET(CXX_FLAGS_ADDRESS_SANITIZER
   "${CXX_CLANG_FLAGS} -O1 -g -fsanitize=address -fno-omit-frame-pointer -DADDRESS_SANITIZER")
@@ -142,7 +142,7 @@ set(CLANG_IR_CXX_FLAGS "-emit-llvm" "-c" "-std=c++14" "-DIR_COMPILE" "-DNDEBUG"
   "-DBOOST_NO_EXCEPTIONS" "-fcolor-diagnostics" "-Wno-deprecated"
   "-Wno-return-type-c-linkage" "-O1")
 # -Werror: compile warnings should be errors when using the toolchain compiler.
-set(CLANG_IR_CXX_FLAGS "${CLANG_IR_CXX_FLAGS}" "-Werror")
+# set(CLANG_IR_CXX_FLAGS "${CLANG_IR_CXX_FLAGS}" "-Werror")
 
 IF($ENV{ENABLE_IMPALA_IR_DEBUG_INFO} STREQUAL "true")
   # -g: emit debug symbols in IR. These increase IR size and memory overhead of LLVM, but
@@ -275,6 +275,7 @@ set (IMPALA_LINK_LIBS
   ThriftSaslTransport
   Udf
   Util
+  krpc
   ${WL_END_GROUP}
 )
 
@@ -297,6 +298,7 @@ if (BUILD_SHARED_LIBS)
     GlobalFlags
     Common
     Udf
+    krpc
     )
 endif ()
 
@@ -356,6 +358,7 @@ set(IMPALA_LINK_LIBS_DYNAMIC_TARGETS ${IMPALA_LINK_LIBS_DYNAMIC_TARGETS} ${HDFS_
 # complicated and hard to isolate
 set (IMPALA_TEST_LINK_LIBS ${IMPALA_LINK_LIBS} gtest)
 
+MESSAGE(STATUS "Compiler: ${CMAKE_CXX_COMPILER}")
 MESSAGE(STATUS "Compiler Flags: ${CMAKE_CXX_FLAGS}")
 
 if (CMAKE_DEBUG)
@@ -426,6 +429,7 @@ add_subdirectory(src/statestore)
 add_subdirectory(src/service)
 add_subdirectory(src/testutil)
 add_subdirectory(src/rpc)
+add_subdirectory(src/kudu)
 add_subdirectory(src/udf)
 add_subdirectory(src/udf_samples)
 add_subdirectory(src/util)
@@ -445,6 +449,7 @@ link_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/build/common
   ${CMAKE_CURRENT_SOURCE_DIR}/build/exec
   ${CMAKE_CURRENT_SOURCE_DIR}/build/exprs
+  ${CMAKE_CURRENT_SOURCE_DIR}/build/kudu
   ${CMAKE_CURRENT_SOURCE_DIR}/build/rpc
   ${CMAKE_CURRENT_SOURCE_DIR}/build/runtime
   ${CMAKE_CURRENT_SOURCE_DIR}/build/statestore
