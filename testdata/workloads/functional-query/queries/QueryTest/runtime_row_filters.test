@@ -245,3 +245,28 @@ select STRAIGHT_JOIN count(*) from alltypes a
 ---- RUNTIME_PROFILE
 row_regex: .*RowsReturned: 2.43K .*
 ====
+
+
+---- QUERY
+####################################################
+# Test case 10: PHJ nodes that spill should still produce filters.
+# Run this for Parquet only to avoid variable memory
+# consumption / spilling behaviour.
+####################################################
+
+SET MAX_BLOCK_MGR_MEMORY=275m;
+SET RUNTIME_FILTER_MODE=GLOBAL;
+SET RUNTIME_FILTER_WAIT_TIME_MS=15000;
+SET RUNTIME_BLOOM_FILTER_SIZE=16M;
+select STRAIGHT_JOIN count(a.l_comment)
+    from tpch_parquet.lineitem a join tpch_parquet.lineitem b
+        on a.l_comment = b.l_comment AND b.l_linenumber < 5;
+---- RESULTS
+40419515
+---- TYPES
+BIGINT
+---- RUNTIME_PROFILE
+row_regex: .*SpilledPartitions: 176 .*
+row_regex: .*Rows rejected: 305.87K .*
+row_regex: .*Build-Side Runtime-Filter Produced.*
+====

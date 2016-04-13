@@ -69,7 +69,7 @@ ir_functions = [
   ["HASH_MURMUR", "IrMurmurHash"],
   ["HASH_JOIN_PROCESS_BUILD_BATCH", "12HashJoinNode17ProcessBuildBatch"],
   ["HASH_JOIN_PROCESS_PROBE_BATCH", "12HashJoinNode17ProcessProbeBatch"],
-  ["PHJ_PROCESS_BUILD_BATCH", "23PartitionedHashJoinNode17ProcessBuildBatch"],
+  ["PHJ_PROCESS_BUILD_BATCH", "23PartitionedHashJoinNode28ProcessBuildBatchWithFilters"],
   ["PHJ_PROCESS_PROBE_BATCH_INNER_JOIN", "ProcessProbeBatchILi0"],
   ["PHJ_PROCESS_PROBE_BATCH_LEFT_OUTER_JOIN", "ProcessProbeBatchILi1"],
   ["PHJ_PROCESS_PROBE_BATCH_LEFT_SEMI_JOIN", "ProcessProbeBatchILi2"],
