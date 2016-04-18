@@ -408,7 +408,12 @@ public class DistributedPlanner {
       node.setChild(0, leftChildFragment.getPlanRoot());
       connectChildFragment(node, 1, rightChildFragment);
       leftChildFragment.setPlanRoot(node);
-      for (RuntimeFilter filter: node.getRuntimeFilters()) filter.computeHasLocalTarget();
+      for (RuntimeFilter filter: node.getRuntimeFilters()) {
+        filter.computeHasLocalTarget();
+        // Since children of join node may have changed during plan distribution,
+        // estimates may have changed as well.
+        filter.computeNdvEstimate();
+      }
       return leftChildFragment;
     } else {
       node.setDistributionMode(HashJoinNode.DistributionMode.PARTITIONED);

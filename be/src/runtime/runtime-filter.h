@@ -73,9 +73,10 @@ class RuntimeFilterBank {
   /// consumption by operators that wish to use it for filtering.
   void PublishGlobalFilter(uint32_t filter_id, const TBloomFilter& thrift_filter);
 
-  /// Returns true if, according to the estimate of the NDV in 'max_ndv', a filter's
-  /// expected false-positive rate would be too high and the filter should be disabled.
-  bool ShouldDisableFilter(uint64_t max_ndv);
+  /// Returns true if, according to the observed NDV in 'observed_ndv', a filter's
+  /// expected false-positive rate would be larger than allowed by
+  /// FLAGS_max_filter_error_rate.
+  bool FpRateTooHigh(uint64_t expected_ndv, uint64_t observed_ndv);
 
   /// Returns a RuntimeFilter with the given filter id. This is safe to call after all
   /// calls to RegisterFilter() have finished, and not before. Filters may be cached by
@@ -90,7 +91,12 @@ class RuntimeFilterBank {
   /// should not be deleted by the caller.
   ///
   /// If there is not enough memory, or if Close() has been called first, returns NULL.
-  BloomFilter* AllocateScratchBloomFilter();
+  BloomFilter* AllocateScratchBloomFilter(int64_t ndv_estimate);
+
+  /// Returns the log of the space required for a filter to achieve the configured maximum
+  /// false-positive rate based on the expected NDV. If 'ndv' is -1 (i.e. no estimate is
+  /// known), the default log space is returned.
+  uint32_t GetLogSpaceForNdv(uint64_t ndv);
 
   /// Default hash seed to use when computing hashed values to insert into filters.
   static const uint32_t DefaultHashSeed() { return 1234; }
@@ -129,8 +135,8 @@ class RuntimeFilterBank {
   /// Total amount of memory allocated to Bloom Filters
   RuntimeProfile::Counter* memory_allocated_;
 
-  /// Precomputed logarithm of BloomFilter heap size.
-  int log_filter_size_;
+  /// Precomputed logarithm of default BloomFilter heap size.
+  int default_log_filter_size_;
 };
 
 /// RuntimeFilters represent set-membership predicates (implemented with bloom filters)

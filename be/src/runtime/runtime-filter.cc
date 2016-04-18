@@ -43,7 +43,7 @@ RuntimeFilterBank::RuntimeFilterBank(const TQueryCtx& query_ctx, RuntimeState* s
   int32_t bloom_filter_size = query_ctx_.request.query_options.runtime_bloom_filter_size;
   bloom_filter_size = std::max(bloom_filter_size, MIN_BLOOM_FILTER_SIZE);
   bloom_filter_size = std::min(bloom_filter_size, MAX_BLOOM_FILTER_SIZE);
-  log_filter_size_ = Bits::Log2Ceiling64(bloom_filter_size);
+  default_log_filter_size_ = Bits::Log2Ceiling64(bloom_filter_size);
 }
 
 RuntimeFilter* RuntimeFilterBank::RegisterFilter(const TRuntimeFilterDesc& filter_desc,
@@ -152,21 +152,32 @@ void RuntimeFilterBank::PublishGlobalFilter(uint32_t filter_id,
       PrettyPrinter::Print(it->second->arrival_delay(), TUnit::TIME_MS));
 }
 
-BloomFilter* RuntimeFilterBank::AllocateScratchBloomFilter() {
+BloomFilter* RuntimeFilterBank::AllocateScratchBloomFilter(int64_t ndv_estimate) {
   lock_guard<mutex> l(runtime_filter_lock_);
   if (closed_) return NULL;
 
   // Track required space
-  uint32_t required_space = BloomFilter::GetExpectedHeapSpaceUsed(log_filter_size_);
+  int32_t log_filter_size = GetLogSpaceForNdv(ndv_estimate);
+  uint32_t required_space = BloomFilter::GetExpectedHeapSpaceUsed(log_filter_size);
   if (!state_->query_mem_tracker()->TryConsume(required_space)) return NULL;
-  BloomFilter* bloom_filter = obj_pool_.Add(new BloomFilter(log_filter_size_));
+  BloomFilter* bloom_filter = obj_pool_.Add(new BloomFilter(log_filter_size));
   DCHECK_EQ(required_space, bloom_filter->GetHeapSpaceUsed());
   memory_allocated_->Add(bloom_filter->GetHeapSpaceUsed());
   return bloom_filter;
 }
 
-bool RuntimeFilterBank::ShouldDisableFilter(uint64_t max_ndv) {
-  double fpp = BloomFilter::FalsePositiveProb(max_ndv, log_filter_size_);
+uint32_t RuntimeFilterBank::GetLogSpaceForNdv(uint64_t ndv) {
+  if (ndv == -1) return default_log_filter_size_;
+  uint64_t required_space =
+      1ULL << BloomFilter::MinLogSpace(ndv, FLAGS_max_filter_error_rate);
+  if (required_space > MAX_BLOOM_FILTER_SIZE) required_space = MAX_BLOOM_FILTER_SIZE;
+  if (required_space < MIN_BLOOM_FILTER_SIZE) required_space = MIN_BLOOM_FILTER_SIZE;
+  return Bits::Log2Ceiling64(required_space);
+}
+
+bool RuntimeFilterBank::FpRateTooHigh(uint64_t expected_ndv, uint64_t observed_ndv) {
+  double fpp =
+      BloomFilter::FalsePositiveProb(observed_ndv, GetLogSpaceForNdv(expected_ndv));
   return fpp > FLAGS_max_filter_error_rate;
 }
 

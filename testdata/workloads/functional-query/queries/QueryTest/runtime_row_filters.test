@@ -257,18 +257,17 @@ row_regex: .*RowsReturned: 2.43K .*
 SET MAX_BLOCK_MGR_MEMORY=275m;
 SET RUNTIME_FILTER_MODE=GLOBAL;
 SET RUNTIME_FILTER_WAIT_TIME_MS=30000;
-SET RUNTIME_BLOOM_FILTER_SIZE=16M;
 select STRAIGHT_JOIN count(a.l_comment)
-    from tpch_parquet.lineitem a join tpch_parquet.lineitem b
-        on a.l_comment = b.l_comment AND b.l_linenumber < 5;
+    from tpch_parquet.lineitem a join [SHUFFLE] tpch_parquet.lineitem b
+            on a.l_comment = b.l_comment;
 ---- RESULTS
-40419515
+51495713
 ---- TYPES
 BIGINT
 ---- RUNTIME_PROFILE
 row_regex: .*SpilledPartitions: [1-9]\d* .*
-row_regex: .*Rows rejected: 305.87K .*
-row_regex: .*Build-Side Runtime-Filter Published.*
+row_regex: .*1 of 1 Runtime Filter(s) Published.*
+row_regex: .*Rows processed: 16.38K.*
 ====
 
 
@@ -289,6 +288,6 @@ select count(*) from complextypestbl a
 ---- RESULTS
 9
 ---- RUNTIME_PROFILE
-row_regex: .*Build-Side Runtime-Filter Published.*
+row_regex: .*1 of 1 Runtime Filter(s) Published.*
 row_regex: .*Rows rejected: 32 .*
 ====

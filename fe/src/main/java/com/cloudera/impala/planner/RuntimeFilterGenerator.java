@@ -110,6 +110,8 @@ public final class RuntimeFilterGenerator {
     // is in the same plan fragment as the join; set in
     // DistributedPlanner.createHashJoinFragment().
     private boolean hasLocalTarget_ = false;
+    // Estimate of the number of distinct values that will be inserted into this filter.
+    private long ndvEstimate_ = -1;
 
     private RuntimeFilter(RuntimeFilterId filterId, JoinNode filterSrcNode,
         Expr srcExpr, Expr targetExpr, Map<TupleId, List<SlotId>> targetSlots) {
@@ -118,6 +120,7 @@ public final class RuntimeFilterGenerator {
       srcExpr_ = srcExpr;
       targetExpr_ = targetExpr;
       targetSlotsByTid_ = targetSlots;
+      computeNdvEstimate();
     }
 
     @Override
@@ -137,6 +140,7 @@ public final class RuntimeFilterGenerator {
       tFilter.setIs_bound_by_partition_columns(isBoundByPartitionColumns_);
       tFilter.setIs_broadcast_join(isBroadcastJoin_);
       tFilter.setHas_local_target(hasLocalTarget_);
+      tFilter.setNdv_estimate(ndvEstimate_);
       List<SlotId> sids = Lists.newArrayList();
       targetExpr_.getIds(null, sids);
       List<Integer> tSlotIds = Lists.newArrayList();
@@ -289,6 +293,8 @@ public final class RuntimeFilterGenerator {
     }
 
     public void setIsBroadcast(boolean isBroadcast) { isBroadcastJoin_ = isBroadcast; }
+
+    public void computeNdvEstimate() { ndvEstimate_ = src_.getChild(1).getCardinality(); }
 
     public void computeHasLocalTarget() {
       Preconditions.checkNotNull(src_.getFragment());

@@ -153,8 +153,11 @@ Status HdfsScanNode::Init(const TPlanNode& tnode, RuntimeState* state) {
     RETURN_IF_ERROR(Expr::CreateExprTree(pool_, filter.target_expr, &filter_ctx.expr));
     filter_ctx.filter = state->filter_bank()->RegisterFilter(filter, false);
 
-    RuntimeProfile* profile = state->obj_pool()->Add(new RuntimeProfile(state->obj_pool(),
-        Substitute("Filter $0", filter.filter_id)));
+    uint32_t log_space = state->filter_bank()->GetLogSpaceForNdv(filter.ndv_estimate);
+    string filter_profile_title = Substitute("Filter $0 ($1)", filter.filter_id,
+        PrettyPrinter::Print(1 << log_space, TUnit::BYTES));
+    RuntimeProfile* profile = state->obj_pool()->Add(
+        new RuntimeProfile(state->obj_pool(), filter_profile_title));
     runtime_profile_->AddChild(profile);
     filter_ctx.stats = state->obj_pool()->Add(
         new FilterStats(profile, filter.is_bound_by_partition_columns));
