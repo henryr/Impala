@@ -297,7 +297,7 @@ public final class RuntimeFilterGenerator {
 
     public void setIsBroadcast(boolean isBroadcast) { isBroadcastJoin_ = isBroadcast; }
 
-    public void computeNdvEstimate() { ndvEstimate_ = src_.getChild(1).getCardinality(); }
+    public void computeNdvEstimate() { ndvEstimate_ = -1; } //src_.getChild(1).getCardinality(); }
 
     public void computeHasLocalTarget() {
       Preconditions.checkNotNull(src_.getFragment());
