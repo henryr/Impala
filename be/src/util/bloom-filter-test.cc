@@ -229,6 +229,21 @@ TEST(BloomFilter, Or) {
   ASSERT_FALSE(bf2.Find(81));
 }
 
+#include "gutil/bits.h"
+
+TEST(BloomFilter, PrintFpRates) {
+  for (int j = 0; j < 5; ++j) {
+    LOG(INFO) << "-----------  " << (0.5 + (j * .1));
+    int size = 1024 * 1024;
+    for (int i = 0; i < 10; ++i) {
+      size_t max_ndv = BloomFilter::MaxNdv(Bits::Log2Ceiling64(size), 0.5 + (j * 0.1));
+      LOG(INFO) << "Size: " << PrettyPrinter::Print(size, TUnit::BYTES) << "  NDV: "
+                << PrettyPrinter::Print(max_ndv, TUnit::UNIT);
+      size *= 2;
+    }
+  }
+}
+
 }  // namespace impala
 
 int main(int argc, char** argv) {

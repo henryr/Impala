@@ -100,7 +100,7 @@ class RuntimeFilterBank {
   /// Releases all memory allocated for BloomFilters.
   void Close();
 
-  static const int32_t MIN_BLOOM_FILTER_SIZE = 4 * 1024;           // 4KB
+  static const int32_t MIN_BLOOM_FILTER_SIZE = 1024 * 1024;           // 1MB
   static const int32_t MAX_BLOOM_FILTER_SIZE = 16 * 1024 * 1024;   // 16MB
 
  private:
