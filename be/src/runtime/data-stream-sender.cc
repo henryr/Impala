@@ -38,6 +38,13 @@
 #include "rpc/thrift-client.h"
 #include "rpc/thrift-util.h"
 
+#include "service/impala-server.h"
+#include "service/impala-server-rpc.h"
+#include "service/prototest.pb.h"
+#include "service/prototest.proxy.h"
+#include "kudu/kudu_rpc/rpc_controller.h"
+#include "kudu/util/net/sockaddr.h"
+
 #include "gen-cpp/Types_types.h"
 #include "gen-cpp/ImpalaInternalService.h"
 #include "gen-cpp/ImpalaInternalService_types.h"
@@ -191,38 +198,69 @@ void DataStreamSender::Channel::TransmitData(int thread_id, const TRowBatch* bat
   rpc_done_cv_.notify_one();
 }
 
+using kudu::rpc_test::TransmitDataRequestPB;
+using kudu::rpc_test::TransmitDataResponsePB;
+using kudu::rpc_test::RowBatchPB;
+using kudu::rpc_test::ImpalaKRPCServiceProxy;
+using kudu::rpc::RpcController;
+using kudu::Sockaddr;
+
 void DataStreamSender::Channel::TransmitDataHelper(const TRowBatch* batch) {
   DCHECK(batch != NULL);
   VLOG_ROW << "Channel::TransmitData() instance_id=" << fragment_instance_id_
            << " dest_node=" << dest_node_id_
            << " #rows=" << batch->num_rows;
-  TTransmitDataParams params;
-  params.protocol_version = ImpalaInternalServiceVersion::V1;
-  params.__set_dest_fragment_instance_id(fragment_instance_id_);
-  params.__set_dest_node_id(dest_node_id_);
-  params.__set_row_batch(*batch);  // yet another copy
-  params.__set_eos(false);
-  params.__set_sender_id(parent_->sender_id_);
 
-  ImpalaBackendConnection client(runtime_state_->impalad_client_cache(),
-      address_, &rpc_status_);
-  if (!rpc_status_.ok()) return;
+  TransmitDataRequestPB request;
+  request.mutable_dest_fragment_instance_id()->set_lo(fragment_instance_id_.lo);
+  request.mutable_dest_fragment_instance_id()->set_hi(fragment_instance_id_.hi);
+  request.set_dest_node_id(dest_node_id_);
+  RowBatchPB* row_batch_pb = request.mutable_row_batch();
+  row_batch_pb->set_num_rows(batch->num_rows);
+  for (int32_t tuple: batch->row_tuples) row_batch_pb->add_row_tuples(tuple);
+  for (int32_t offset: batch->tuple_offsets) row_batch_pb->add_tuple_offsets(offset);
+  row_batch_pb->set_tuple_data(batch->tuple_data);
+  row_batch_pb->set_uncompressed_size(batch->uncompressed_size);
+  row_batch_pb->set_compression_type(batch->compression_type);
+  request.set_eos(false);
+  request.set_sender_id(parent_->sender_id_);
 
-  TTransmitDataResult res;
-  client->SetTransmitDataCounter(parent_->thrift_transmit_timer_);
-  rpc_status_ = DoTransmitDataRpc(&client, params, &res);
-  client->ResetTransmitDataCounter();
-  if (!rpc_status_.ok()) return;
+  RpcController controller;
+  TransmitDataResponsePB response;
+  Sockaddr address;
+  address.ParseString("127.0.0.1", 28000);
+  ImpalaKRPCServiceProxy p(ExecEnv::GetInstance()->impala_server()->rpc()->messenger(),
+      address);
+  kudu::Status rpc_status = p.TransmitData(request, &response, &controller);
+
+  // TTransmitDataParams params;
+  // params.protocol_version = ImpalaInternalServiceVersion::V1;
+  // params.__set_dest_fragment_instance_id(fragment_instance_id_);
+  // params.__set_dest_node_id(dest_node_id_);
+  // params.__set_row_batch(*batch);  // yet another copy
+  // params.__set_eos(false);
+  // params.__set_sender_id(parent_->sender_id_);
+
+  // ImpalaBackendConnection client(runtime_state_->impalad_client_cache(),
+  //     address_, &rpc_status_);
+  // if (!rpc_status_.ok()) return;
+
+  // TTransmitDataResult res;
+  // client->SetTransmitDataCounter(parent_->thrift_transmit_timer_);
+  // rpc_status_ = DoTransmitDataRpc(&client, params, &res);
+  // client->ResetTransmitDataCounter();
+  // if (!rpc_status_.ok()) return;
+
   COUNTER_ADD(parent_->profile_->total_time_counter(),
       parent_->thrift_transmit_timer_->LapTime());
 
-  if (res.status.status_code != TErrorCode::OK) {
-    rpc_status_ = res.status;
-  } else {
-    num_data_bytes_sent_ += RowBatch::GetBatchSize(*batch);
-    VLOG_ROW << "incremented #data_bytes_sent="
-             << num_data_bytes_sent_;
-  }
+  // if (res.status.status_code != TErrorCode::OK) {
+  //   rpc_status_ = res.status;
+  // } else {
+  num_data_bytes_sent_ += RowBatch::GetBatchSize(*batch);
+  VLOG_ROW << "incremented #data_bytes_sent="
+           << num_data_bytes_sent_;
+  // }
 }
 
 Status DataStreamSender::Channel::DoTransmitDataRpc(ImpalaBackendConnection* client,
@@ -295,27 +333,49 @@ Status DataStreamSender::Channel::FlushAndSendEos(RuntimeState* state) {
 
   RETURN_IF_ERROR(GetSendStatus());
 
-  Status client_cnxn_status;
-  ImpalaBackendConnection client(runtime_state_->impalad_client_cache(),
-      address_, &client_cnxn_status);
-  RETURN_IF_ERROR(client_cnxn_status);
+  // Status client_cnxn_status;
+  // ImpalaBackendConnection client(runtime_state_->impalad_client_cache(),
+  //     address_, &client_cnxn_status);
+  // RETURN_IF_ERROR(client_cnxn_status);
 
-  TTransmitDataParams params;
-  params.protocol_version = ImpalaInternalServiceVersion::V1;
-  params.__set_dest_fragment_instance_id(fragment_instance_id_);
-  params.__set_dest_node_id(dest_node_id_);
-  params.__set_sender_id(parent_->sender_id_);
-  params.__set_eos(true);
-  TTransmitDataResult res;
+  // TTransmitDataParams params;
+  // params.protocol_version = ImpalaInternalServiceVersion::V1;
+  // params.__set_dest_fragment_instance_id(fragment_instance_id_);
+  // params.__set_dest_node_id(dest_node_id_);
+  // params.__set_sender_id(parent_->sender_id_);
+  // params.__set_eos(true);
+  // TTransmitDataResult res;
 
-  VLOG_RPC << "calling TransmitData(eos=true) to terminate channel.";
-  rpc_status_ = DoTransmitDataRpc(&client, params, &res);
-  if (!rpc_status_.ok()) {
-    return Status(rpc_status_.code(),
-       Substitute("TransmitData(eos=true) to $0 failed:\n $1",
-        TNetworkAddressToString(address_), rpc_status_.msg().msg()));
-  }
-  return Status(res.status);
+  // VLOG_RPC << "calling TransmitData(eos=true) to terminate channel.";
+  // rpc_status_ = DoTransmitDataRpc(&client, params, &res);
+  // if (!rpc_status_.ok()) {
+  //   return Status(rpc_status_.code(),
+  //      Substitute("TransmitData(eos=true) to $0 failed:\n $1",
+  //       TNetworkAddressToString(address_), rpc_status_.msg().msg()));
+  // }
+  // return Status(res.status);
+
+  TransmitDataRequestPB request;
+  request.mutable_dest_fragment_instance_id()->set_lo(fragment_instance_id_.lo);
+  request.mutable_dest_fragment_instance_id()->set_hi(fragment_instance_id_.hi);
+  request.set_dest_node_id(dest_node_id_);
+  request.mutable_row_batch()->set_num_rows(0);
+  request.mutable_row_batch()->set_tuple_data("");
+  request.mutable_row_batch()->set_compression_type(0);
+  request.mutable_row_batch()->set_uncompressed_size(0);
+  request.set_eos(true);
+  request.set_sender_id(parent_->sender_id_);
+
+  RpcController controller;
+  TransmitDataResponsePB response;
+  Sockaddr address;
+  address.ParseString("127.0.0.1", 28000);
+  ImpalaKRPCServiceProxy p(ExecEnv::GetInstance()->impala_server()->rpc()->messenger(),
+      address);
+  kudu::Status rpc_status = p.TransmitData(request, &response, &controller);
+
+  if (rpc_status.ok()) return Status::OK();
+  return Status(rpc_status.ToString());
 }
 
 void DataStreamSender::Channel::Teardown(RuntimeState* state) {

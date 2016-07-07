@@ -70,6 +70,7 @@ set(KRPC_LIBS
   rpc_header_proto
   rpc_introspection_proto
   kudu_util
+  gutil
   ${PROTOBUF_PROTOC_STATIC_LIBRARY}
   ${PROTOBUF_STATIC_LIBRARY}
   # protoc
@@ -85,9 +86,9 @@ ADD_EXPORTABLE_LIBRARY(krpc
 ### RPC generator tool
 add_executable(protoc-gen-krpc protoc-gen-krpc.cc)
 target_link_libraries(protoc-gen-krpc
-    ${KUDU_BASE_LIBS}
-#    protoc
-#    protobuf
+  ${KUDU_BASE_LIBS}
+  ${PROTOBUF_PROTOC_STATIC_LIBRARY}
+  ${PROTOBUF_STATIC_LIBRARY}
     gutil
     kudu_util)
 

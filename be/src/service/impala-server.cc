@@ -74,6 +74,8 @@
 #include "util/summary-util.h"
 #include "util/uid-util.h"
 
+#include "service/impala-server-rpc.h"
+
 #include "gen-cpp/Types_types.h"
 #include "gen-cpp/ImpalaService.h"
 #include "gen-cpp/DataSinks_types.h"
@@ -368,6 +370,9 @@ ImpalaServer::ImpalaServer(ExecEnv* exec_env)
   }
 
   exec_env_->SetImpalaServer(this);
+
+  rpc_.reset(new ImpalaServerRPC(this));
+  rpc_->Start();
 }
 
 Status ImpalaServer::LogLineageRecord(const QueryExecState& query_exec_state) {
@@ -1129,6 +1134,7 @@ void ImpalaServer::TransmitData(
   // TODO: fix Thrift so we can simply take ownership of thrift_batch instead
   // of having to copy its data
   if (params.row_batch.num_rows > 0) {
+    // LOG(INFO) << "HNR: THRIFT -> " << PrintThrift(params.row_batch);
     Status status = exec_env_->stream_mgr()->AddData(
         params.dest_fragment_instance_id, params.dest_node_id, params.row_batch,
         params.sender_id);

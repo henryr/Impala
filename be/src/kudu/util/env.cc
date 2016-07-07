@@ -5,6 +5,8 @@
 #include "kudu/util/env.h"
 #include "kudu/util/faststring.h"
 
+#include <glog/logging.h>
+
 namespace kudu {
 
 Env::~Env() {

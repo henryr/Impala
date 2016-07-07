@@ -250,6 +250,11 @@ set(LIBS ${LIBS} ${LZ4_LIBRARIES})
 message(STATUS "Lz4 include dir: " ${LZ4_INCLUDE_DIR})
 message(STATUS "Lz4 library: " "${LZ4_STATIC_LIB}")
 
+find_package(LibEvent REQUIRED)
+set(LIBS ${LIBS} ${LIBEVENT_LIBRARIES})
+message(STATUS "Libevent include dir: " ${LIBEVENT_INCLUDE_DIR})
+message(STATUS "Libevent library: " ${LIBEVENT_STATIC_LIB})
+
 # find re2 headers and libs
 find_package(Re2 REQUIRED)
 include_directories(${RE2_INCLUDE_DIR})
@@ -261,7 +266,7 @@ find_package(Protobuf REQUIRED)
 include_directories(SYSTEM ${PROTOBUF_INCLUDE_DIR})
 message(STATUS "Protobuf library: " ${PROTOBUF_STATIC_LIBRARY})
 # TODO - how do we decide whether to use shared or static?
-#set(LIBS ${LIBS} ${PROTOBUF_STATIC_LIBRARY})# ${PROTOBUF_PROTOC_STATIC_LIBRARY})
+set(LIBS ${LIBS} ${PROTOBUF_STATIC_LIBRARY})# ${PROTOBUF_PROTOC_STATIC_LIBRARY})
 find_package(KRPC REQUIRED)
 
 # find rapidjson headers

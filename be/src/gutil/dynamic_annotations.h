@@ -432,12 +432,12 @@
 #endif // defined(__GNUC__) && (!defined(SWIG)) && (!defined(__clang__))
 
 
-/* TODO(user) -- Replace __CLANG_SUPPORT_DYN_ANNOTATION__ with the 
+/* TODO(user) -- Replace __CLANG_SUPPORT_DYN_ANNOTATION__ with the
    appropriate feature ID. */
 #if defined(__clang__) && (!defined(SWIG)) \
     && defined(__CLANG_SUPPORT_DYN_ANNOTATION__)
 
-/* TODO(user) -- The exclusive lock here ignores writes as well, but 
+/* TODO(user) -- The exclusive lock here ignores writes as well, but
    allows INGORE_READS_AND_WRITES to work properly. */
 #undef  ANNOTALYSIS_IGNORE_READS_BEGIN
 #define ANNOTALYSIS_IGNORE_READS_BEGIN \
@@ -447,7 +447,7 @@
   __attribute__((unlock_function("*")))
 
 #if DYNAMIC_ANNOTATIONS_ENABLED == 0
-/* Turn on certain macros for static analysis, even if dynamic annotations are 
+/* Turn on certain macros for static analysis, even if dynamic annotations are
    not enabled. */
 #define CLANG_ANNOTALYSIS_ONLY 1
 
@@ -583,7 +583,7 @@ double ValgrindSlowdown(void);
 // to ASan alignment restrictions.
 // Method is NOT thread-safe in the sense that no two threads can
 // (un)poison memory in the same memory region simultaneously.
-void __asan_poison_memory_region(void const volatile *addr, size_t size);
+  // void __asan_poison_memory_region(void const volatile *addr, size_t size);
 // Marks memory region [addr, addr+size) as addressable.
 // This memory must be previously allocated by the user program. Accessing
 // addresses in this region is allowed until this region is poisoned again.
@@ -591,7 +591,7 @@ void __asan_poison_memory_region(void const volatile *addr, size_t size);
 // ASan alignment restrictions.
 // Method is NOT thread-safe in the sense that no two threads can
 // (un)poison memory in the same memory region simultaneously.
-void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
+  //void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
 
 // User code should use macros instead of functions.
 #if defined(__SANITIZE_ADDRESS__) || defined(ADDRESS_SANITIZER)

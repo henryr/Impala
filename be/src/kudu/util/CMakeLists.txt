@@ -98,9 +98,9 @@ set(UTIL_SRCS
   condition_variable.cc
 #  crc.cc
   debug-util.cc
-  # debug/trace_event_impl.cc
-  # debug/trace_event_impl_constants.cc
-  # debug/trace_event_synthetic_delay.cc
+  debug/trace_event_impl.cc
+  debug/trace_event_impl_constants.cc
+  debug/trace_event_synthetic_delay.cc
   env.cc env_posix.cc env_util.cc
   errno.cc
   faststring.cc
@@ -179,7 +179,7 @@ set(UTIL_LIBS
   # crcutil
   #gflags
   #glog
-  #gutil
+  gutil
   histogram_proto
   pb_util_proto
   #protobuf

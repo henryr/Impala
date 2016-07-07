@@ -69,6 +69,8 @@ class TQueryOptions;
 class TGetExecSummaryResp;
 class TGetExecSummaryReq;
 
+class ImpalaServerRPC;
+
 /// An ImpalaServer contains both frontend and backend functionality;
 /// it implements ImpalaService (Beeswax), ImpalaHiveServer2Service (HiveServer2)
 /// and ImpalaInternalService APIs.
@@ -87,6 +89,8 @@ class ImpalaServer : public ImpalaServiceIf, public ImpalaHiveServer2ServiceIf,
  public:
   ImpalaServer(ExecEnv* exec_env);
   ~ImpalaServer();
+
+  ImpalaServerRPC* rpc() { return rpc_.get(); }
 
   /// ImpalaService rpcs: Beeswax API (implemented in impala-beeswax-server.cc)
   virtual void query(beeswax::QueryHandle& query_handle, const beeswax::Query& query);
@@ -972,6 +976,8 @@ class ImpalaServer : public ImpalaServiceIf, public ImpalaHiveServer2ServiceIf,
 
   /// True if Impala server is offline, false otherwise.
   bool is_offline_;
+
+  boost::scoped_ptr<ImpalaServerRPC> rpc_;
 };
 
 /// Create an ImpalaServer and Thrift servers.

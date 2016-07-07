@@ -206,7 +206,7 @@ set(CLANG_INCLUDE_FLAGS
   "-I${CMAKE_CURRENT_SOURCE_DIR}/src"
   "-I${CMAKE_CURRENT_SOURCE_DIR}/generated-sources"
   "-I${THRIFT_INCLUDE_DIR}"
-  "-I${SQUEASEL_INCLUDE_DIR}"
+  # "-I${SQUEASEL_INCLUDE_DIR}"
   "-I${GLOG_INCLUDE_DIR}"
   "-I${GFLAGS_INCLUDE_DIR}"
   "-I${RAPIDJSON_INCLUDE_DIR}"
@@ -265,6 +265,7 @@ set (IMPALA_LINK_LIBS
   Exprs
   GlobalFlags
   ImpalaThrift
+  prototest
   ResourceBroker
   Rpc
   Runtime
