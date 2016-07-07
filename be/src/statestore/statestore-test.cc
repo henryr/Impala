@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#include "common/init.h"
+#include "statestore/statestore-subscriber.h"
 #include "testutil/gtest-util.h"
 #include "testutil/in-process-servers.h"
-#include "common/init.h"
 #include "util/metrics.h"
-#include "statestore/statestore-subscriber.h"
+#include "util/webserver.h"
 
 #include "common/names.h"
 
@@ -34,64 +35,53 @@ DECLARE_int32(state_store_port);
 
 namespace impala {
 
-TEST(StatestoreTest, SmokeTest) {
-  // All allocations done by 'new' to avoid problems shutting down Thrift servers
-  // gracefully.
-  InProcessStatestore* ips = InProcessStatestore::StartWithEphemeralPorts();
-  ASSERT_TRUE(ips != NULL) << "Could not start Statestore";
-  // Port already in use
-  InProcessStatestore* statestore_wont_start =
-      new InProcessStatestore(ips->port(), ips->port() + 10);
-  ASSERT_FALSE(statestore_wont_start->Start().ok());
+class StatestoreTest : public testing::Test {
+ protected:
+  RpcMgr rpc_mgr_;
+  unique_ptr<Statestore> statestore_;
+  unique_ptr<MetricGroup> metrics_;
+  unique_ptr<Webserver> webserver_;
 
-  int subscriber_port = FindUnusedEphemeralPort();
-  ASSERT_NE(subscriber_port, -1) << "Could not find unused port";
+  virtual void SetUp() {
+    metrics_.reset(new MetricGroup("foo"));
+    webserver_.reset(new Webserver());
+    webserver_->Start();
+    rpc_mgr_.Init();
+    StartThreadInstrumentation(metrics_.get(), webserver_.get());
+    statestore_.reset(new Statestore(metrics_.get()));
+    statestore_->RegisterWebpages(webserver_.get());
+    statestore_->Start();
+  }
 
-  StatestoreSubscriber* sub_will_start = new StatestoreSubscriber("sub1",
-      MakeNetworkAddress("localhost", subscriber_port),
-      MakeNetworkAddress("localhost", ips->port()), new MetricGroup(""));
-  ASSERT_OK(sub_will_start->Start());
+  virtual void TearDown() {
+    statestore_->SetExitFlag();
+    statestore_->MainLoop();
+  }
+};
 
-  // Confirm that a subscriber trying to use an in-use port will fail to start.
-  StatestoreSubscriber* sub_will_not_start = new StatestoreSubscriber("sub2",
-      MakeNetworkAddress("localhost", subscriber_port),
-      MakeNetworkAddress("localhost", ips->port()), new MetricGroup(""));
-  ASSERT_FALSE(sub_will_not_start->Start().ok());
+TEST_F(StatestoreTest, SmokeTest) {
+  StatestoreSubscriber sub_will_start("sub1",
+      MakeNetworkAddress("localhost", FLAGS_state_store_port + 10),
+      MakeNetworkAddress("localhost", FLAGS_state_store_port), &rpc_mgr_, metrics_.get());
+
+  ASSERT_OK(sub_will_start.Start());
+  ASSERT_OK(rpc_mgr_.StartServices(FLAGS_state_store_port + 10));
+
+  int64_t now = MonotonicMillis();
+  while (
+      sub_will_start.num_heartbeats_received() < 3 && (MonotonicMillis() - now < 10000)) {
+    SleepForMs(100);
+  }
+
+  ASSERT_GE(sub_will_start.num_heartbeats_received(), 3)
+      << "Only received " << sub_will_start.num_heartbeats_received() << " heartbeats";
+
+  sub_will_start.Shutdown();
+
+  rpc_mgr_.UnregisterServices();
+
+  // TODO(KRPC): SSL test
 }
-
-TEST(StatestoreSslTest, SmokeTest) {
-  string impala_home(getenv("IMPALA_HOME"));
-  stringstream server_cert;
-  server_cert << impala_home << "/be/src/testutil/server-cert.pem";
-  FLAGS_ssl_server_certificate = server_cert.str();
-  FLAGS_ssl_client_ca_certificate = server_cert.str();
-  stringstream server_key;
-  server_key << impala_home << "/be/src/testutil/server-key.pem";
-  FLAGS_ssl_private_key = server_key.str();
-
-  InProcessStatestore* statestore =  InProcessStatestore::StartWithEphemeralPorts();
-  if (statestore == NULL) FAIL() << "Unable to start Statestore";
-
-  int subscriber_port = FindUnusedEphemeralPort();
-  ASSERT_NE(subscriber_port, -1) << "Could not find unused port";
-
-  StatestoreSubscriber* sub_will_start = new StatestoreSubscriber("smoke_sub1",
-      MakeNetworkAddress("localhost", subscriber_port),
-      MakeNetworkAddress("localhost", statestore->port()), new MetricGroup(""));
-  ASSERT_OK(sub_will_start->Start());
-
-  stringstream invalid_server_cert;
-  invalid_server_cert << impala_home << "/be/src/testutil/invalid-server-cert.pem";
-  FLAGS_ssl_client_ca_certificate = invalid_server_cert.str();
-  int another_subscriber_port = FindUnusedEphemeralPort();
-  ASSERT_NE(another_subscriber_port, -1) << "Could not find unused port";
-
-  StatestoreSubscriber* sub_will_not_start = new StatestoreSubscriber("smoke_sub2",
-      MakeNetworkAddress("localhost", another_subscriber_port),
-      MakeNetworkAddress("localhost", statestore->port()), new MetricGroup(""));
-  ASSERT_FALSE(sub_will_not_start->Start().ok());
-}
-
 }
 
 IMPALA_TEST_MAIN();

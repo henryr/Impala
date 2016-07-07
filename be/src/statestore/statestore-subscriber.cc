@@ -27,18 +27,31 @@
 
 #include "common/logging.h"
 #include "common/status.h"
-#include "statestore/failure-detector.h"
 #include "gen-cpp/StatestoreService_types.h"
+#include "kudu/util/net/net_util.h"
+#include "rpc/rpc-builder.h"
 #include "rpc/rpc-trace.h"
 #include "rpc/thrift-util.h"
-#include "util/time.h"
+#include "statestore/failure-detector.h"
+#include "statestore/statestore.proxy.h"
+#include "statestore/statestore.service.h"
 #include "util/debug-util.h"
+#include "util/time.h"
 
 #include "common/names.h"
 
 using boost::posix_time::seconds;
-using namespace apache::thrift;
 using namespace strings;
+
+using kudu::rpc::RpcController;
+using kudu::rpc::RpcContext;
+using impala::rpc::StatestoreServiceProxy;
+using impala::rpc::RegisterSubscriberRequestPB;
+using impala::rpc::RegisterSubscriberResponsePB;
+using impala::rpc::HeartbeatRequestPB;
+using impala::rpc::HeartbeatResponsePB;
+using impala::rpc::UpdateStateRequestPB;
+using impala::rpc::UpdateStateResponsePB;
 
 DEFINE_int32(statestore_subscriber_timeout_seconds, 30, "The amount of time (in seconds)"
      " that may elapse before the connection with the statestore is considered lost.");
@@ -60,29 +73,46 @@ const string CALLBACK_METRIC_PATTERN = "statestore-subscriber.topic-$0.processin
 // statestore after a failure.
 const int32_t SLEEP_INTERVAL_MS = 5000;
 
-typedef ClientConnection<StatestoreServiceClient> StatestoreConnection;
-
-// Proxy class for the subscriber heartbeat thrift API, which
-// translates RPCs into method calls on the local subscriber object.
-class StatestoreSubscriberThriftIf : public StatestoreSubscriberIf {
+class StatestoreSubscriberImpl : public rpc::StatestoreSubscriberIf {
  public:
-  StatestoreSubscriberThriftIf(StatestoreSubscriber* subscriber)
-      : subscriber_(subscriber) { DCHECK(subscriber != NULL); }
-  virtual void UpdateState(TUpdateStateResponse& response,
-                           const TUpdateStateRequest& params) {
-    TUniqueId registration_id;
-    if (params.__isset.registration_id) {
-      registration_id = params.registration_id;
+  StatestoreSubscriberImpl(const scoped_refptr<kudu::MetricEntity>& entity,
+      const scoped_refptr<kudu::rpc::ResultTracker> tracker)
+    : rpc::StatestoreSubscriberIf(entity, tracker) {}
+
+  void set_subscriber(StatestoreSubscriber* sub) { subscriber_ = sub; }
+
+  virtual void UpdateState(const UpdateStateRequestPB* request,
+      UpdateStateResponsePB* response, RpcContext* context) {
+    TUpdateStateRequest thrift_request;
+    Status status = DeserializeThriftFromProtoWrapper(*request, &thrift_request);
+    TUpdateStateResponse thrift_response;
+    if (status.ok()) {
+      TUniqueId registration_id;
+      if (thrift_request.__isset.registration_id) {
+        registration_id = thrift_request.registration_id;
+      }
+
+      status = subscriber_->UpdateState(thrift_request.topic_deltas, registration_id,
+          &thrift_response.topic_updates, &thrift_response.skipped);
+      thrift_response.__set_skipped(thrift_response.skipped);
     }
 
-    subscriber_->UpdateState(params.topic_deltas, registration_id,
-        &response.topic_updates, &response.skipped).ToThrift(&response.status);
-    // Make sure Thrift thinks the field is set.
-    response.__set_skipped(response.skipped);
+    status.ToThrift(&thrift_response.status);
+    SerializeThriftToProtoWrapper(&thrift_response, response);
+    context->RespondSuccess();
   }
 
-  virtual void Heartbeat(THeartbeatResponse& response, const THeartbeatRequest& request) {
-    subscriber_->Heartbeat(request.registration_id);
+  virtual void Heartbeat(const HeartbeatRequestPB* request, HeartbeatResponsePB* response,
+      RpcContext* context) {
+    THeartbeatRequest thrift_request;
+    Status status = DeserializeThriftFromProtoWrapper(*request, &thrift_request);
+    if (status.ok()) {
+      subscriber_->Heartbeat(thrift_request.registration_id);
+    }
+
+    THeartbeatResponse thrift_response;
+    SerializeThriftToProtoWrapper(&thrift_response, response);
+    context->RespondSuccess();
   }
 
  private:
@@ -91,18 +121,16 @@ class StatestoreSubscriberThriftIf : public StatestoreSubscriberIf {
 
 StatestoreSubscriber::StatestoreSubscriber(const std::string& subscriber_id,
     const TNetworkAddress& heartbeat_address, const TNetworkAddress& statestore_address,
-    MetricGroup* metrics)
-    : subscriber_id_(subscriber_id), heartbeat_address_(heartbeat_address),
-      statestore_address_(statestore_address),
-      thrift_iface_(new StatestoreSubscriberThriftIf(this)),
-      failure_detector_(new TimeoutFailureDetector(
-          seconds(FLAGS_statestore_subscriber_timeout_seconds),
-          seconds(FLAGS_statestore_subscriber_timeout_seconds / 2))),
-      is_registered_(false),
-      client_cache_(new StatestoreClientCache(FLAGS_statestore_subscriber_cnxn_attempts,
-          FLAGS_statestore_subscriber_cnxn_retry_interval_ms, 0, 0, "",
-          !FLAGS_ssl_client_ca_certificate.empty())),
-      metrics_(metrics->GetOrCreateChildGroup("statestore-subscriber")) {
+    RpcMgr* rpc_mgr, MetricGroup* metrics)
+  : subscriber_id_(subscriber_id),
+    heartbeat_address_(heartbeat_address),
+    statestore_address_(statestore_address),
+    failure_detector_(
+        new TimeoutFailureDetector(seconds(FLAGS_statestore_subscriber_timeout_seconds),
+            seconds(FLAGS_statestore_subscriber_timeout_seconds / 2))),
+    is_registered_(false),
+    rpc_mgr_(rpc_mgr),
+    metrics_(metrics->GetOrCreateChildGroup("statestore-subscriber")) {
   connected_to_statestore_metric_ =
       metrics_->AddProperty("statestore-subscriber.connected", false);
   last_recovery_duration_metric_ = metrics_->AddGauge(
@@ -118,8 +146,6 @@ StatestoreSubscriber::StatestoreSubscriber(const std::string& subscriber_id,
 
   registration_id_metric_ = metrics->AddProperty<string>(
       "statestore-subscriber.registration-id", "N/A");
-
-  client_cache_->InitMetrics(metrics, "statestore-subscriber.statestore");
 }
 
 Status StatestoreSubscriber::AddTopic(const Statestore::TopicId& topic_id,
@@ -137,10 +163,6 @@ Status StatestoreSubscriber::AddTopic(const Statestore::TopicId& topic_id,
 }
 
 Status StatestoreSubscriber::Register() {
-  Status client_status;
-  StatestoreConnection client(client_cache_.get(), statestore_address_, &client_status);
-  RETURN_IF_ERROR(client_status);
-
   TRegisterSubscriberRequest request;
   request.topic_registrations.reserve(update_callbacks_.size());
   for (const UpdateCallbacks::value_type& topic: update_callbacks_) {
@@ -152,9 +174,13 @@ Status StatestoreSubscriber::Register() {
 
   request.subscriber_location = heartbeat_address_;
   request.subscriber_id = subscriber_id_;
+
   TRegisterSubscriberResponse response;
-  RETURN_IF_ERROR(
-      client.DoRpc(&StatestoreServiceClient::RegisterSubscriber, request, &response));
+  auto rpc = RpcBuilder<StatestoreServiceProxy>::MakeRpc<RegisterSubscriberRequestPB,
+      RegisterSubscriberResponsePB>(statestore_address_, rpc_mgr_);
+  RETURN_IF_ERROR(rpc.ExecuteWithThriftArgs(
+      &StatestoreServiceProxy::RegisterSubscriber, &request, &response));
+
   Status status = Status(response.status);
   if (status.ok()) connected_to_statestore_metric_->set_value(true);
   if (response.__isset.registration_id) {
@@ -180,16 +206,11 @@ Status StatestoreSubscriber::Start() {
     lock_guard<mutex> l(lock_);
     LOG(INFO) << "Starting statestore subscriber";
 
-    // Backend must be started before registration
-    boost::shared_ptr<TProcessor> processor(
-        new StatestoreSubscriberProcessor(thrift_iface_));
-    boost::shared_ptr<TProcessorEventHandler> event_handler(
-        new RpcEventHandler("statestore-subscriber", metrics_));
-    processor->setEventHandler(event_handler);
+    StatestoreSubscriberImpl* impl;
+    RETURN_IF_ERROR(rpc_mgr_->RegisterService<StatestoreSubscriberImpl>(1, 10, &impl));
+    impl->set_subscriber(this);
 
-    heartbeat_server_.reset(new ThriftServer("StatestoreSubscriber", processor,
-        heartbeat_address_.port, NULL, NULL, 5));
-    RETURN_IF_ERROR(heartbeat_server_->Start());
+    // Backend must be started before registration
     LOG(INFO) << "Registering with statestore";
     status = Register();
     if (status.ok()) {
@@ -207,13 +228,26 @@ Status StatestoreSubscriber::Start() {
   return status;
 }
 
+void StatestoreSubscriber::Shutdown() {
+  {
+    lock_guard<mutex> l(lock_);
+    is_shutdown_ = true;
+  }
+  recovery_mode_thread_->Join();
+}
+
+bool StatestoreSubscriber::IsShutdown() {
+  lock_guard<mutex> l(lock_);
+  return is_shutdown_;
+}
+
 void StatestoreSubscriber::RecoveryModeChecker() {
   failure_detector_->UpdateHeartbeat(STATESTORE_ID, true);
 
   // Every few seconds, wake up and check if the failure detector has determined
   // that the statestore has failed from our perspective. If so, enter recovery
   // mode and try to reconnect, followed by reregistering all subscriptions.
-  while (true) {
+  while (!IsShutdown()) {
     if (failure_detector_->GetPeerState(STATESTORE_ID) == FailureDetector::FAILED) {
       // When entering recovery mode, the class-wide lock_ is taken to
       // ensure mutual exclusion with any operations in flight.

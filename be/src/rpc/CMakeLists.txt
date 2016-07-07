@@ -23,6 +23,7 @@ set(EXECUTABLE_OUTPUT_PATH "${BUILD_OUTPUT_ROOT_DIRECTORY}/rpc")
 
 add_library(Rpc
   authentication.cc
+  rpc-mgr.cc
   rpc-trace.cc
   TAcceptQueueServer.cpp
   thrift-util.cc
@@ -30,8 +31,20 @@ add_library(Rpc
   thrift-server.cc
   thrift-thread.cc
 )
-add_dependencies(Rpc thrift-deps)
+add_dependencies(Rpc generated-deps)
+
+KRPC_GENERATE(RPC_TEST_SVC_PROTO_SRCS RPC_TEST_SVC_PROTO_HDRS
+  RPC_TEST_SVC_PROTO_TGTS
+  SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}
+  PROTO_FILES rpc_test.proto)
+
+add_custom_target(rpc_test-proto-deps DEPENDS ${RPC_TEST_SVC_PROTO_TGTS})
 
 ADD_BE_TEST(thrift-util-test)
 ADD_BE_TEST(thrift-server-test)
 ADD_BE_TEST(authentication-test)
+
+ADD_BE_TEST(rpc-mgr-test)
+ADD_DEPENDENCIES(rpc-mgr-test rpc_test-proto-deps)
+add_library(rpc_test-proto ${RPC_TEST_SVC_PROTO_SRCS})
+target_link_libraries(rpc-mgr-test rpc_test-proto)
