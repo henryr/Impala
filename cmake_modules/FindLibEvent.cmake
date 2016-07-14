@@ -27,6 +27,12 @@ find_library(LIBEVENT_LIBS NAMES ev
   DOC "Path to LIBEVENT library"
 )
 
+find_library(LIBEVENT_DYNAMIC_LIB NAMES libev.so
+  PATHS ${LIBEVENT_SEARCH_LIB_PATH}
+        NO_DEFAULT_PATH
+  DOC "Path to LIBEVENT dynamic library"
+)
+
 find_library(LIBEVENT_STATIC_LIB NAMES libev.a
   PATHS ${LIBEVENT_SEARCH_LIB_PATH}
         NO_DEFAULT_PATH
@@ -41,12 +47,15 @@ if (NOT LIBEVENT_LIBS OR NOT LIBEVENT_STATIC_LIB)
 else()
   set(LIBEVENT_FOUND TRUE)
   add_library(libevent STATIC IMPORTED)
+  add_library(libevent_so SHARED IMPORTED)
   set_target_properties(libevent PROPERTIES IMPORTED_LOCATION "${LIBEVENT_STATIC_LIB}")
+  set_target_properties(libevent_so PROPERTIES IMPORTED_LOCATION "${LIBEVENT_DYNAMIC_LIB}")
 endif ()
 
 mark_as_advanced(
   LIBEVENT_INCLUDE_DIR
   LIBEVENT_LIBS
   LIBEVENT_STATIC_LIB
+  LIBEVENT_DYNAMIC_LIB
   libevent
 )
