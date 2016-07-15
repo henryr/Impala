@@ -99,7 +99,7 @@ Status ImpalaServerRPC::Start() {
   scoped_refptr<ServicePool> service_pool =
       new ServicePool(std::move(service), messenger_->metric_entity(), 50);
   messenger_->RegisterService(ImpalaKRPCServiceIf::static_service_name(), service_pool);
-  service_pool->Init(4);
+  service_pool->Init(16);
 
   return Status::OK();
 }

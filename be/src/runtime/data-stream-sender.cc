@@ -230,7 +230,7 @@ void DataStreamSender::Channel::TransmitDataHelper(const TRowBatch* batch) {
   RpcController controller;
   TransmitDataResponsePB response;
   Sockaddr address;
-  address.ParseString("127.0.0.1", FLAGS_be_port + 1000);
+  address.ParseString("127.0.0.1", address_.port + 100);
   ImpalaKRPCServiceProxy p(ExecEnv::GetInstance()->impala_server()->rpc()->messenger(),
       address);
   kudu::Status rpc_status = p.TransmitData(request, &response, &controller);
@@ -371,7 +371,7 @@ Status DataStreamSender::Channel::FlushAndSendEos(RuntimeState* state) {
   RpcController controller;
   TransmitDataResponsePB response;
   Sockaddr address;
-  address.ParseString("127.0.0.1", FLAGS_be_port + 100);
+  address.ParseString("127.0.0.1", address_.port + 100);
   ImpalaKRPCServiceProxy p(ExecEnv::GetInstance()->impala_server()->rpc()->messenger(),
       address);
   kudu::Status rpc_status = p.TransmitData(request, &response, &controller);
