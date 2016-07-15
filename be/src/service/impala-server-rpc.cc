@@ -19,6 +19,8 @@ using kudu::rpc_test::ImpalaKRPCServiceIf;
 using kudu::rpc_test::TransmitDataRequestPB;
 using kudu::rpc_test::TransmitDataResponsePB;
 
+DECLARE_int32(be_port);
+
 namespace {
 
 impala::TUniqueId ToThriftID(const kudu::rpc_test::UniqueIdPB& pb) {
@@ -88,7 +90,7 @@ Status ImpalaServerRPC::Start() {
 
   shared_ptr<AcceptorPool> acceptor_pool;
   Sockaddr address;
-  address.ParseString("127.0.0.1", 28000);
+  address.ParseString("127.0.0.1", FLAGS_be_port + 100);
   messenger_->AddAcceptorPool(address, &acceptor_pool);
   acceptor_pool->Start(2);
 

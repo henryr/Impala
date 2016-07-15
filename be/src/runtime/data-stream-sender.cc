@@ -57,6 +57,8 @@ using namespace apache::thrift::protocol;
 using namespace apache::thrift::transport;
 using strings::Substitute;
 
+DECLARE_int32(be_port);
+
 namespace impala {
 
 // A channel sends data asynchronously via calls to TransmitData
@@ -228,7 +230,7 @@ void DataStreamSender::Channel::TransmitDataHelper(const TRowBatch* batch) {
   RpcController controller;
   TransmitDataResponsePB response;
   Sockaddr address;
-  address.ParseString("127.0.0.1", 28000);
+  address.ParseString("127.0.0.1", FLAGS_be_port + 1000);
   ImpalaKRPCServiceProxy p(ExecEnv::GetInstance()->impala_server()->rpc()->messenger(),
       address);
   kudu::Status rpc_status = p.TransmitData(request, &response, &controller);
@@ -369,7 +371,7 @@ Status DataStreamSender::Channel::FlushAndSendEos(RuntimeState* state) {
   RpcController controller;
   TransmitDataResponsePB response;
   Sockaddr address;
-  address.ParseString("127.0.0.1", 28000);
+  address.ParseString("127.0.0.1", FLAGS_be_port + 100);
   ImpalaKRPCServiceProxy p(ExecEnv::GetInstance()->impala_server()->rpc()->messenger(),
       address);
   kudu::Status rpc_status = p.TransmitData(request, &response, &controller);
