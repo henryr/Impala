@@ -77,22 +77,6 @@ inline void GetCurrentTime(mach_timespec_t* ts) {
   mach_port_deallocate(mach_task_self(), cclock);
 }
 
-// <<<<<<< HEAD
-namespace walltime_internal {
-
-#if defined(__APPLE__)
-
-extern GoogleOnceType timebase_info_once;
-extern mach_timebase_info_data_t timebase_info;
-extern void InitializeTimebaseInfo();
-
-inline void GetCurrentTime(mach_timespec_t* ts) {
-  clock_serv_t cclock;
-  host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
-  clock_get_time(cclock, ts);
-  mach_port_deallocate(mach_task_self(), cclock);
-}
-
 inline MicrosecondsInt64 GetCurrentTimeMicros() {
   mach_timespec_t ts;
   GetCurrentTime(&ts);

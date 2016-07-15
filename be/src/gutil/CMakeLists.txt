@@ -90,6 +90,7 @@ endif()
 #   # Disable warnings which trigger a lot in the Google code:
 #   COMPILE_FLAGS "-funsigned-char -Wno-deprecated -Wno-char-subscripts")
 # Disable warnings which trigger a lot in the Google code:
+add_library(gutil ${GUTIL_SRCS})
 SET_TARGET_PROPERTIES(gutil PROPERTIES
   COMPILE_FLAGS "${CXX_COMMON_FLAGS} -funsigned-char -Wno-deprecated -Wno-char-subscripts -fPIC")
 

@@ -70,7 +70,11 @@ set(KRPC_LIBS
   rpc_header_proto
   rpc_introspection_proto
   kudu_util
-  gutil)
+  ${PROTOBUF_PROTOC_STATIC_LIBRARY}
+  ${PROTOBUF_STATIC_LIBRARY}
+  # protoc
+  # protobuf
+  libevent_so)
   # libev
   #cyrus_sasl)
 
