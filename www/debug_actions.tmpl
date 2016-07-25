@@ -1,0 +1,46 @@
+{{> www/common-header.tmpl }}
+
+{{?message}}
+<div class="alert alert-warning" role="alert">
+  {{message}}
+</div>
+{{/message}}
+
+{{?installation_status}}
+<div class="alert alert-warning" role="alert">
+  {{installation_status}}
+</div>
+{{/installation_status}}
+
+
+<form role="form" action="/debug" method="GET">
+  <div class="form-group">
+    <label for="inputdefault">Debug rule</label>
+    <textarea class="form-control" style="font-family:monospace;" name="rule"></textarea>
+  </div>
+    <div class="form-group">
+      <label for="clear_all">
+        <input id="clear_all" name="clear_all" type="checkbox">
+        Clear all rules
+        </input>
+      </label>
+    </div>
+    <div class="form-group">
+      <label for="install">
+        <input  id="install" name="install" type="checkbox">Install rules across cluster</input>
+      </label>
+    </div>
+    <input type="submit" value="Submit">
+</form>
+
+<h3>There are {{%rules}} rules currently installed on this Impala daemon</h3>
+
+<div class="alert alert-info" style="font-family:monospace;" role="alert">
+  <pre>{{~rules}} </pre>
+</div>
+
+<h3>Example</h3>
+<div class="alert alert-info" style="font-family:monospace;" role="alert">
+  { "PHASE": "START_RESPONSE", "NAME": "ExecPlanFragment", "ACTION": [ {"name": "WAIT", "duration": {"fn_name":"RAND", "max": 10000}}] }
+</div>
+{{> www/common-footer.tmpl }}

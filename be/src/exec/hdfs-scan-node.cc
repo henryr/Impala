@@ -232,7 +232,10 @@ bool HdfsScanNode::WaitForRuntimeFilters(int32_t time_ms) {
   return false;
 }
 
+#include "runtime/debug-rules.h"
+
 Status HdfsScanNode::GetNext(RuntimeState* state, RowBatch* row_batch, bool* eos) {
+  QUERY_TRACE_POINT("hdfs_scan_node", "get_next", state->query_debug_rules());
   SCOPED_TIMER(runtime_profile_->total_time_counter());
 
   if (!initial_ranges_issued_) {
@@ -457,6 +460,7 @@ Status HdfsScanNode::TriggerDebugAction() {
 }
 
 Status HdfsScanNode::Prepare(RuntimeState* state) {
+  QUERY_TRACE_POINT("hdfs_scan_node", "prepare", state->query_debug_rules());
   SCOPED_TIMER(runtime_profile_->total_time_counter());
   runtime_state_ = state;
   RETURN_IF_ERROR(ScanNode::Prepare(state));
@@ -715,6 +719,7 @@ Status HdfsScanNode::Prepare(RuntimeState* state) {
 // ranges are not issued until the first GetNext() call; scanner threads will block on
 // ranges_issued_barrier_ until ranges are issued.
 Status HdfsScanNode::Open(RuntimeState* state) {
+  QUERY_TRACE_POINT("hdfs_scan_node", "open", state->query_debug_rules());
   RETURN_IF_ERROR(ExecNode::Open(state));
 
   // Open collection conjuncts
@@ -834,6 +839,7 @@ Status HdfsScanNode::Reset(RuntimeState* state) {
 }
 
 void HdfsScanNode::Close(RuntimeState* state) {
+  QUERY_TRACE_POINT_NO_RETURN("hdfs_scan_node", "close", state->query_debug_rules());
   if (is_closed()) return;
   SetDone();
 

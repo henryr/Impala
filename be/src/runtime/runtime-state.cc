@@ -29,6 +29,7 @@
 #include "codegen/llvm-codegen.h"
 #include "common/object-pool.h"
 #include "common/status.h"
+#include "runtime/debug-rules.h"
 #include "exprs/expr.h"
 #include "runtime/buffered-block-mgr.h"
 #include "runtime/descriptors.h"

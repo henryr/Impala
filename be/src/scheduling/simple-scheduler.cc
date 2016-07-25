@@ -222,6 +222,10 @@ void SimpleScheduler::BackendsUrlCallback(const Webserver::ArgumentMap& args,
   document->AddMember("backends", backends_list, document->GetAllocator());
 }
 
+void SimpleScheduler::GetAllKnownBackends(BackendList* backends) {
+  GetBackendConfig()->GetAllBackends(backends);
+}
+
 void SimpleScheduler::UpdateMembership(
     const StatestoreSubscriber::TopicDeltaMap& incoming_topic_deltas,
     vector<TTopicDelta>* subscriber_topic_updates) {

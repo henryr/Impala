@@ -144,6 +144,9 @@ class ImpalaHttpHandler {
   /// QueryStateHandler().
   void QueryStateToJson(const ImpalaServer::QueryStateRecord& record,
       rapidjson::Value* value, rapidjson::Document* document);
+
+  void DebugActionsHandler(const Webserver::ArgumentMap& args,
+      rapidjson::Document* document);
 };
 
 }

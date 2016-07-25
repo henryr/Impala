@@ -25,6 +25,7 @@
 #include "gutil/strings/substitute.h"
 #include "runtime/runtime-filter-bank.h"
 #include "util/bloom-filter.h"
+#include "util/json-util.h"
 #include "runtime/backend-client.h"
 
 #include "common/names.h"
@@ -32,6 +33,15 @@
 using namespace apache::thrift;
 using namespace strings;
 using namespace impala;
+
+Status FragmentMgr::FragmentExecState::SetDebugRules(const string& json) {
+  if (json.empty()) return Status::OK();
+  rapidjson::Document document;
+  RETURN_IF_ERROR(ParseJsonFromString(json, &document, true));
+  RETURN_IF_ERROR(rule_set_.AddRules(&document));
+  LOG(INFO) << "Installing rules: " << json;
+  return Status::OK();
+}
 
 Status FragmentMgr::FragmentExecState::UpdateStatus(const Status& status) {
   lock_guard<mutex> l(status_lock_);
@@ -47,8 +57,11 @@ Status FragmentMgr::FragmentExecState::Cancel() {
 }
 
 Status FragmentMgr::FragmentExecState::Prepare() {
-  Status status = executor_.Prepare(exec_params_);
-  if (!status.ok()) ReportStatusCb(status, NULL, true);
+  FRAGMENT_TRACE_POINT("prepare", &rule_set_);
+  Status status = executor_.Prepare(exec_params_, &rule_set_);
+  if (!status.ok()) {
+    ReportStatusCb(status, NULL, true);
+  }
   prepare_promise_.Set(status);
   return status;
 }

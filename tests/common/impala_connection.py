@@ -163,6 +163,10 @@ class BeeswaxConnection(ImpalaConnection):
     LOG.info("-- executing async: %s\n%s;\n" % (self.__host_port, sql_stmt))
     return OperationHandle(self.__beeswax_client.execute_query_async(sql_stmt, user=user))
 
+  def wait_for_completion(self, operation_handle):
+    LOG.info("-- waiting for query to complete: %s" % operation_handle)
+    return self.__beeswax_client.wait_for_completion(operation_handle.get_handle())
+
   def cancel(self, operation_handle):
     LOG.info("-- canceling operation: %s" % operation_handle)
     return self.__beeswax_client.cancel_query(operation_handle.get_handle())
@@ -174,6 +178,10 @@ class BeeswaxConnection(ImpalaConnection):
   def get_runtime_profile(self, operation_handle):
     LOG.info("-- getting runtime profile operation: %s" % operation_handle)
     return self.__beeswax_client.get_runtime_profile(operation_handle.get_handle())
+
+  def set_debug_rules(self, debug_rules):
+    LOG.info("-- setting debug rules: %s" % debug_rules)
+    return self.__beeswax_client.set_debug_rules(debug_rules)
 
   def get_log(self, operation_handle):
     LOG.info("-- getting log for operation: %s" % operation_handle)

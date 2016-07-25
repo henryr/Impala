@@ -95,6 +95,9 @@ class SimpleScheduler : public Scheduler {
   virtual void HandlePreemptedResource(const TUniqueId& client_resource_id);
   virtual void HandleLostResource(const TUniqueId& client_resource_id);
 
+  /// Return a list of all backends registered with the scheduler.
+  virtual void GetAllKnownBackends(BackendList* backends);
+
  private:
   /// Map from a host's IP address to the next backend to be round-robin scheduled for
   /// that host (needed for setups with multiple backends on a single host)

@@ -24,6 +24,7 @@
 
 #include "catalog/catalog-util.h"
 #include "gen-cpp/beeswax_types.h"
+#include "runtime/debug-rules.h"
 #include "runtime/mem-tracker.h"
 #include "service/impala-server.h"
 #include "service/query-exec-state.h"
@@ -121,6 +122,9 @@ void ImpalaHttpHandler::RegisterHandlers(Webserver* webserver) {
   webserver->RegisterUrlCallback("/query_stmt", "query_stmt.tmpl",
       [this](const auto& args, auto* doc) {
         this->QuerySummaryHandler(false, false, args, doc); }, false);
+
+  webserver->RegisterUrlCallback("/debug", "debug_actions.tmpl",
+      MakeCallback(this, &ImpalaHttpHandler::DebugActionsHandler));
 }
 
 void ImpalaHttpHandler::HadoopVarzHandler(const Webserver::ArgumentMap& args,
@@ -760,4 +764,25 @@ void ImpalaHttpHandler::QuerySummaryHandler(bool include_json_plan, bool include
   document->AddMember("status", json_status, document->GetAllocator());
   Value json_id(PrintId(query_id).c_str(), document->GetAllocator());
   document->AddMember("query_id", json_id, document->GetAllocator());
+}
+
+void ImpalaHttpHandler::DebugActionsHandler(const Webserver::ArgumentMap& args,
+    rapidjson::Document* document) {
+  if (args.find("clear_all") != args.end()) {
+    DebugRuleSet::GetInstance()->ClearRules();
+    Value ret("All actions cleared", document->GetAllocator());
+    document->AddMember("message", ret, document->GetAllocator());
+  }
+
+  const auto& rule = args.find("rule");
+  const bool install = args.find("install") == args.end();
+  Status status = server_->InstallDebugRules(rule == args.end() ? "" : rule->second,
+      install);
+  Value ret(status.ok() ? "Success!" : status.GetDetail().c_str(), document->GetAllocator());
+  document->AddMember("message", ret, document->GetAllocator());
+
+  document->AddMember("num_rules", DebugRuleSet::GetInstance()->num_rules(),
+      document->GetAllocator());
+
+  DebugRuleSet::GetInstance()->ToJson(document, document);
 }

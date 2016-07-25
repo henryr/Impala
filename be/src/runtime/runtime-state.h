@@ -23,6 +23,8 @@
 #include <vector>
 #include <string>
 
+#include <rapidjson/document.h>
+
 // NOTE: try not to add more headers here: runtime-state.h is included in many many files.
 #include "common/global-types.h"  // for PlanNodeId
 #include "runtime/client-cache-types.h"
@@ -32,6 +34,8 @@
 #include "util/runtime-profile.h"
 
 namespace impala {
+
+class DebugRuleSet;
 
 class BufferedBlockMgr;
 class DataStreamRecvr;
@@ -265,6 +269,9 @@ class RuntimeState {
   QueryResourceMgr* query_resource_mgr() const { return query_resource_mgr_; }
   void SetQueryResourceMgr(QueryResourceMgr* res_mgr) { query_resource_mgr_ = res_mgr; }
 
+  DebugRuleSet* query_debug_rules() { return provider_; }
+  void SetRuleSet(DebugRuleSet* rules) { provider_ = rules; }
+
  private:
   /// Allow TestEnv to set block_mgr manually for testing.
   friend class TestEnv;
@@ -375,6 +382,8 @@ class RuntimeState {
   /// Manages runtime filters that are either produced or consumed (or both!) by plan
   /// nodes that share this runtime state.
   boost::scoped_ptr<RuntimeFilterBank> filter_bank_;
+
+  DebugRuleSet* provider_;
 
   /// prohibit copies
   RuntimeState(const RuntimeState&);

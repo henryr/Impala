@@ -32,6 +32,7 @@
 namespace impala {
 
 class HdfsFsCache;
+class DebugRuleSet;
 class ExecNode;
 class RowDescriptor;
 class RowBatch;
@@ -97,7 +98,7 @@ class PlanFragmentExecutor {
   ///
   /// If Cancel() is called before Prepare(), Prepare() is a no-op and returns
   /// Status::CANCELLED;
-  Status Prepare(const TExecPlanFragmentParams& request);
+  Status Prepare(const TExecPlanFragmentParams& request, DebugRuleSet* rule_set);
 
   /// Start execution. Call this prior to GetNext().
   /// If this fragment has a sink, Open() will send all rows produced

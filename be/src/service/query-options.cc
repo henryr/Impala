@@ -17,7 +17,9 @@
 
 #include "service/query-options.h"
 
+#include "runtime/exec-env.h"
 #include "runtime/runtime-filter.h"
+#include "service/impala-server.h"
 #include "util/debug-util.h"
 #include "util/mem-info.h"
 #include "util/parse-util.h"
@@ -158,6 +160,9 @@ Status impala::SetQueryOption(const string& key, const string& value,
         break;
       case TImpalaQueryOptions::DEBUG_ACTION:
         query_options->__set_debug_action(value.c_str());
+        break;
+      case TImpalaQueryOptions::QUERY_DEBUG_RULES:
+        query_options->__set_query_debug_rules(value);
         break;
       case TImpalaQueryOptions::SEQ_COMPRESSION_MODE: {
         if (iequals(value, "block")) {
@@ -446,8 +451,8 @@ Status impala::SetQueryOption(const string& key, const string& value,
 Status impala::ParseQueryOptions(const string& options, TQueryOptions* query_options,
     QueryOptionsMask* set_query_options_mask) {
   if (options.length() == 0) return Status::OK();
-  vector<string> kv_pairs;
-  split(kv_pairs, options, is_any_of(","), token_compress_on);
+  vector<string> kv_pairs = {options};
+  //split(kv_pairs, options, is_any_of(","), token_compress_on);
   // Construct an error status which is used to aggregate errors encountered during
   // parsing. It is only returned if the number of error details is greater than 0.
   Status errorStatus = Status::Expected("Errors parsing query options");

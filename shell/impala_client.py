@@ -24,6 +24,7 @@ from beeswaxd import BeeswaxService
 from beeswaxd.BeeswaxService import QueryState
 from ExecStats.ttypes import TExecStats
 from ImpalaService import ImpalaService
+from ImpalaService.ttypes import TInstallDebugActionsParams
 from ErrorCodes.ttypes import TErrorCode
 from Status.ttypes import TStatus
 from thrift.protocol import TBinaryProtocol
@@ -396,6 +397,14 @@ class ImpalaClient(object):
     if status == RpcStatus.OK and summary:
       return summary
     return None
+
+  def set_debug_rules(self, rules):
+    params = TInstallDebugActionsParams()
+    params.actions_json = rules
+    params.distribute = True
+    rpc_result = self._do_rpc(lambda: self.imp_service.InstallDebugActions(params))
+    result, status = rpc_result
+    if status == RpcStatus.OK: return result
 
   def _do_rpc(self, rpc):
     """Executes the provided callable."""

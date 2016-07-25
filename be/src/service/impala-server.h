@@ -250,6 +250,14 @@ class ImpalaServer : public ImpalaServiceIf, public ImpalaHiveServer2ServiceIf,
   /// Returns true if lineage logging is enabled, false otherwise.
   bool IsLineageLoggingEnabled();
 
+  virtual void InstallDebugActions(TInstallDebugActionsResponse& return_val,
+      const TInstallDebugActionsParams& params) {
+    InstallDebugRules(params.actions_json, params.distribute)
+        .SetTStatus(&return_val);
+  }
+
+  Status InstallDebugRules(const string& rules_json, bool distribute);
+
  private:
   friend class ChildQuery;
   friend class ImpalaHttpHandler;

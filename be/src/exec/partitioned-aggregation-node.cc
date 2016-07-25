@@ -33,6 +33,7 @@
 #include "exprs/expr-context.h"
 #include "exprs/slot-ref.h"
 #include "runtime/buffered-tuple-stream.inline.h"
+#include "runtime/debug-rules.h"
 #include "runtime/descriptors.h"
 #include "runtime/mem-pool.h"
 #include "runtime/mem-tracker.h"
@@ -159,6 +160,7 @@ Status PartitionedAggregationNode::Init(const TPlanNode& tnode, RuntimeState* st
 
 Status PartitionedAggregationNode::Prepare(RuntimeState* state) {
   SCOPED_TIMER(runtime_profile_->total_time_counter());
+  QUERY_TRACE_POINT("aggregation_node", "prepare", state->query_debug_rules());
 
   // Create the codegen object before preparing conjunct_ctxs_ and children_, so that any
   // ScalarFnCalls will use codegen.
@@ -289,6 +291,7 @@ Status PartitionedAggregationNode::Prepare(RuntimeState* state) {
 
 Status PartitionedAggregationNode::Open(RuntimeState* state) {
   SCOPED_TIMER(runtime_profile_->total_time_counter());
+  QUERY_TRACE_POINT("aggregation_node", "open", state->query_debug_rules());
   RETURN_IF_ERROR(ExecNode::Open(state));
 
   RETURN_IF_ERROR(Expr::Open(grouping_expr_ctxs_, state));
@@ -356,6 +359,7 @@ Status PartitionedAggregationNode::Open(RuntimeState* state) {
 
 Status PartitionedAggregationNode::GetNext(RuntimeState* state, RowBatch* row_batch,
     bool* eos) {
+  QUERY_TRACE_POINT("aggregation_node", "get_next", state->query_debug_rules());
   int first_row_idx = row_batch->num_rows();
   RETURN_IF_ERROR(GetNextInternal(state, row_batch, eos));
   RETURN_IF_ERROR(HandleOutputStrings(row_batch, first_row_idx));
@@ -676,6 +680,7 @@ Status PartitionedAggregationNode::Reset(RuntimeState* state) {
 }
 
 void PartitionedAggregationNode::Close(RuntimeState* state) {
+  QUERY_TRACE_POINT_NO_RETURN("aggregation_node", "close", state->query_debug_rules());
   if (is_closed()) return;
 
   if (!singleton_output_tuple_returned_) {

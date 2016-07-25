@@ -29,6 +29,7 @@
 #include "exprs/slot-ref.h"
 #include "runtime/buffered-block-mgr.h"
 #include "runtime/buffered-tuple-stream.inline.h"
+#include "runtime/debug-rules.h"
 #include "runtime/mem-tracker.h"
 #include "runtime/row-batch.h"
 #include "runtime/runtime-filter.h"
@@ -122,6 +123,7 @@ Status PartitionedHashJoinNode::Init(const TPlanNode& tnode, RuntimeState* state
 
 Status PartitionedHashJoinNode::Prepare(RuntimeState* state) {
   SCOPED_TIMER(runtime_profile_->total_time_counter());
+  QUERY_TRACE_POINT("hash_join_node", "prepare", state->query_debug_rules());
 
   // Create the codegen object before preparing conjunct_ctxs_ and children_, so that any
   // ScalarFnCalls will use codegen.
@@ -243,6 +245,8 @@ Status PartitionedHashJoinNode::Prepare(RuntimeState* state) {
 
 Status PartitionedHashJoinNode::Open(RuntimeState* state) {
   SCOPED_TIMER(runtime_profile_->total_time_counter());
+  QUERY_TRACE_POINT("hash_join_node", "open", state->query_debug_rules());
+
   RETURN_IF_ERROR(BlockingJoinNode::Open(state));
   RETURN_IF_ERROR(Expr::Open(build_expr_ctxs_, state));
   RETURN_IF_ERROR(Expr::Open(probe_expr_ctxs_, state));
@@ -324,6 +328,7 @@ void PartitionedHashJoinNode::ClosePartitions() {
 }
 
 void PartitionedHashJoinNode::Close(RuntimeState* state) {
+  QUERY_TRACE_POINT_NO_RETURN("hash_join_node", "close", state->query_debug_rules());
   if (is_closed()) return;
   if (ht_ctx_.get() != NULL) ht_ctx_->Close();
 
@@ -934,6 +939,8 @@ int PartitionedHashJoinNode::ProcessProbeBatch(
 Status PartitionedHashJoinNode::GetNext(RuntimeState* state, RowBatch* out_batch,
     bool* eos) {
   SCOPED_TIMER(runtime_profile_->total_time_counter());
+  QUERY_TRACE_POINT("hash_join_node", "get_next", state->query_debug_rules());
+
   RETURN_IF_ERROR(ExecDebugAction(TExecNodePhase::GETNEXT, state));
   DCHECK(!out_batch->AtCapacity());
 

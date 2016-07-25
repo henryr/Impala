@@ -16,14 +16,15 @@
 # under the License.
 
 import pytest
+from tests.common.impala_test_suite import ImpalaTestSuite
 from tests.beeswax.impala_beeswax import ImpalaBeeswaxException
-from tests.common.custom_cluster_test_suite import CustomClusterTestSuite
 from tests.common.impala_cluster import ImpalaCluster
 from tests.common.skip import SkipIfBuildType
 from tests.verifiers.metric_verifier import MetricVerifier
+from tests.util.debug_rules import *
 
 @SkipIfBuildType.not_dev_build
-class TestRPCTimeout(CustomClusterTestSuite):
+class TestRPCTimeout(ImpalaTestSuite):
   """Tests for every Impala RPC timeout handling, query should not hang and
      resource should be all released."""
   TEST_QUERY = "select count(c2.string_col) from \
@@ -38,6 +39,12 @@ class TestRPCTimeout(CustomClusterTestSuite):
     # if cls.exploration_strategy() != 'exhaustive':
     #   pytest.skip('runs only in exhaustive')
     super(TestRPCTimeout, cls).setup_class()
+
+  @classmethod
+  def add_test_dimensions(cls):
+    super(TestRPCTimeout, cls).add_test_dimensions()
+    cls.TestMatrix.add_constraint(lambda v:
+        v.get_value('table_format').file_format in ['parquet'])
 
   def execute_query_verify_metrics(self, query, repeat = 1):
     for i in range(repeat):
@@ -76,12 +83,20 @@ class TestRPCTimeout(CustomClusterTestSuite):
     self.client.execute("SET MAX_SCAN_RANGE_LENGTH=1024")
     self.execute_query_verify_metrics(query)
 
+  def rpc_delay_rules(self, rpc_name):
+    return DebugRuleSet().rule(
+      DebugRule("rpc", "installdebugactions", "end_rpc",
+                action=SetRpcTimeouts(send=1000, recv=1000))
+    ).rule(
+      DebugRule("rpc", rpc_name, "start_rpc",
+                action=WaitFn(3000))
+    )
+
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
-      " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=1")
   def test_execplanfragment_timeout(self, vector):
+    self.client.set_debug_rules(self.rpc_delay_rules("execplanfragment").to_json())
     for i in range(3):
-      ex = self.execute_query_expect_failure(self.client, self.TEST_QUERY)
+      ex= self.execute_query_expect_failure(self.client, self.TEST_QUERY)
       assert "RPC recv timed out" in str(ex)
     verifiers = [ MetricVerifier(i.service) for i in ImpalaCluster().impalads ]
 
@@ -90,35 +105,33 @@ class TestRPCTimeout(CustomClusterTestSuite):
       v.verify_num_unused_buffers()
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
-      " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=2")
   def test_cancelplanfragment_timeout(self, vector):
+    self.client.set_debug_rules(self.rpc_delay_rules("cancelplanfragment").to_json())
     query = "select * from tpch.lineitem limit 5000"
     self.execute_query_then_cancel(query, vector)
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
-      " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=3")
   def test_publishfilter_timeout(self, vector):
+    self.client.set_debug_rules(self.rpc_delay_rules("publishfilter").to_json())
     self.execute_runtime_filter_query()
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
-      " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=4")
   def test_updatefilter_timeout(self, vector):
+    self.client.set_debug_rules(self.rpc_delay_rules("updatefilter").to_json())
     self.execute_runtime_filter_query()
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
-      " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=5")
   def test_transmitdata_timeout(self, vector):
+    self.client.set_debug_rules(self.rpc_delay_rules("transmitdata").to_json())
     self.execute_query_verify_metrics(self.TEST_QUERY)
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
-      " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=6"
-      " --status_report_interval=1 ")
   def test_reportexecstatus_timeout(self, vector):
+    rules = self.rpc_delay_rules("reportexecstatus")
+    rules.rules()[0].action(
+      SetFlag("status_report_interval", "1")
+    )
+    self.client.set_debug_rules(rules.to_json())
     self.execute_query_verify_metrics(self.TEST_QUERY)
 
   # @pytest.mark.execute_serially

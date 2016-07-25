@@ -32,13 +32,14 @@ import re
 
 from impala._thrift_gen.beeswax import BeeswaxService
 from impala._thrift_gen.beeswax.BeeswaxService import QueryState
+from ImpalaService.ttypes import TInstallDebugActionsParams
 from datetime import datetime
 try:
   # If Exec Summary is not implemented in Impala, this cannot be imported
   from impala._thrift_gen.ExecStats.ttypes import TExecStats
 except ImportError:
   pass
-from impala._thrift_gen.ImpalaService import ImpalaService
+from ImpalaService.ImpalaService import Client
 from tests.util.thrift_util import create_transport
 from thrift.transport.TTransport import TTransportException
 from thrift.protocol import TBinaryProtocol
@@ -142,7 +143,8 @@ class ImpalaBeeswaxClient(object):
       self.transport = self.__get_transport()
       self.transport.open()
       protocol = TBinaryProtocol.TBinaryProtocol(self.transport)
-      self.imp_service = ImpalaService.Client(protocol)
+
+      self.imp_service = Client(protocol)
       self.connected = True
     except Exception, e:
       raise ImpalaBeeswaxException(self.__build_error_message(e), e)
@@ -319,6 +321,12 @@ class ImpalaBeeswaxClient(object):
 
   def get_runtime_profile(self, handle):
     return self.__do_rpc(lambda: self.imp_service.GetRuntimeProfile(handle))
+
+  def set_debug_rules(self, rules):
+    params = TInstallDebugActionsParams()
+    params.actions_json = rules
+    params.distribute = True
+    return self.__do_rpc(lambda: self.imp_service.InstallDebugActions(params))
 
   def execute_query_async(self, query_string, user=None):
     """

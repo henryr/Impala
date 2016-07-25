@@ -34,10 +34,15 @@
 #include <rapidjson/rapidjson.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
+#include <rapidjson/prettywriter.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
+
+#include "runtime/debug-rules.h"
+#include "runtime/backend-client.h"
+#include "util/counting-barrier.h"
 
 #include "catalog/catalog-server.h"
 #include "catalog/catalog-util.h"
@@ -93,6 +98,9 @@ using boost::get_system_time;
 using boost::system_time;
 using boost::uuids::random_generator;
 using boost::uuids::uuid;
+using rapidjson::Document;
+using rapidjson::StringBuffer;
+using rapidjson::PrettyWriter;
 using namespace apache::thrift;
 using namespace boost::posix_time;
 using namespace beeswax;
@@ -2021,6 +2029,77 @@ void ImpalaServer::UpdateFilter(TUpdateFilterResult& result,
     return;
   }
   query_exec_state->coord()->UpdateFilter(params);
+}
+
+Status ImpalaServer::InstallDebugRules(const string& rules_json, bool distribute) {
+  if (rules_json.empty()) return Status("Empty json");
+
+  Document rules_doc;
+  RETURN_IF_ERROR(ParseJsonFromString(rules_json, &rules_doc, true));
+  if (!rules_doc.IsObject()) return Status("Rules must be an object");
+  bool install_one = !rules_doc.HasMember("rules");
+
+  if (!distribute) {
+    // Just install the rules
+    if (install_one) return DebugRuleSet::GetInstance()->AddOneRule(&rules_doc);
+    DebugRuleSet::GetInstance()->ClearRules();
+    return DebugRuleSet::GetInstance()->AddRules(&rules_doc);
+  }
+
+  DebugRuleSet local;
+  if (install_one) {
+    RETURN_IF_ERROR(local.AddOneRule(&rules_doc));
+  } else {
+    RETURN_IF_ERROR(local.AddRules(&rules_doc));
+  }
+
+  LOG(INFO) << "Installing " << local.num_rules() << " rules";
+
+
+  BackendConfig::BackendList backends;
+  ExecEnv::GetInstance()->scheduler()->GetAllKnownBackends(&backends);
+  vector<pair<int64_t, string>> backend_ids;
+  for (int i = 0; i < backends.size(); ++i) backend_ids.push_back({i, "*"});
+  local.ComputeIdSets(backend_ids);
+
+  CountingBarrier barrier(backends.size());
+
+  int idx = 0;
+  for (const TBackendDescriptor& b: backends) {
+    Document local_doc;
+    local_doc.SetObject();
+    int64_t num_rules = local.GetJsonRulesForId(idx++, &local_doc);
+    string payload;
+    JsonToString(&local_doc, &payload);
+
+    ExecEnv::GetInstance()->rpc_pool()->Offer(
+        [b, &barrier, payload, install_one, num_rules]() {
+          TInstallDebugActionsParams params;
+          params.__set_distribute(false);
+
+          NotifyBarrierOnExit notifier(&barrier);
+          Status status;
+          ImpalaBackendConnection backend(
+              ExecEnv::GetInstance()->impalad_client_cache(), b.address, &status);
+          if (!status.ok()) return;
+          if (num_rules == 0) {
+            // Only one rule, don't clear out the other rules.
+            if (install_one) return;
+            params.__set_actions_json("{ \"rules\": [] }");
+          } else {
+            params.__set_actions_json(payload);
+          }
+
+          TInstallDebugActionsResponse response;
+          backend.DoRpc(&ImpalaBackendClient::InstallDebugActions, params, &response);
+          LOG(INFO) << "Sent debug rules to: " << TNetworkAddressToString(b.address)
+                    << ", payload: " << params.actions_json;
+        });
+  }
+  bool timed_out;
+  barrier.Wait(30000, &timed_out);
+  if (timed_out) return Status("Rules installation timed out after 30s");
+  return Status::OK();
 }
 
 }

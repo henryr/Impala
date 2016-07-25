@@ -503,6 +503,9 @@ class ImpalaShell(cmd.Cmd):
     # should always be a CmdStatus
     return status
 
+  def do_set_debug_rules(self, args):
+    result = self.imp_client.set_debug_rules(args)
+
   def do_summary(self, args):
     summary = None
     try:

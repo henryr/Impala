@@ -33,6 +33,7 @@
 #include "exec/hbase-table-scanner.h"
 #include "exprs/expr.h"
 #include "resourcebroker/resource-broker.h"
+#include "runtime/debug-rules.h"
 #include "runtime/descriptors.h"
 #include "runtime/data-stream-mgr.h"
 #include "runtime/row-batch.h"
@@ -83,7 +84,8 @@ PlanFragmentExecutor::~PlanFragmentExecutor() {
   DCHECK(!report_thread_active_);
 }
 
-Status PlanFragmentExecutor::Prepare(const TExecPlanFragmentParams& request) {
+Status PlanFragmentExecutor::Prepare(const TExecPlanFragmentParams& request,
+    DebugRuleSet* rule_set) {
   lock_guard<mutex> l(prepare_lock_);
   DCHECK(!is_prepared_);
   if (is_cancelled_) return Status::CANCELLED;
@@ -115,6 +117,7 @@ Status PlanFragmentExecutor::Prepare(const TExecPlanFragmentParams& request) {
   // set. Having runtime_state_.get() != NULL is a postcondition of this method in that
   // case. Do not call RETURN_IF_ERROR or explicitly return before this line.
   runtime_state_.reset(new RuntimeState(request, cgroup, exec_env_));
+  runtime_state_->SetRuleSet(rule_set);
 
   // total_time_counter() is in the runtime_state_ so start it up now.
   SCOPED_TIMER(profile()->total_time_counter());

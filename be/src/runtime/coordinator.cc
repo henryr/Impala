@@ -44,6 +44,7 @@
 #include "runtime/client-cache.h"
 #include "runtime/data-stream-sender.h"
 #include "runtime/data-stream-mgr.h"
+#include "runtime/debug-rules.h"
 #include "runtime/exec-env.h"
 #include "runtime/hdfs-fs-cache.h"
 #include "runtime/mem-tracker.h"
@@ -78,6 +79,7 @@
 
 using namespace apache::thrift;
 using namespace strings;
+using namespace rapidjson;
 namespace accumulators = boost::accumulators;
 using boost::algorithm::iequals;
 using boost::algorithm::is_any_of;
@@ -285,7 +287,8 @@ Coordinator::Coordinator(const TQueryOptions& query_options, ExecEnv* exec_env,
     obj_pool_(new ObjectPool()),
     query_events_(events),
     filter_routing_table_complete_(false),
-    filter_mode_(query_options.runtime_filter_mode) {
+    filter_mode_(query_options.runtime_filter_mode),
+    debug_actions_(query_options.query_debug_rules) {
 }
 
 Coordinator::~Coordinator() {
@@ -395,7 +398,7 @@ Status Coordinator::Exec(QuerySchedule& schedule,
     TExecPlanFragmentParams rpc_params;
     SetExecPlanFragmentParams(schedule, request.fragments[0],
         (*schedule.exec_params())[0], 0, 0, 0, coord, &rpc_params);
-    RETURN_IF_ERROR(executor_->Prepare(rpc_params));
+    RETURN_IF_ERROR(executor_->Prepare(rpc_params, &rule_set_));
 
     // Prepare output_expr_ctxs before optimizing the LLVM module. The other exprs of this
     // coordinator fragment have been prepared in executor_->Prepare().
@@ -537,6 +540,31 @@ Status Coordinator::StartRemoteFragments(QuerySchedule* schedule) {
     MarkFilterRoutingTableComplete();
   }
 
+  bool debug_actions_enabled = !debug_actions_.empty();
+  DebugRuleSet rule_set;
+  if (debug_actions_enabled) {
+    Document document;
+    RETURN_IF_ERROR(ParseJsonFromString(debug_actions_, &document, true));
+    RETURN_IF_ERROR(rule_set.AddRules(&document));
+    vector<pair<int64_t, string>> debug_entities;
+    int instance_state_idx = 0;
+    for (int fragment_idx = first_remote_fragment_idx;
+         fragment_idx < request.fragments.size(); ++fragment_idx) {
+      const FragmentExecParams* params = &(*schedule->exec_params())[fragment_idx];
+      int num_hosts = params->hosts.size();
+      for (int i = instance_state_idx; i < instance_state_idx + num_hosts; ++i) {
+        debug_entities.push_back(make_pair(i, "fragment"));
+      }
+      for (const TPlanNode& plan_node: request.fragments[fragment_idx].plan.nodes) {
+        for (int i = instance_state_idx; i < instance_state_idx + num_hosts; ++i) {
+          debug_entities.push_back(make_pair(i, PrintPlanNodeType(plan_node.node_type)));
+        }
+      }
+      instance_state_idx += num_hosts;
+    }
+    rule_set.ComputeIdSets(debug_entities);
+  }
+
   instance_state_idx = 0;
   // Start one fragment instance per fragment per host (number of hosts running each
   // fragment may not be constant).
@@ -552,13 +580,21 @@ Status Coordinator::StartRemoteFragments(QuerySchedule* schedule) {
     // so on.
     for (int fragment_instance_idx = 0; fragment_instance_idx < num_hosts;
          ++fragment_instance_idx) {
-      DebugOptions* fragment_instance_debug_options =
-          debug_options.IsApplicable(instance_state_idx) ? &debug_options : NULL;
+      string debug_options;
+      if (debug_actions_enabled) {
+        Document document;
+        document.SetObject();
+        int64_t num_rules = rule_set.GetJsonRulesForId(instance_state_idx, &document);
+        LOG(INFO) << "SELECTED " << num_rules << " RULES FOR " << fragment_instance_idx;
+        if (num_rules > 0) {
+          JsonToString(&document, &debug_options);
+        }
+      }
       exec_env_->fragment_exec_thread_pool()->Offer(
           bind<void>(mem_fn(&Coordinator::ExecRemoteFragment), this,
               params, // fragment_exec_params
               &request.fragments[fragment_idx], // plan_fragment,
-              fragment_instance_debug_options,
+              debug_options,
               schedule,
               instance_state_idx++,
               fragment_idx,
@@ -1268,7 +1304,7 @@ void Coordinator::CollectScanNodeCounters(RuntimeProfile* profile,
 }
 
 void Coordinator::ExecRemoteFragment(const FragmentExecParams* fragment_exec_params,
-    const TPlanFragment* plan_fragment, DebugOptions* debug_options,
+    const TPlanFragment* plan_fragment, const string& debug_options,
     QuerySchedule* schedule, int instance_state_idx, int fragment_idx,
     int fragment_instance_idx) {
   NotifyBarrierOnExit notifier(exec_complete_barrier_.get());
@@ -1276,11 +1312,8 @@ void Coordinator::ExecRemoteFragment(const FragmentExecParams* fragment_exec_par
   SetExecPlanFragmentParams(*schedule, *plan_fragment, *fragment_exec_params,
       instance_state_idx, fragment_idx, fragment_instance_idx,
       MakeNetworkAddress(FLAGS_hostname, FLAGS_be_port), &rpc_params);
-  if (debug_options != NULL) {
-    rpc_params.fragment_instance_ctx.__set_debug_node_id(debug_options->node_id);
-    rpc_params.fragment_instance_ctx.__set_debug_action(debug_options->action);
-    rpc_params.fragment_instance_ctx.__set_debug_phase(debug_options->phase);
-  }
+  if (!debug_options.empty()) rpc_params.__set_debug_rules_json(debug_options);
+
   FragmentInstanceState* exec_state = obj_pool()->Add(
       new FragmentInstanceState(fragment_idx, fragment_exec_params, fragment_instance_idx,
           obj_pool()));

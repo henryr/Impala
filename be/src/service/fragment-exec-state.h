@@ -24,6 +24,7 @@
 #include "common/status.h"
 #include "runtime/client-cache.h"
 #include "runtime/plan-fragment-executor.h"
+#include "runtime/debug-rules.h"
 #include "service/fragment-mgr.h"
 
 namespace impala {
@@ -38,6 +39,8 @@ class FragmentMgr::FragmentExecState {
               this, _1, _2, _3)),
       client_cache_(exec_env->impalad_client_cache()), exec_params_(params) {
   }
+
+  Status SetDebugRules(const std::string& json);
 
   /// Calling the d'tor releases all memory and closes all data streams
   /// held by executor_.
@@ -67,12 +70,16 @@ class FragmentMgr::FragmentExecState {
   /// Publishes filter with ID 'filter_id' to this fragment's filter bank.
   void PublishFilter(int32_t filter_id, const TBloomFilter& thrift_bloom_filter);
 
+  DebugRuleSet* rule_set() { return &rule_set_; }
+
  private:
   TQueryCtx query_ctx_;
   TPlanFragmentInstanceCtx fragment_instance_ctx_;
   PlanFragmentExecutor executor_;
   ImpalaBackendClientCache* client_cache_;
   TExecPlanFragmentParams exec_params_;
+
+  DebugRuleSet rule_set_;
 
   /// the thread executing this plan fragment
   boost::scoped_ptr<Thread> exec_thread_;

@@ -21,6 +21,7 @@
 
 #include "runtime/data-stream-mgr.h"
 #include "runtime/data-stream-recvr.h"
+#include "runtime/debug-rules.h"
 #include "runtime/runtime-state.h"
 #include "runtime/row-batch.h"
 #include "util/debug-util.h"
@@ -65,6 +66,7 @@ Status ExchangeNode::Init(const TPlanNode& tnode, RuntimeState* state) {
 }
 
 Status ExchangeNode::Prepare(RuntimeState* state) {
+  QUERY_TRACE_POINT("exchange_node", "prepare", state->query_debug_rules());
   RETURN_IF_ERROR(ExecNode::Prepare(state));
   convert_row_batch_timer_ = ADD_TIMER(runtime_profile(), "ConvertRowBatchTime");
 
@@ -89,6 +91,7 @@ Status ExchangeNode::Prepare(RuntimeState* state) {
 
 Status ExchangeNode::Open(RuntimeState* state) {
   SCOPED_TIMER(runtime_profile_->total_time_counter());
+  QUERY_TRACE_POINT("exchange_node", "open", state->query_debug_rules());
   RETURN_IF_ERROR(ExecNode::Open(state));
   if (is_merging_) {
     RETURN_IF_ERROR(sort_exec_exprs_.Open(state));
@@ -108,6 +111,7 @@ Status ExchangeNode::Reset(RuntimeState* state) {
 }
 
 void ExchangeNode::Close(RuntimeState* state) {
+  QUERY_TRACE_POINT_NO_RETURN("exchange_node", "close", state->query_debug_rules());
   if (is_closed()) return;
   if (is_merging_) sort_exec_exprs_.Close(state);
   if (stream_recvr_ != NULL) stream_recvr_->Close();
@@ -130,6 +134,7 @@ Status ExchangeNode::FillInputRowBatch(RuntimeState* state) {
 }
 
 Status ExchangeNode::GetNext(RuntimeState* state, RowBatch* output_batch, bool* eos) {
+  QUERY_TRACE_POINT("exchange_node", "get_next", state->query_debug_rules());
   RETURN_IF_ERROR(ExecDebugAction(TExecNodePhase::GETNEXT, state));
   SCOPED_TIMER(runtime_profile_->total_time_counter());
   if (ReachedLimit()) {

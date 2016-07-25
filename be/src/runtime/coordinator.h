@@ -40,6 +40,7 @@
 #include "util/progress-updater.h"
 #include "util/histogram-metric.h"
 #include "util/runtime-profile.h"
+#include "runtime/debug-rules.h"
 #include "runtime/runtime-state.h"
 #include "scheduling/simple-scheduler.h"
 #include "gen-cpp/Types_types.h"
@@ -421,6 +422,9 @@ class Coordinator {
   /// The filtering mode for this query. Set in constructor.
   const TRuntimeFilterMode::type filter_mode_;
 
+  const std::string debug_actions_;
+  DebugRuleSet rule_set_;
+
   /// Returns a pretty-printed table of the current filter state.
   std::string FilterDebugString();
 
@@ -443,7 +447,7 @@ class Coordinator {
   /// multiple threads. Creates a new FragmentInstanceState and registers it in
   /// fragment_instance_states_, then calls RPC to issue fragment on remote impalad.
   void ExecRemoteFragment(const FragmentExecParams* fragment_exec_params,
-      const TPlanFragment* plan_fragment, DebugOptions* debug_options,
+      const TPlanFragment* plan_fragment, const std::string& debug_options,
       QuerySchedule* schedule, int instance_state_idx, int fragment_idx,
       int fragment_instance_idx);
 

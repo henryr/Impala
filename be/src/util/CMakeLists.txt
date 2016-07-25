@@ -53,6 +53,7 @@ add_library(Util
   hdfs-bulk-ops.cc
   hdr-histogram.cc
   impalad-metrics.cc
+  json-util.cc
   jni-util.cc
   llama-util.cc
   logging-support.cc

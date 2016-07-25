@@ -233,7 +233,9 @@ enum TImpalaQueryOptions {
   PREFETCH_MODE,
 
   // Additional strict handling of invalid data parsing and type conversions.
-  STRICT_MODE
+  STRICT_MODE,
+
+  QUERY_DEBUG_RULES
 }
 
 // The summary of an insert.
@@ -261,6 +263,15 @@ struct TResetTableReq {
 
   // Name of the table.
   2: required string table_name
+}
+
+struct TInstallDebugActionsParams {
+  1: string actions_json
+  2: bool distribute
+}
+
+struct TInstallDebugActionsResponse {
+  1: optional Status.TStatus status
 }
 
 // For all rpc that return a TStatus as part of their result type,
@@ -298,7 +309,9 @@ service ImpalaService extends beeswax.BeeswaxService {
 
   // Returns the summary of the current execution.
   ExecStats.TExecSummary GetExecSummary(1:beeswax.QueryHandle handle)
-      throws(1:beeswax.QueryNotFoundException error, 2:beeswax.BeeswaxException error2);
+    throws(1:beeswax.QueryNotFoundException error, 2:beeswax.BeeswaxException error2);
+
+  TInstallDebugActionsResponse InstallDebugActions(1:TInstallDebugActionsParams params);
 }
 
 // Impala HiveServer2 service

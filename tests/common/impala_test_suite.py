@@ -438,6 +438,16 @@ class ImpalaTestSuite(BaseTestSuite):
     assert not result.success, "No failure encountered for query %s" % query
     return result
 
+  def expect_async_query_failure(self, impalad_client, handle):
+    result = None
+    try:
+      result = impalad_client.wait_for_completion(handle)
+    except Exception, e:
+      return e
+
+    assert not result.success, "No failure encountered for async query"
+    return result
+
   @execute_wrapper
   def execute_query(self, query, query_options=None):
     return self.__execute_query(self.client, query, query_options)

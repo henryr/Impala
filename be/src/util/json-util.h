@@ -21,6 +21,7 @@
 #include <rapidjson/rapidjson.h>
 #include <rapidjson/document.h>
 
+#include "common/status.h"
 #include "util/template-util.h"
 #include "util/pretty-printer.h"
 
@@ -57,6 +58,11 @@ ToJsonValue(const T& value, const TUnit::type unit, rapidjson::Document* documen
     *out_val = value;
   }
 }
+
+Status ParseJsonFromString(const std::string& json, rapidjson::Document* document,
+    bool force_lower_case=false);
+
+Status JsonToString(rapidjson::Value* document, std::string* output);
 
 }
 

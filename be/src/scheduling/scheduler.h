@@ -44,9 +44,6 @@ class Scheduler {
  public:
   virtual ~Scheduler() { }
 
-  /// List of server descriptors.
-  typedef std::vector<TBackendDescriptor> BackendList;
-
   /// Populates given query schedule whose execution is to be coordinated by coord.
   /// Assigns fragments to hosts based on scan ranges in the query exec request.
   /// If resource management is enabled, also reserves resources from the central
@@ -75,6 +72,11 @@ class Scheduler {
   /// Initialises the scheduler, acquiring all resources needed to make
   /// scheduling decisions once this method returns.
   virtual Status Init() = 0;
+
+  typedef std::list<TBackendDescriptor> BackendList;
+
+
+  virtual void GetAllKnownBackends(BackendList* backends) = 0;
 
 };
 

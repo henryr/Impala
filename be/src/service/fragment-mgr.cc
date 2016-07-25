@@ -22,6 +22,7 @@
 #include <gutil/strings/substitute.h>
 
 #include "service/fragment-exec-state.h"
+#include "runtime/debug-rules.h"
 #include "runtime/exec-env.h"
 #include "runtime/mem-tracker.h"
 #include "util/impalad-metrics.h"
@@ -61,6 +62,8 @@ Status FragmentMgr::ExecPlanFragment(const TExecPlanFragmentParams& exec_params)
 
   shared_ptr<FragmentExecState> exec_state(
       new FragmentExecState(exec_params, ExecEnv::GetInstance()));
+  RETURN_IF_ERROR(exec_state->SetDebugRules(exec_params.debug_rules_json));
+
 
   // Register exec_state before this RPC returns so that async Cancel() calls (which can
   // only happen after this RPC returns) can always find this fragment.

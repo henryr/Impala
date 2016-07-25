@@ -110,6 +110,9 @@ class ClientCacheHelper {
   /// and the total number in the cache.
   void InitMetrics(MetricGroup* metrics, const std::string& key_prefix);
 
+  void set_send_timeout(int32_t send_timeout_ms) { send_timeout_ms_ = send_timeout_ms; };
+  void set_recv_timeout(int32_t recv_timeout_ms) { recv_timeout_ms_ = recv_timeout_ms; };
+
  private:
   template <class T> friend class ClientCache;
   /// Private constructor so that only ClientCache can instantiate this class.
@@ -172,10 +175,10 @@ class ClientCacheHelper {
   const uint64_t wait_ms_;
 
   /// Time to wait for the underlying socket to send data, e.g., for an RPC.
-  const int32_t send_timeout_ms_;
+  int32_t send_timeout_ms_;
 
   /// Time to wait for the underlying socket to receive data, e.g., for an RPC response.
-  const int32_t recv_timeout_ms_;
+  int32_t recv_timeout_ms_;
 
   /// True if metrics have been registered (i.e. InitMetrics() was called)), and *_metric_
   /// are valid pointers.
@@ -270,6 +273,10 @@ class ClientConnection {
       try {
         (client_->*f)(*response, request);
       } catch (apache::thrift::TException& e) {
+        if (IsRecvTimeoutTException(e)) {
+          return Status(TErrorCode::RPC_RECV_TIMEOUT, strings::Substitute(
+                  "Client $0 timed-out during recv call.", TNetworkAddressToString(address_)));
+        }
         // By this point the RPC really has failed.
         // TODO: Revisit this logic later. It's possible that the new connection
         // works but we hit timeout here.
@@ -360,6 +367,14 @@ class ClientCache {
   /// Must be called before the cache is used, otherwise the metrics might be wrong
   void InitMetrics(MetricGroup* metrics, const std::string& key_prefix) {
     client_cache_helper_.InitMetrics(metrics, key_prefix);
+  }
+
+  void set_send_timeout(int32_t send_timeout) {
+    client_cache_helper_.set_send_timeout(send_timeout);
+  }
+
+  void set_recv_timeout(int32_t recv_timeout) {
+    client_cache_helper_.set_recv_timeout(recv_timeout);
   }
 
  private:

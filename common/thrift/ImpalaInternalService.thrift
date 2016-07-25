@@ -205,6 +205,9 @@ struct TQueryOptions {
 
   // Additional strict handling of invalid data parsing and type conversions.
   49: optional bool strict_mode = false
+
+  50: optional string query_debug_rules = ""
+
 }
 
 // Impala currently has two types of sessions: Beeswax and HiveServer2
@@ -397,6 +400,8 @@ struct TExecPlanFragmentParams {
   // Context of this fragment instance, including its instance id, the total number
   // fragment instances, the query context, etc.
   4: optional TPlanFragmentInstanceCtx fragment_instance_ctx
+
+  5: optional string debug_rules_json
 }
 
 struct TExecPlanFragmentResult {
@@ -611,7 +616,7 @@ struct TBloomFilter {
 }
 
 struct TUpdateFilterResult {
-
+  1: optional Status.TStatus status
 }
 
 struct TUpdateFilterParams {
@@ -625,7 +630,7 @@ struct TUpdateFilterParams {
 }
 
 struct TPublishFilterResult {
-
+  1: optional Status.TStatus status
 }
 
 struct TPublishFilterParams {
@@ -664,4 +669,6 @@ service ImpalaInternalService {
   // Called by the coordinator to deliver global runtime filters to fragment instances for
   // application at plan nodes.
   TPublishFilterResult PublishFilter(1:TPublishFilterParams params);
+
+  ImpalaService.TInstallDebugActionsResponse InstallDebugActions(1:ImpalaService.TInstallDebugActionsParams params);
 }
