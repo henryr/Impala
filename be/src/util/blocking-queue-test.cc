@@ -26,6 +26,8 @@
 
 #include "common/names.h"
 
+using namespace std;
+
 namespace impala {
 
 TEST(BlockingQueueTest, TestBasic) {
@@ -40,6 +42,42 @@ TEST(BlockingQueueTest, TestBasic) {
   ASSERT_EQ(2, i);
   ASSERT_TRUE(test_queue.BlockingGet(&i));
   ASSERT_EQ(3, i);
+}
+
+struct MovableStruct {
+  int32_t move_from_count = 0;
+  int32_t move_to_count = 0;
+  MovableStruct() {}
+
+  MovableStruct& operator=(MovableStruct&& from) {
+    ++move_to_count;
+    ++from.move_from_count;
+    return *this;
+  }
+
+  MovableStruct(const MovableStruct& from) = default;
+
+  MovableStruct(MovableStruct&& from) {
+    ++move_to_count;
+    ++from.move_from_count;
+  }
+};
+
+TEST(BlockingQueueTest, TestMove) {
+  MovableStruct in;
+  ASSERT_EQ(in.move_from_count, 0);
+
+  BlockingQueue<MovableStruct> test_queue(2);
+  test_queue.BlockingPut(in);
+  ASSERT_EQ(in.move_from_count, 0);
+  test_queue.BlockingPut(move(in));
+  ASSERT_EQ(in.move_from_count, 1);
+
+  MovableStruct out;
+  ASSERT_TRUE(test_queue.BlockingGet(&out));
+  ASSERT_EQ(out.move_to_count, 1);
+  ASSERT_TRUE(test_queue.BlockingGet(&out));
+  ASSERT_EQ(out.move_to_count, 2);
 }
 
 TEST(BlockingQueueTest, TestGetFromShutdownQueue) {

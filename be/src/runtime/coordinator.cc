@@ -39,22 +39,28 @@
 #include <errno.h>
 
 #include "common/logging.h"
-#include "exprs/expr.h"
 #include "exec/data-sink.h"
+#include "exec/push-pull-sink.h"
+#include "exec/scan-node.h"
+#include "exprs/expr.h"
+#include "gen-cpp/Frontend_types.h"
+#include "gen-cpp/ImpalaInternalService.h"
+#include "gen-cpp/ImpalaInternalService_constants.h"
+#include "gen-cpp/ImpalaInternalService_types.h"
+#include "gen-cpp/Partitions_types.h"
+#include "gen-cpp/PlanNodes_types.h"
+#include "runtime/backend-client.h"
 #include "runtime/client-cache.h"
-#include "runtime/data-stream-sender.h"
 #include "runtime/data-stream-mgr.h"
+#include "runtime/data-stream-sender.h"
 #include "runtime/exec-env.h"
 #include "runtime/hdfs-fs-cache.h"
 #include "runtime/mem-tracker.h"
+#include "runtime/parallel-executor.h"
 #include "runtime/plan-fragment-executor.h"
 #include "runtime/row-batch.h"
-#include "runtime/backend-client.h"
-#include "runtime/parallel-executor.h"
 #include "runtime/tuple-row.h"
 #include "scheduling/scheduler.h"
-#include "exec/data-sink.h"
-#include "exec/scan-node.h"
 #include "util/bloom-filter.h"
 #include "util/container-util.h"
 #include "util/counting-barrier.h"
@@ -66,12 +72,6 @@
 #include "util/pretty-printer.h"
 #include "util/summary-util.h"
 #include "util/table-printer.h"
-#include "gen-cpp/ImpalaInternalService.h"
-#include "gen-cpp/ImpalaInternalService_types.h"
-#include "gen-cpp/Frontend_types.h"
-#include "gen-cpp/PlanNodes_types.h"
-#include "gen-cpp/Partitions_types.h"
-#include "gen-cpp/ImpalaInternalService_constants.h"
 
 #include "common/names.h"
 
@@ -352,15 +352,14 @@ Coordinator::Coordinator(const TQueryOptions& query_options, ExecEnv* exec_env,
   : exec_env_(exec_env),
     has_called_wait_(false),
     returned_all_results_(false),
-    executor_(NULL), // Set in Prepare()
+    executor_(nullptr),   // Set in Prepare()
     query_mem_tracker_(), // Set in Exec()
     num_remaining_fragment_instances_(0),
     obj_pool_(new ObjectPool()),
     query_events_(events),
     filter_routing_table_complete_(false),
     filter_mode_(query_options.runtime_filter_mode),
-    torn_down_(false) {
-}
+    torn_down_(false) {}
 
 Coordinator::~Coordinator() {
   DCHECK(torn_down_) << "TearDown() must be called before Coordinator is destroyed";
@@ -456,77 +455,78 @@ Status Coordinator::Exec(QuerySchedule& schedule,
   // execution at Impala daemons where it hasn't even started
   lock_guard<mutex> l(lock_);
 
-  // we run the root fragment ourselves if it is unpartitioned
-  bool has_coordinator_fragment =
-      request.fragments[0].partition.type == TPartitionType::UNPARTITIONED;
+  // The coordinator instance may require a query mem tracker even if there is no
+  // coordinator fragment. For example, result-caching tracks memory via the query mem
+  // tracker.
+  int64_t query_limit = -1;
+  if (query_ctx_.request.query_options.__isset.mem_limit
+      && query_ctx_.request.query_options.mem_limit > 0) {
+    query_limit = query_ctx_.request.query_options.mem_limit;
+  }
+  MemTracker* pool_tracker = MemTracker::GetRequestPoolMemTracker(
+      schedule.request_pool(), exec_env_->process_mem_tracker());
+  query_mem_tracker_ =
+      MemTracker::GetQueryMemTracker(query_id_, query_limit, pool_tracker);
 
+  bool has_coordinator_fragment = (stmt_type_ == TStmtType::QUERY);
   if (has_coordinator_fragment) {
-    executor_.reset(new PlanFragmentExecutor(
-            exec_env_, PlanFragmentExecutor::ReportStatusCallback()));
-    // If a coordinator fragment is requested (for most queries this will be the case, the
-    // exception is parallel INSERT queries), start this before starting any more plan
-    // fragments, otherwise they start sending data before the local exchange node had a
-    // chance to register with the stream mgr.
-    // TODO: This is no longer necessary (see IMPALA-1599). Consider starting all
-    // fragments in the same way with no coordinator special case.
-    if (filter_mode_ != TRuntimeFilterMode::OFF) {
-      UpdateFilterRoutingTable(request.fragments[0].plan.nodes, 1, 0);
-      if (schedule.num_fragment_instances() == 0) MarkFilterRoutingTableComplete();
-    }
-    TExecPlanFragmentParams rpc_params;
-    SetExecPlanFragmentParams(schedule, request.fragments[0],
-        (*schedule.exec_params())[0], 0, 0, 0, coord, &rpc_params);
-    RETURN_IF_ERROR(executor_->Prepare(rpc_params));
-
-    // Prepare output_expr_ctxs before optimizing the LLVM module. The other exprs of this
-    // coordinator fragment have been prepared in executor_->Prepare().
+    // Create and prepare output exprs, for evaluation by parent QueryExecState.
+    // TODO: Output exprs should be evaluated by PushPullSink.
     DCHECK(output_expr_ctxs != NULL);
     RETURN_IF_ERROR(Expr::CreateExprTrees(
-        runtime_state()->obj_pool(), request.fragments[0].output_exprs,
-        output_expr_ctxs));
-    MemTracker* output_expr_tracker = runtime_state()->obj_pool()->Add(new MemTracker(
-        -1, "Output exprs", runtime_state()->instance_mem_tracker(), false));
-    RETURN_IF_ERROR(Expr::Prepare(
-        *output_expr_ctxs, runtime_state(), row_desc(), output_expr_tracker));
-  } else {
-    // The coordinator instance may require a query mem tracker even if there is no
-    // coordinator fragment. For example, result-caching tracks memory via the query mem
-    // tracker.
-    // If there is a fragment, the fragment executor created above initializes the query
-    // mem tracker. If not, the query mem tracker is created here.
-    int64_t query_limit = -1;
-    if (query_ctx_.request.query_options.__isset.mem_limit &&
-        query_ctx_.request.query_options.mem_limit > 0) {
-      query_limit = query_ctx_.request.query_options.mem_limit;
-    }
-    MemTracker* pool_tracker = MemTracker::GetRequestPoolMemTracker(
-        schedule.request_pool(), exec_env_->process_mem_tracker());
-    query_mem_tracker_ =
-        MemTracker::GetQueryMemTracker(query_id_, query_limit, pool_tracker);
+        obj_pool(), request.fragments[0].output_exprs, output_expr_ctxs));
+    output_expr_tracker_ =
+        obj_pool()->Add(new MemTracker(-1, "Output exprs", query_mem_tracker(), false));
 
-    executor_.reset(NULL);
+    // To prepare the expressions we need a local RuntimeState and DescriptoTbl.
+    DescriptorTbl* descriptor_table;
+    RETURN_IF_ERROR(DescriptorTbl::Create(obj_pool(), desc_tbl_, &descriptor_table));
+    output_expr_runtime_state_ = obj_pool()->Add(
+        new RuntimeState(TExecPlanFragmentParams(), ExecEnv::GetInstance()));
+    output_expr_runtime_state_->set_desc_tbl(descriptor_table);
+    const TPlanNode root_node = request.fragments[0].plan.nodes[0];
+    RowDescriptor my_row_desc(
+        *descriptor_table, root_node.row_tuples, root_node.nullable_tuples);
+
+    RETURN_IF_ERROR(Expr::Prepare(*output_expr_ctxs, output_expr_runtime_state_,
+        my_row_desc, output_expr_tracker_));
   }
-  filter_mem_tracker_.reset(
-      new MemTracker(-1, "Runtime Filter (Coordinator)", query_mem_tracker(), false));
 
-  // Initialize the execution profile structures.
-  InitExecProfile(request);
-
-  // Once remote fragments are started, they can start making ReportExecStatus RPCs,
-  // which will update the progress updater. So initialize it before starting remote
-  // fragments.
   const string& str = Substitute("Query $0", PrintId(query_id_));
   progress_.Init(str, schedule.num_scan_ranges());
 
-  if (schedule.num_fragment_instances() > 0) {
-    RETURN_IF_ERROR(StartRemoteFragments(&schedule));
+  DCHECK_GT(schedule.num_fragment_instances(), 0);
+  // Required so that StartRemoteFragments() can populate some profile information. Needs
+  // refactor.
+  fragment_profiles_.resize(request.fragments.size());
+  RETURN_IF_ERROR(StartRemoteFragments(&schedule));
+
+  // Grab executor and wait until Prepare() has finished so that runtime state etc. will
+  // be set up.
+  if (has_coordinator_fragment) {
+    // Coordinator fragment instance has same ID as query.
+    root_fragment_instance_ =
+        ExecEnv::GetInstance()->fragment_mgr()->GetFragmentExecState(query_id_);
+    DCHECK(root_fragment_instance_.get() != nullptr);
+    executor_ = root_fragment_instance_->executor();
+    executor_->WaitForPrepare();
+
     // If we have a coordinator fragment and remote fragments (the common case), release
     // the thread token on the coordinator fragment. This fragment spends most of the time
     // waiting and doing very little work. Holding on to the token causes underutilization
     // of the machine. If there are 12 queries on this node, that's 12 tokens reserved for
     // no reason.
-    if (has_coordinator_fragment) executor_->ReleaseThreadToken();
+    executor_->ReleaseThreadToken();
   }
+
+  // Initialize the execution profile structures. Must happen here as relies on executor_.
+  // TODO: Refactor profile setup.
+  InitExecProfile(request);
+  profiles_ready_.Set(true);
+
+  DCHECK(query_mem_tracker() != nullptr);
+  filter_mem_tracker_.reset(
+      new MemTracker(-1, "Runtime Filter (Coordinator)", query_mem_tracker(), false));
 
   PrintFragmentInstanceInfo();
   return Status::OK();
@@ -601,17 +601,13 @@ Status Coordinator::StartRemoteFragments(QuerySchedule* schedule) {
              << query_id_;
 
   query_events_->MarkEvent(
-      Substitute("Ready to start $0 remote fragments", num_fragment_instances));
+      Substitute("Ready to start $0 fragments", num_fragment_instances));
 
   int instance_state_idx = 0;
-  bool has_coordinator_fragment =
-      request.fragments[0].partition.type == TPartitionType::UNPARTITIONED;
-  int first_remote_fragment_idx = has_coordinator_fragment ? 1 : 0;
   if (filter_mode_ != TRuntimeFilterMode::OFF) {
     // Populate the runtime filter routing table. This should happen before
     // starting the remote fragments.
-    for (int fragment_idx = first_remote_fragment_idx;
-         fragment_idx < request.fragments.size(); ++fragment_idx) {
+    for (int fragment_idx = 0; fragment_idx < request.fragments.size(); ++fragment_idx) {
       const FragmentExecParams* params = &(*schedule->exec_params())[fragment_idx];
       int num_hosts = params->hosts.size();
       DCHECK_GT(num_hosts, 0);
@@ -625,8 +621,7 @@ Status Coordinator::StartRemoteFragments(QuerySchedule* schedule) {
   instance_state_idx = 0;
   // Start one fragment instance per fragment per host (number of hosts running each
   // fragment may not be constant).
-  for (int fragment_idx = first_remote_fragment_idx;
-       fragment_idx < request.fragments.size(); ++fragment_idx) {
+  for (int fragment_idx = 0; fragment_idx < request.fragments.size(); ++fragment_idx) {
     const FragmentExecParams* params = &(*schedule->exec_params())[fragment_idx];
     int num_hosts = params->hosts.size();
     DCHECK_GT(num_hosts, 0);
@@ -1087,58 +1082,34 @@ Status Coordinator::Wait() {
   SCOPED_TIMER(query_profile_->total_time_counter());
   if (has_called_wait_) return Status::OK();
   has_called_wait_ = true;
-  Status return_status = Status::OK();
-  if (executor_.get() != NULL) {
-    // Open() may block
-    return_status = UpdateStatus(executor_->Open(),
-        runtime_state()->fragment_instance_id(), FLAGS_hostname);
 
-    if (return_status.ok()) {
-      // If the coordinator fragment has a sink, it will have finished executing at this
-      // point.  It's safe therefore to copy the set of files to move and updated
-      // partitions into the query-wide set.
-      RuntimeState* state = runtime_state();
-      DCHECK(state != NULL);
-
-      // No other backends should have updated these structures if the coordinator has a
-      // fragment.  (Backends have a sink only if the coordinator does not)
-      DCHECK_EQ(files_to_move_.size(), 0);
-      DCHECK_EQ(per_partition_status_.size(), 0);
-
-      // Because there are no other updates, safe to copy the maps rather than merge them.
-      files_to_move_ = *state->hdfs_files_to_move();
-      per_partition_status_ = *state->per_partition_status();
-    }
-  } else {
-    // Query finalization can only happen when all backends have reported
-    // relevant state. They only have relevant state to report in the parallel
-    // INSERT case, otherwise all the relevant state is from the coordinator
-    // fragment which will be available after Open() returns.
-    // Ignore the returned status if finalization is required., since FinalizeQuery() will
-    // pick it up and needs to execute regardless.
-    Status status = WaitForAllBackends();
-    if (!needs_finalization_ && !status.ok()) return status;
+  if (stmt_type_ == TStmtType::QUERY) {
+    DCHECK(executor_ != nullptr);
+    return UpdateStatus(executor_->WaitForOpen(), runtime_state()->fragment_instance_id(),
+        FLAGS_hostname);
   }
+
+  DCHECK_EQ(stmt_type_, TStmtType::DML);
+  // Query finalization can only happen when all backends have reported
+  // relevant state. They only have relevant state to report in the parallel
+  // INSERT case, otherwise all the relevant state is from the coordinator
+  // fragment which will be available after Open() returns.
+  // Ignore the returned status if finalization is required., since FinalizeQuery() will
+  // pick it up and needs to execute regardless.
+  Status status = WaitForAllBackends();
+  if (!needs_finalization_ && !status.ok()) return status;
 
   // Query finalization is required only for HDFS table sinks
-  if (needs_finalization_) {
-    RETURN_IF_ERROR(FinalizeQuery());
-  }
+  if (needs_finalization_) RETURN_IF_ERROR(FinalizeQuery());
 
-  if (stmt_type_ == TStmtType::DML) {
-    query_profile_->AddInfoString("Insert Stats",
-        DataSink::OutputInsertStats(per_partition_status_, "\n"));
-    // For DML queries, when Wait is done, the query is complete.  Report aggregate
-    // query profiles at this point.
-    // TODO: make sure ReportQuerySummary gets called on error
-    ReportQuerySummary();
-  }
+  query_profile_->AddInfoString(
+      "Insert Stats", DataSink::OutputInsertStats(per_partition_status_, "\n"));
+  // For DML queries, when Wait is done, the query is complete.  Report aggregate
+  // query profiles at this point.
+  // TODO: make sure ReportQuerySummary gets called on error
+  ReportQuerySummary();
 
-  if (filter_routing_table_.size() > 0) {
-    query_profile_->AddInfoString("Final filter table", FilterDebugString());
-  }
-
-  return return_status;
+  return status;
 }
 
 Status Coordinator::GetNext(RowBatch** batch, RuntimeState* state) {
@@ -1146,16 +1117,11 @@ Status Coordinator::GetNext(RowBatch** batch, RuntimeState* state) {
   DCHECK(has_called_wait_);
   SCOPED_TIMER(query_profile_->total_time_counter());
 
-  if (executor_.get() == NULL) {
-    // If there is no local fragment, we produce no output, and execution will
-    // have finished after Wait.
-    *batch = NULL;
-    return GetStatus();
-  }
+  DCHECK(executor_ != nullptr);
 
   // do not acquire lock_ here, otherwise we could block and prevent an async
   // Cancel() from proceeding
-  Status status = executor_->GetNext(batch);
+  Status status = executor_->root_sink()->GetNext(state, batch);
 
   // if there was an error, we need to return the query's error status rather than
   // the status we just got back from the local executor (which may well be CANCELLED
@@ -1165,18 +1131,9 @@ Status Coordinator::GetNext(RowBatch** batch, RuntimeState* state) {
 
   if (*batch == NULL) {
     returned_all_results_ = true;
-    if (executor_->ReachedLimit()) {
-      // We've reached the query limit, cancel the remote fragments.  The
-      // Exchange node on our fragment is no longer receiving rows so the
-      // remote fragments must be explicitly cancelled.
-      CancelRemoteFragments();
-      RuntimeState* state = runtime_state();
-      if (state != NULL) {
-        // Cancel the streams receiving batches.  The exchange nodes that would
-        // normally read from the streams are done.
-        state->stream_mgr()->Cancel(state->fragment_instance_id());
-      }
-    }
+    // Trigger tear-down of coordinator fragment by closing the consumer. Must do before
+    // WaitForAllBackends().
+    executor_->root_sink()->CloseConsumer();
 
     // Don't return final NULL until all backends have completed.
     // GetNext must wait for all backends to complete before
@@ -1224,7 +1181,7 @@ void Coordinator::PrintFragmentInstanceInfo() {
     acc(fragment_instance_states_[i]->total_split_size());
   }
 
-  for (int i = (executor_.get() == NULL ? 0 : 1); i < fragment_profiles_.size(); ++i) {
+  for (int i = (executor_ == NULL ? 0 : 1); i < fragment_profiles_.size(); ++i) {
     SummaryStats& acc = fragment_profiles_[i].bytes_assigned;
     double min = accumulators::min(acc);
     double max = accumulators::max(acc);
@@ -1251,6 +1208,7 @@ void Coordinator::PrintFragmentInstanceInfo() {
 
 void Coordinator::InitExecProfile(const TQueryExecRequest& request) {
   // Initialize the structure to collect execution summary of every plan node.
+  lock_guard<SpinLock> l(exec_summary_lock_);
   exec_summary_.__isset.nodes = true;
   for (int i = 0; i < request.fragments.size(); ++i) {
     if (!request.fragments[i].__isset.plan) continue;
@@ -1285,7 +1243,7 @@ void Coordinator::InitExecProfile(const TQueryExecRequest& request) {
     }
   }
 
-  if (executor_.get() != NULL) {
+  if (executor_ != NULL) {
     // register coordinator's fragment profile now, before those of the backends,
     // so it shows up at the top
     query_profile_->AddChild(executor_->profile());
@@ -1296,15 +1254,10 @@ void Coordinator::InitExecProfile(const TQueryExecRequest& request) {
 
   // Initialize the runtime profile structure. This adds the per fragment average
   // profiles followed by the per fragment instance profiles.
-  bool has_coordinator_fragment =
-      request.fragments[0].partition.type == TPartitionType::UNPARTITIONED;
-  fragment_profiles_.resize(request.fragments.size());
   for (int i = 0; i < request.fragments.size(); ++i) {
-    fragment_profiles_[i].num_instances = 0;
-
     // Special case fragment idx 0 if there is a coordinator. There is only one
     // instance of this profile so the average is just the coordinator profile.
-    if (i == 0 && has_coordinator_fragment) {
+    if (i == 0 && executor_ != nullptr) {
       fragment_profiles_[i].averaged_profile = executor_->profile();
       fragment_profiles_[i].num_instances = 1;
       continue;
@@ -1379,8 +1332,6 @@ void Coordinator::ExecRemoteFragment(const FragmentExecParams* fragment_exec_par
             << " instance_id=" << exec_state->fragment_instance_id()
             << " host=" << exec_state->impalad_address();
 
-  // Guard against concurrent UpdateExecStatus() that may arrive after RPC returns.
-  lock_guard<mutex> l(*exec_state->lock());
   int64_t start = MonotonicMillis();
 
   Status client_connect_status;
@@ -1435,7 +1386,7 @@ void Coordinator::CancelInternal() {
   DCHECK(!query_status_.ok());
 
   // cancel local fragment
-  if (executor_.get() != NULL) executor_->Cancel();
+  if (executor_ != NULL) executor_->Cancel();
 
   CancelRemoteFragments();
 
@@ -1514,6 +1465,8 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
   VLOG_FILE << "UpdateFragmentExecStatus() query_id=" << query_id_
             << " status=" << params.status.status_code
             << " done=" << (params.done ? "true" : "false");
+  // Make sure that InitExecProfile() has been called.
+  profiles_ready_.Get();
   uint32_t instance_state_idx = params.instance_state_idx;
   if (instance_state_idx >= fragment_instance_states_.size()) {
     return Status(TErrorCode::INTERNAL_ERROR,
@@ -1549,7 +1502,7 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
 
       // Update the average profile for the fragment corresponding to this instance.
       exec_state->profile()->ComputeTimeInProfile();
-      UpdateAverageProfile(exec_state);
+      if (instance_state_idx > 0) UpdateAverageProfile(exec_state);
       UpdateExecSummary(exec_state->fragment_idx(), exec_state->instance_idx(),
           exec_state->profile());
     }
@@ -1642,17 +1595,16 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
 }
 
 const RowDescriptor& Coordinator::row_desc() const {
-  DCHECK(executor_.get() != NULL);
+  DCHECK(executor_ != NULL);
   return executor_->row_desc();
 }
 
 RuntimeState* Coordinator::runtime_state() {
-  return executor_.get() == NULL ? NULL : executor_->runtime_state();
+  return executor_ == NULL ? NULL : executor_->runtime_state();
 }
 
 MemTracker* Coordinator::query_mem_tracker() {
-  return executor_.get() == NULL ? query_mem_tracker_.get() :
-      executor_->runtime_state()->query_mem_tracker();
+  return query_mem_tracker_.get();
 }
 
 bool Coordinator::PrepareCatalogUpdate(TUpdateCatalogRequest* catalog_update) {
@@ -1679,7 +1631,8 @@ typedef struct {
 // Update fragment average profile information from a backend execution state.
 void Coordinator::UpdateAverageProfile(FragmentInstanceState* fragment_instance_state) {
   int fragment_idx = fragment_instance_state->fragment_idx();
-  DCHECK_GE(fragment_idx, 0);
+  // May not be called for the coordinator fragment, which has no averaged profile.
+  DCHECK(executor_ == nullptr || fragment_idx > 0);
   DCHECK_LT(fragment_idx, fragment_profiles_.size());
   PerFragmentProfileData& data = fragment_profiles_[fragment_idx];
 
@@ -1701,10 +1654,13 @@ void Coordinator::ComputeFragmentSummaryStats(
   data.rates(fragment_instance_state->total_split_size() / (completion_time / 1000.0
     / 1000.0 / 1000.0));
 
-  // Add the child in case it has not been added previously
-  // via UpdateAverageProfile(). AddChild() will do nothing if the child
-  // already exists.
-  data.root_profile->AddChild(fragment_instance_state->profile());
+  // Don't try to update the average for the coordinator.
+  if (executor_ == nullptr || fragment_idx > 0) {
+    // Add the child in case it has not been added previously
+    // via UpdateAverageProfile(). AddChild() will do nothing if the child
+    // already exists.
+    data.root_profile->AddChild(fragment_instance_state->profile());
+  }
 }
 
 void Coordinator::UpdateExecSummary(int fragment_idx, int instance_idx,
@@ -1752,7 +1708,7 @@ void Coordinator::ReportQuerySummary() {
 
   // The fragment has finished executing.  Update the profile to compute the
   // fraction of time spent in each node.
-  if (executor_.get() != NULL) {
+  if (executor_ != NULL) {
     executor_->profile()->ComputeTimeInProfile();
     UpdateExecSummary(0, 0, executor_->profile());
   }
@@ -1761,7 +1717,9 @@ void Coordinator::ReportQuerySummary() {
     // Average all remote fragments for each fragment.
     for (int i = 0; i < fragment_instance_states_.size(); ++i) {
       fragment_instance_states_[i]->profile()->ComputeTimeInProfile();
-      UpdateAverageProfile(fragment_instance_states_[i]);
+      if (executor_ == nullptr || i > 0) {
+        UpdateAverageProfile(fragment_instance_states_[i]);
+      }
       ComputeFragmentSummaryStats(fragment_instance_states_[i]);
       UpdateExecSummary(fragment_instance_states_[i]->fragment_idx(),
           fragment_instance_states_[i]->instance_idx(),
@@ -1770,7 +1728,7 @@ void Coordinator::ReportQuerySummary() {
 
     InstanceComparator comparator;
     // Per fragment instances have been collected, output summaries
-    for (int i = (executor_.get() != NULL ? 1 : 0); i < fragment_profiles_.size(); ++i) {
+    for (int i = (executor_ != NULL ? 1 : 0); i < fragment_profiles_.size(); ++i) {
       fragment_profiles_[i].root_profile->SortChildren(comparator);
       SummaryStats& completion_times = fragment_profiles_[i].completion_times;
       SummaryStats& rates = fragment_profiles_[i].rates;
@@ -1809,7 +1767,7 @@ void Coordinator::ReportQuerySummary() {
     // Map from Impalad address to peak memory usage of this query
     typedef unordered_map<TNetworkAddress, int64_t> PerNodePeakMemoryUsage;
     PerNodePeakMemoryUsage per_node_peak_mem_usage;
-    if (executor_.get() != NULL) {
+    if (executor_ != NULL) {
       // Coordinator fragment is not included in fragment_instance_states_.
       RuntimeProfile::Counter* mem_usage_counter =
           executor_->profile()->GetCounter(
@@ -1844,7 +1802,7 @@ string Coordinator::GetErrorLog() {
   ErrorLogMap merged;
   {
     lock_guard<mutex> l(lock_);
-    if (executor_.get() != NULL && executor_->runtime_state() != NULL) {
+    if (executor_ != NULL && executor_->runtime_state() != NULL) {
       ErrorLogMap runtime_error_log;
       executor_->runtime_state()->GetErrors(&runtime_error_log);
       MergeErrorMaps(&merged, runtime_error_log);
@@ -2008,11 +1966,17 @@ void DistributeFilters(shared_ptr<TPublishFilterParams> params, TNetworkAddress 
 void Coordinator::TearDown() {
   DCHECK(!torn_down_) << "Coordinator::TearDown() may not be called twice";
   torn_down_ = true;
+  if (filter_routing_table_.size() > 0) {
+    query_profile_->AddInfoString("Final filter table", FilterDebugString());
+  }
+
   lock_guard<SpinLock> l(filter_lock_);
   for (auto& filter: filter_routing_table_) {
     FilterState* state = &filter.second;
     state->Disable(filter_mem_tracker_.get());
   }
+  if (executor_ != nullptr) executor_->root_sink()->CloseConsumer();
+  if (output_expr_tracker_ != nullptr) output_expr_tracker_->UnregisterFromParent();
 }
 
 void Coordinator::UpdateFilter(const TUpdateFilterParams& params) {

@@ -31,12 +31,12 @@ namespace impala {
 
 /// Fixed capacity FIFO queue, where both BlockingGet and BlockingPut operations block
 /// if the queue is empty or full, respectively.
-
+///
+/// Queue entries must be movable.
 /// TODO: Add some double-buffering so that readers do not block writers and vice versa.
 /// Or, implement a mostly lock-free blocking queue.
 template <typename T>
 class BlockingQueue {
-
  public:
   BlockingQueue(size_t max_elements)
     : shutdown_(false),
@@ -54,7 +54,7 @@ class BlockingQueue {
 
     while (true) {
       if (!list_.empty()) {
-        *out = list_.front();
+        *out = std::move(list_.front());
         list_.pop_front();
         total_get_wait_time_ += timer.ElapsedTime();
         unique_lock.unlock();
@@ -69,9 +69,15 @@ class BlockingQueue {
     }
   }
 
+  /// Wrapper around BlockingPut() for copy-only values.
+  bool BlockingPut(const T& val) {
+    T to_put = val;
+    return BlockingPut(std::move(to_put));
+  }
+
   /// Puts an element into the queue, waiting indefinitely until there is space.
   /// If the queue is shut down, returns false.
-  bool BlockingPut(const T& val) {
+  bool BlockingPut(T&& val) {
     MonotonicStopWatch timer;
     boost::unique_lock<boost::mutex> unique_lock(lock_);
 
@@ -84,16 +90,22 @@ class BlockingQueue {
     if (shutdown_) return false;
 
     DCHECK_LT(list_.size(), max_elements_);
-    list_.push_back(val);
+    list_.push_back(std::move(val));
     unique_lock.unlock();
     get_cv_.notify_one();
     return true;
   }
 
-  /// Puts an element into the queue, waiting until 'timeout_micros' elapses, if there is
-  /// no space. If the queue is shut down, or if the timeout elapsed without being able to put the
-  /// element, returns false.
+  /// Wrapper around BlockingPutWithTimeout() for copy-only values.
   bool BlockingPutWithTimeout(const T& val, int64_t timeout_micros) {
+    T to_put = val;
+    return BlockingPutWithTimeout(std::move(to_put), timeout_micros);
+  }
+
+  /// Puts an element into the queue, waiting until 'timeout_micros' elapses, if there is
+  /// no space. If the queue is shut down, or if the timeout elapsed without being able to
+  /// put the element, returns false.
+  bool BlockingPutWithTimeout(T&& val, int64_t timeout_micros) {
     MonotonicStopWatch timer;
     boost::unique_lock<boost::mutex> unique_lock(lock_);
     boost::system_time wtime = boost::get_system_time() +

@@ -25,6 +25,8 @@ import java.util.Set;
 import com.cloudera.impala.catalog.Type;
 import com.cloudera.impala.common.AnalysisException;
 import com.cloudera.impala.common.TreeNode;
+import com.cloudera.impala.planner.DataSink;
+import com.cloudera.impala.planner.PushPullSink;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Lists;
@@ -407,6 +409,10 @@ public abstract class QueryStmt extends StatementBase {
    */
   public void substituteResultExprs(ExprSubstitutionMap smap, Analyzer analyzer) {
     resultExprs_ = Expr.substituteList(resultExprs_, smap, analyzer, true);
+  }
+
+  public DataSink createDataSink() {
+    return new PushPullSink();
   }
 
   public ArrayList<OrderByElement> cloneOrderByElements() {

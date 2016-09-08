@@ -32,9 +32,9 @@ namespace impala {
 /// ImpalaInternalService service.
 class ImpalaInternalService : public ImpalaInternalServiceIf {
  public:
-  ImpalaInternalService(const boost::shared_ptr<ImpalaServer>& impala_server,
-      const boost::shared_ptr<FragmentMgr>& fragment_mgr)
-      : impala_server_(impala_server), fragment_mgr_(fragment_mgr) { }
+  ImpalaInternalService(
+      const boost::shared_ptr<ImpalaServer>& impala_server, FragmentMgr* fragment_mgr)
+    : impala_server_(impala_server), fragment_mgr_(fragment_mgr) {}
 
   virtual void ExecPlanFragment(TExecPlanFragmentResult& return_val,
       const TExecPlanFragmentParams& params) {
@@ -77,7 +77,7 @@ class ImpalaInternalService : public ImpalaInternalServiceIf {
   boost::shared_ptr<ImpalaServer> impala_server_;
 
   /// Manages fragment execution
-  boost::shared_ptr<FragmentMgr> fragment_mgr_;
+  FragmentMgr* fragment_mgr_;
 };
 
 }

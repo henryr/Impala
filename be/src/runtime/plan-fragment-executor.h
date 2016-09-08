@@ -23,9 +23,10 @@
 #include <boost/scoped_ptr.hpp>
 #include <boost/function.hpp>
 
-#include "common/status.h"
 #include "common/object-pool.h"
+#include "common/status.h"
 #include "runtime/runtime-state.h"
+#include "util/promise.h"
 #include "util/runtime-profile-counters.h"
 #include "util/thread.h"
 
@@ -33,6 +34,7 @@ namespace impala {
 
 class HdfsFsCache;
 class ExecNode;
+class PushPullSink;
 class RowDescriptor;
 class RowBatch;
 class DataSink;
@@ -76,13 +78,12 @@ class PlanFragmentExecutor {
       ReportStatusCallback;
 
   /// report_status_cb, if !empty(), is used to report the accumulated profile
-  /// information periodically during execution (Open() or GetNext()).
+  /// information periodically during execution (Open()).
   PlanFragmentExecutor(ExecEnv* exec_env, const ReportStatusCallback& report_status_cb);
 
   /// Closes the underlying plan fragment and frees up all resources allocated
-  /// in Open()/GetNext().
-  /// It is an error to delete a PlanFragmentExecutor with a report callback
-  /// before Open()/GetNext() (depending on whether the fragment has a sink)
+  /// in Open().
+  /// It is an error to delete a PlanFragmentExecutor with a report callback before Open()
   /// indicated that execution is finished.
   ~PlanFragmentExecutor();
 
@@ -99,26 +100,15 @@ class PlanFragmentExecutor {
   /// Status::CANCELLED;
   Status Prepare(const TExecPlanFragmentParams& request);
 
-  /// Start execution. Call this prior to GetNext().
-  /// If this fragment has a sink, Open() will send all rows produced
-  /// by the fragment to that sink. Therefore, Open() may block until
-  /// all rows are produced (and a subsequent call to GetNext() will not return
-  /// any rows).
+  /// Start execution. Open() will send all rows produced by the fragment to the
+  /// sink. Therefore, Open() will block until all rows are produced.
   /// This also starts the status-reporting thread, if the interval flag
   /// is > 0 and a callback was specified in the c'tor.
-  /// If this fragment has a sink, report_status_cb will have been called for the final
-  /// time when Open() returns, and the status-reporting thread will have been stopped.
+  /// report_status_cb will have been called for the final time when Open() returns, and
+  /// the status-reporting thread will have been stopped.
   Status Open();
 
-  /// Return results through 'batch'. Sets '*batch' to NULL if no more results.
-  /// '*batch' is owned by PlanFragmentExecutor and must not be deleted.
-  /// When *batch == NULL, GetNext() should not be called anymore. Also, report_status_cb
-  /// will have been called for the final time and the status-reporting thread
-  /// will have been stopped.
-  Status GetNext(RowBatch** batch);
-
-  /// Closes the underlying plan fragment and frees up all resources allocated
-  /// in Open()/GetNext().
+  /// Closes the underlying plan fragment and frees up all resources allocated in Open().
   void Close();
 
   /// Initiate cancellation. If called concurrently with Prepare(), will wait for
@@ -131,9 +121,6 @@ class PlanFragmentExecutor {
   /// It is legal to call Cancel() if Prepare() returned an error.
   void Cancel();
 
-  /// Returns true if this query has a limit and it has been reached.
-  bool ReachedLimit();
-
   /// Releases the thread token for this fragment executor.
   void ReleaseThreadToken();
 
@@ -143,6 +130,15 @@ class PlanFragmentExecutor {
 
   /// Profile information for plan and output sink.
   RuntimeProfile* profile();
+
+  /// Blocks until Prepare() is completed.
+  Status WaitForPrepare() { return prepared_promise_.Get(); }
+
+  /// Blocks until plan and sink are both opened.
+  Status WaitForOpen() { return opened_promise_.Get(); }
+
+  /// Returns fragment instance's sink if this is the root fragment instance.
+  PushPullSink* root_sink() { return root_sink_; }
 
   /// Name of the counter that is tracking per query, per host peak mem usage.
   static const std::string PER_HOST_PEAK_MEM_COUNTER;
@@ -166,7 +162,7 @@ class PlanFragmentExecutor {
   boost::condition_variable report_thread_started_cv_;
   bool report_thread_active_;  // true if we started the thread
 
-  /// true if plan_->GetNext() indicated that it's done
+  /// True once Open() returns successfully.
   bool done_;
 
   /// true if Close() has been called
@@ -190,14 +186,16 @@ class PlanFragmentExecutor {
   /// (e.g. mem_trackers_) from 'runtime_state_' to 'sink_' need to be severed prior to
   /// the dtor of 'runtime_state_'.
   boost::scoped_ptr<RuntimeState> runtime_state_;
-  /// Output sink for rows sent to this fragment. May not be set, in which case rows are
-  /// returned via GetNext's row batch
-  /// Created in Prepare (if required), owned by this object.
+  /// Output sink for rows sent to this fragment. Created in Prepare(), owned by this
+  /// object.
   boost::scoped_ptr<DataSink> sink_;
   boost::scoped_ptr<MemTracker> sink_mem_tracker_;
 
+  /// Set if this fragment instance is the root of the plan tree, so that a consumer can
+  /// pull results by calling root_sink_->GetNext(). Same object as sink_.
+  PushPullSink* root_sink_;
+
   boost::scoped_ptr<RowBatch> row_batch_;
-  boost::scoped_ptr<TRowBatch> thrift_batch_;
 
   /// Protects is_prepared_ and is_cancelled_, and is also used to coordinate between
   /// Prepare() and Cancel() to ensure mutual exclusion.
@@ -206,6 +204,12 @@ class PlanFragmentExecutor {
   /// True if Prepare() has been called and done some work - even if it returned an
   /// error. If Cancel() was called before Prepare(), is_prepared_ will not be set.
   bool is_prepared_;
+
+  /// Set when Prepare() returns.
+  Promise<Status> prepared_promise_;
+
+  /// Set when OpenInternal() returns.
+  Promise<Status> opened_promise_;
 
   /// True if and only if Cancel() has been called.
   bool is_cancelled_;
@@ -275,12 +279,18 @@ class PlanFragmentExecutor {
   void OptimizeLlvmModule();
 
   /// Executes Open() logic and returns resulting status. Does not set status_.
-  /// If this plan fragment has no sink, OpenInternal() does nothing.
-  /// If this plan fragment has a sink and OpenInternal() returns without an
-  /// error condition, all rows will have been sent to the sink, the sink will
-  /// have been closed, a final report will have been sent and the report thread will
-  /// have been stopped. sink_ will be set to NULL after successful execution.
+  /// If OpenInternal() returns without an error condition, all rows will have been sent
+  /// to the sink, the sink will have been closed, a final report will have been sent and
+  /// the report thread will have been stopped. sink_ will be set to NULL after successful
+  /// execution.
   Status OpenInternal();
+
+  /// Pulls row batches from fragment instance and pushes them to sink_ in a loop. Returns
+  /// OK if the input was exhausted and sent to the sink successfully, an error otherwise.
+  Status DriveSink();
+
+  /// Performs all the logic of Prepare() and returns resulting status.
+  Status PrepareInternal(const TExecPlanFragmentParams& request);
 
   /// Stops report thread, if one is running. Blocks until report thread terminates.
   /// Idempotent.

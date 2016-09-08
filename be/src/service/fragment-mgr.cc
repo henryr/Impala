@@ -43,6 +43,8 @@ Status FragmentMgr::ExecPlanFragment(const TExecPlanFragmentParams& exec_params)
              << " fragment instance#="
              << exec_params.fragment_instance_ctx.instance_state_idx;
 
+  lock_guard<SpinLock> l(fragment_exec_state_map_lock_);
+
   // Preparing and opening the fragment creates a thread and consumes a non-trivial
   // amount of memory. If we are already starved for memory, cancel the fragment as
   // early as possible to avoid digging the hole deeper.
@@ -56,16 +58,14 @@ Status FragmentMgr::ExecPlanFragment(const TExecPlanFragmentParams& exec_params)
     return process_mem_tracker->MemLimitExceeded(NULL, msg, 0);
   }
 
-  // Remote fragments must always have a sink. Remove when IMPALA-2905 is resolved.
-  DCHECK(exec_params.fragment_ctx.fragment.__isset.output_sink);
-
   shared_ptr<FragmentExecState> exec_state(
       new FragmentExecState(exec_params, ExecEnv::GetInstance()));
 
   // Register exec_state before this RPC returns so that async Cancel() calls (which can
   // only happen after this RPC returns) can always find this fragment.
   {
-    lock_guard<SpinLock> l(fragment_exec_state_map_lock_);
+    DCHECK(fragment_exec_state_map_.find(exec_state->fragment_instance_id())
+        == fragment_exec_state_map_.end());
     fragment_exec_state_map_.insert(
         make_pair(exec_state->fragment_instance_id(), exec_state));
   }

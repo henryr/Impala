@@ -466,10 +466,6 @@ void SimpleScheduler::ComputeFragmentExecParams(const TQueryExecRequest& exec_re
     }
     num_fragment_instances += params.hosts.size();
   }
-  if (exec_request.fragments[0].partition.type == TPartitionType::UNPARTITIONED) {
-    // the root fragment is executed directly by the coordinator
-    --num_fragment_instances;
-  }
   schedule->set_num_fragment_instances(num_fragment_instances);
 
   // compute destinations and # senders per exchange node

@@ -67,6 +67,8 @@ class FragmentMgr::FragmentExecState {
   /// Publishes filter with ID 'filter_id' to this fragment's filter bank.
   void PublishFilter(int32_t filter_id, const TBloomFilter& thrift_bloom_filter);
 
+  PlanFragmentExecutor* executor() { return &executor_; }
+
  private:
   TQueryCtx query_ctx_;
   TPlanFragmentInstanceCtx fragment_instance_ctx_;

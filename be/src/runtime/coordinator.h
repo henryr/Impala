@@ -34,16 +34,18 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition_variable.hpp>
 
+#include "common/global-types.h"
 #include "common/hdfs.h"
 #include "common/status.h"
-#include "common/global-types.h"
-#include "util/progress-updater.h"
-#include "util/histogram-metric.h"
-#include "util/runtime-profile.h"
+#include "gen-cpp/Frontend_types.h"
+#include "gen-cpp/Types_types.h"
 #include "runtime/runtime-state.h"
 #include "scheduling/simple-scheduler.h"
-#include "gen-cpp/Types_types.h"
-#include "gen-cpp/Frontend_types.h"
+#include "service/fragment-exec-state.h"
+#include "service/fragment-mgr.h"
+#include "util/histogram-metric.h"
+#include "util/progress-updater.h"
+#include "util/runtime-profile.h"
 
 namespace impala {
 
@@ -259,14 +261,20 @@ class Coordinator {
   /// Once this is set to true, errors from remote fragments are ignored.
   bool returned_all_results_;
 
-  /// execution state of coordinator fragment
-  boost::scoped_ptr<PlanFragmentExecutor> executor_;
+  /// Non-null if and only if the query produces results for the client; i.e. is of
+  /// TStmtType::QUERY. Coordinator uses this to pull results from plan tree and return
+  /// them to the client in GetNext().
+  PlanFragmentExecutor* executor_;
 
   /// Query mem tracker for this coordinator initialized in Exec(). Only valid if there
   /// is no coordinator fragment (i.e. executor_ == NULL). If executor_ is not NULL,
   /// this->runtime_state()->query_mem_tracker() returns the query mem tracker.
   /// (See this->query_mem_tracker())
   std::shared_ptr<MemTracker> query_mem_tracker_;
+
+  /// Memtracker for expressions evaluated by the coordinator in producing output
+  /// rows. Owned by obj_pool().
+  MemTracker* output_expr_tracker_ = nullptr;
 
   /// owned by plan root, which resides in runtime_state_'s pool
   const RowDescriptor* row_desc_;
@@ -367,6 +375,19 @@ class Coordinator {
   /// returned, successfully or not. Initialised during StartRemoteFragments().
   boost::scoped_ptr<CountingBarrier> exec_complete_barrier_;
 
+  /// Set when InitExecProfile() has returned, so that updates from the fragment instances
+  /// may be processed.
+  /// TODO: Remove when possible - profile initialisation needs refactor to avoid these
+  /// dependencies.
+  Promise<bool> profiles_ready_;
+
+  /// Shared reference to root fragment instance, which runs on this machine. That
+  /// instance needs to be alive as long as the coordinator, so that the coordinator can
+  /// read results from its sink even after the instance has stopped executing.
+  /// TODO: When QES is available, the coordinator will explicitly take a reference to
+  /// this fragment instance.
+  std::shared_ptr<FragmentMgr::FragmentExecState> root_fragment_instance_;
+
   /// Represents a runtime filter target.
   struct FilterTarget {
     TPlanNodeId node_id;
@@ -405,6 +426,10 @@ class Coordinator {
 
   /// True if and only if TearDown() has been called.
   bool torn_down_;
+
+  /// Required to prepare output expressions.
+  /// TODO: Remove when output exprs evaluated by PushPullSink.
+  RuntimeState* output_expr_runtime_state_;
 
   /// Returns a pretty-printed table of the current filter state.
   std::string FilterDebugString();

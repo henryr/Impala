@@ -22,13 +22,14 @@
 
 #include "common/logging.h"
 #include "exec/exec-node.h"
-#include "exec/hdfs-table-sink.h"
 #include "exec/hbase-table-sink.h"
+#include "exec/hdfs-table-sink.h"
 #include "exec/kudu-table-sink.h"
 #include "exec/kudu-util.h"
+#include "exec/push-pull-sink.h"
 #include "exprs/expr.h"
-#include "gen-cpp/ImpalaInternalService_types.h"
 #include "gen-cpp/ImpalaInternalService_constants.h"
+#include "gen-cpp/ImpalaInternalService_types.h"
 #include "runtime/data-stream-sender.h"
 #include "runtime/mem-tracker.h"
 #include "util/container-util.h"
@@ -88,6 +89,10 @@ Status DataSink::CreateDataSink(ObjectPool* pool,
           return Status(error_msg.str());
       }
 
+      break;
+    case TDataSinkType::PUSH_PULL_SINK:
+      if (!thrift_sink.__isset.push_pull_sink) return Status("Missing push-pull sink.");
+      sink->reset(new PushPullSink(row_desc, output_exprs, thrift_sink));
       break;
     default:
       stringstream error_msg;

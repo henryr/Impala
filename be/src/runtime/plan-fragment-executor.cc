@@ -26,22 +26,23 @@
 #include "common/logging.h"
 #include "common/object-pool.h"
 #include "exec/data-sink.h"
-#include "exec/exec-node.h"
 #include "exec/exchange-node.h"
-#include "exec/scan-node.h"
-#include "exec/hdfs-scan-node.h"
+#include "exec/exec-node.h"
 #include "exec/hbase-table-scanner.h"
+#include "exec/hdfs-scan-node.h"
+#include "exec/push-pull-sink.h"
+#include "exec/scan-node.h"
 #include "exprs/expr.h"
-#include "runtime/descriptors.h"
 #include "runtime/data-stream-mgr.h"
+#include "runtime/descriptors.h"
+#include "runtime/mem-tracker.h"
 #include "runtime/row-batch.h"
 #include "runtime/runtime-filter-bank.h"
-#include "runtime/mem-tracker.h"
+#include "util/container-util.h"
 #include "util/cpu-info.h"
 #include "util/debug-util.h"
-#include "util/container-util.h"
-#include "util/parse-util.h"
 #include "util/mem-info.h"
+#include "util/parse-util.h"
 #include "util/periodic-counter-updater.h"
 #include "util/pretty-printer.h"
 
@@ -76,6 +77,12 @@ PlanFragmentExecutor::~PlanFragmentExecutor() {
 }
 
 Status PlanFragmentExecutor::Prepare(const TExecPlanFragmentParams& request) {
+  Status status = PrepareInternal(request);
+  prepared_promise_.Set(status);
+  return status;
+}
+
+Status PlanFragmentExecutor::PrepareInternal(const TExecPlanFragmentParams& request) {
   lock_guard<mutex> l(prepare_lock_);
   DCHECK(!is_prepared_);
 
@@ -188,21 +195,23 @@ Status PlanFragmentExecutor::Prepare(const TExecPlanFragmentParams& request) {
   PrintVolumeIds(fragment_instance_ctx.per_node_scan_ranges);
 
   // set up sink, if required
-  if (request.fragment_ctx.fragment.__isset.output_sink) {
-    RETURN_IF_ERROR(DataSink::CreateDataSink(
-        obj_pool(), request.fragment_ctx.fragment.output_sink,
-        request.fragment_ctx.fragment.output_exprs,
-        fragment_instance_ctx, row_desc(), &sink_));
-    sink_mem_tracker_.reset(new MemTracker(
-        -1, sink_->GetName(), runtime_state_->instance_mem_tracker(), true));
-    RETURN_IF_ERROR(sink_->Prepare(runtime_state(), sink_mem_tracker_.get()));
+  DCHECK(request.fragment_ctx.fragment.__isset.output_sink);
 
-    RuntimeProfile* sink_profile = sink_->profile();
-    if (sink_profile != NULL) {
-      profile()->AddChild(sink_profile);
-    }
-  } else {
-    sink_.reset(NULL);
+  RETURN_IF_ERROR(
+      DataSink::CreateDataSink(obj_pool(), request.fragment_ctx.fragment.output_sink,
+          request.fragment_ctx.fragment.output_exprs, fragment_instance_ctx, row_desc(),
+          &sink_));
+  sink_mem_tracker_.reset(
+      new MemTracker(-1, sink_->GetName(), runtime_state_->instance_mem_tracker(), true));
+  RETURN_IF_ERROR(sink_->Prepare(runtime_state(), sink_mem_tracker_.get()));
+
+  RuntimeProfile* sink_profile = sink_->profile();
+  if (sink_profile != NULL) {
+    profile()->AddChild(sink_profile);
+  }
+
+  if (sink_->GetName() == PushPullSink::NAME) {
+    root_sink_ = reinterpret_cast<PushPullSink*>(sink_.get());
   }
 
   // set up profile counters
@@ -272,18 +281,20 @@ Status PlanFragmentExecutor::Open() {
   OptimizeLlvmModule();
 
   Status status = OpenInternal();
-  if (sink_.get() != NULL) {
-    // We call Close() here rather than in OpenInternal() because we want to make sure
-    // that Close() gets called even if there was an error in OpenInternal().
-    // We also want to call sink_->Close() here rather than in PlanFragmentExecutor::Close
-    // because we do not want the sink_ to hold on to all its resources as we will never
-    // use it after this.
-    sink_->Close(runtime_state());
-    // If there's a sink and no error, OpenInternal() completed the fragment execution.
-    if (status.ok()) {
-      done_ = true;
-      FragmentComplete();
-    }
+  opened_promise_.Set(status);
+
+  if (status.ok()) status = DriveSink();
+
+  // We call Close() here rather than in DriveSink() because we want to make sure
+  // that Close() gets called even if there was an error in DriveSink().
+  // We also want to call sink_->Close() here rather than in PlanFragmentExecutor::Close
+  // because we do not want the sink_ to hold on to all its resources as we will never
+  // use it after this.
+  sink_->Close(runtime_state());
+  // If there's no error, OpenInternal() completed the fragment execution.
+  if (status.ok()) {
+    done_ = true;
+    FragmentComplete();
   }
 
   if (!status.ok() && !status.IsCancelled() && !status.IsMemLimitExceeded()) {
@@ -299,15 +310,14 @@ Status PlanFragmentExecutor::Open() {
 Status PlanFragmentExecutor::OpenInternal() {
   SCOPED_TIMER(profile()->total_time_counter());
   RETURN_IF_ERROR(plan_->Open(runtime_state_.get()));
-  if (sink_.get() == NULL) return Status::OK();
+  return sink_->Open(runtime_state_.get());
+}
 
-  // If there is a sink, do all the work of driving it here, so that
-  // when this returns the query has actually finished
-  RETURN_IF_ERROR(sink_->Open(runtime_state_.get()));
+Status PlanFragmentExecutor::DriveSink() {
   while (!done_) {
     row_batch_->Reset();
     RETURN_IF_ERROR(plan_->GetNext(runtime_state_.get(), row_batch_.get(), &done_));
-    if (VLOG_ROW_IS_ON) row_batch_->VLogRows("PlanFragmentExecutor::OpenInternal()");
+    if (VLOG_ROW_IS_ON) row_batch_->VLogRows("PlanFragmentExecutor::DriveSink()");
     COUNTER_ADD(rows_produced_counter_, row_batch_->num_rows());
     RETURN_IF_ERROR(sink_->Send(runtime_state(), row_batch_.get()));
   }
@@ -395,36 +405,6 @@ void PlanFragmentExecutor::StopReportThread() {
   report_thread_->Join();
 }
 
-Status PlanFragmentExecutor::GetNext(RowBatch** batch) {
-  SCOPED_TIMER(profile()->total_time_counter());
-  VLOG_FILE << "GetNext(): instance_id=" << runtime_state_->fragment_instance_id();
-
-  Status status = Status::OK();
-  row_batch_->Reset();
-  // Loop until we've got a non-empty batch, hit an error or exhausted the input.
-  while (!done_) {
-    status = plan_->GetNext(runtime_state_.get(), row_batch_.get(), &done_);
-    if (VLOG_ROW_IS_ON) row_batch_->VLogRows("PlanFragmentExecutor::GetNext()");
-    if (!status.ok()) break;
-    if (row_batch_->num_rows() > 0) break;
-    row_batch_->Reset();
-  }
-  UpdateStatus(status);
-
-  if (done_) {
-    VLOG_QUERY << "Finished executing fragment query_id=" << PrintId(query_id_)
-        << " instance_id=" << PrintId(runtime_state_->fragment_instance_id());
-    FragmentComplete();
-    // Once all rows are returned, signal that we're done with an empty batch.
-    *batch = row_batch_->num_rows() == 0 ? NULL : row_batch_.get();
-    return status;
-  }
-
-  *batch = row_batch_.get();
-  COUNTER_ADD(rows_produced_counter_, row_batch_->num_rows());
-  return status;
-}
-
 void PlanFragmentExecutor::FragmentComplete() {
   // Check the atomic flag. If it is set, then a fragment complete report has already
   // been sent.
@@ -482,10 +462,6 @@ const RowDescriptor& PlanFragmentExecutor::row_desc() {
 
 RuntimeProfile* PlanFragmentExecutor::profile() {
   return runtime_state_->runtime_profile();
-}
-
-bool PlanFragmentExecutor::ReachedLimit() {
-  return plan_->ReachedLimit();
 }
 
 void PlanFragmentExecutor::ReleaseThreadToken() {
