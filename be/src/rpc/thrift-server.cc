@@ -25,12 +25,17 @@
 #include <thrift/concurrency/ThreadManager.h>
 #include <thrift/protocol/TBinaryProtocol.h>
 #include <thrift/server/TThreadPoolServer.h>
-#include <thrift/server/TThreadedServer.h>
+
 #include <thrift/transport/TSocket.h>
+#include <thrift/transport/TServerTransport.h>
+
+#include <rpc/my-server.h>
+#include <rpc/my-socket.h>
+
 #include <thrift/transport/TSSLServerSocket.h>
 #include <thrift/transport/TSSLSocket.h>
+
 #include <thrift/server/TThreadPoolServer.h>
-#include <thrift/transport/TServerSocket.h>
 #include <gflags/gflags.h>
 
 #include "gen-cpp/Types_types.h"
@@ -356,7 +361,7 @@ Status ThriftServer::CreateSocket(boost::shared_ptr<TServerTransport>* socket) {
     }
     return Status::OK();
   } else {
-    socket->reset(new TServerSocket(port_));
+    socket->reset(new MySocket(port_));
     return Status::OK();
   }
 }
@@ -416,7 +421,7 @@ Status ThriftServer::Start() {
       }
       break;
     case Threaded:
-      server_.reset(new TThreadedServer(processor_, server_socket,
+      server_.reset(new MyServer(processor_, server_socket,
           transport_factory, protocol_factory, thread_factory));
       break;
     default:

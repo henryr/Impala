@@ -55,120 +55,137 @@ class DummyStatestoreService : public StatestoreServiceIf {
   }
 };
 
-boost::shared_ptr<TProcessor> MakeProcessor() {
-  boost::shared_ptr<DummyStatestoreService> service(new DummyStatestoreService());
-  return boost::shared_ptr<TProcessor>(new StatestoreServiceProcessor(service));
-}
+// boost::shared_ptr<TProcessor> MakeProcessor() {
+//   boost::shared_ptr<DummyStatestoreService> service(new DummyStatestoreService());
+//   return boost::shared_ptr<TProcessor>(new StatestoreServiceProcessor(service));
+// }
 
-int GetServerPort() {
-  int port = FindUnusedEphemeralPort();
-  EXPECT_FALSE(port == -1);
-  return port;
-}
+// int GetServerPort() {
+//   int port = FindUnusedEphemeralPort();
+//   EXPECT_FALSE(port == -1);
+//   return port;
+// }
 
-TEST(ThriftServer, Connectivity) {
-  int port = GetServerPort();
-  ThriftClient<StatestoreServiceClient> wrong_port_client("localhost",
-      port, "", NULL, false);
-  ASSERT_FALSE(wrong_port_client.Open().ok());
+// TEST(ThriftServer, Connectivity) {
+//   int port = GetServerPort();
+//   ThriftClient<StatestoreServiceClient> wrong_port_client("localhost",
+//       port, "", NULL, false);
+//   ASSERT_FALSE(wrong_port_client.Open().ok());
 
-  ThriftServer* server = new ThriftServer("DummyStatestore", MakeProcessor(), port, NULL,
-      NULL, 5);
-  ASSERT_OK(server->Start());
+//   ThriftServer* server = new ThriftServer("DummyStatestore", MakeProcessor(), port, NULL,
+//       NULL, 5);
+//   ASSERT_OK(server->Start());
 
-  // Test that client recovers from failure to connect.
-  ASSERT_OK(wrong_port_client.Open());
-}
+//   // Test that client recovers from failure to connect.
+//   ASSERT_OK(wrong_port_client.Open());
+// }
 
-TEST(SslTest, Connectivity) {
-  int port = GetServerPort();
-  // Start a server using SSL and confirm that an SSL client can connect, while a non-SSL
-  // client cannot.
-  // Here and elsewhere - allocate ThriftServers on the heap to avoid race during
-  // destruction. See IMPALA-2283.
-  ThriftServer* server = new ThriftServer("DummyStatestore", MakeProcessor(), port, NULL,
-      NULL, 5);
-  ASSERT_OK(server->EnableSsl(SERVER_CERT, PRIVATE_KEY, "echo password"));
-  ASSERT_OK(server->Start());
+// TEST(SslTest, Connectivity) {
+//   int port = GetServerPort();
+//   // Start a server using SSL and confirm that an SSL client can connect, while a non-SSL
+//   // client cannot.
+//   // Here and elsewhere - allocate ThriftServers on the heap to avoid race during
+//   // destruction. See IMPALA-2283.
+//   ThriftServer* server = new ThriftServer("DummyStatestore", MakeProcessor(), port, NULL,
+//       NULL, 5);
+//   ASSERT_OK(server->EnableSsl(SERVER_CERT, PRIVATE_KEY, "echo password"));
+//   ASSERT_OK(server->Start());
 
-  FLAGS_ssl_client_ca_certificate = SERVER_CERT;
-  ThriftClient<StatestoreServiceClient> ssl_client(
-      "localhost", port, "", NULL, true);
-  ASSERT_OK(ssl_client.Open());
-  TRegisterSubscriberResponse resp;
-  EXPECT_NO_THROW({
-    ssl_client.iface()->RegisterSubscriber(resp, TRegisterSubscriberRequest());
-  });
+//   FLAGS_ssl_client_ca_certificate = SERVER_CERT;
+//   ThriftClient<StatestoreServiceClient> ssl_client(
+//       "localhost", port, "", NULL, true);
+//   ASSERT_OK(ssl_client.Open());
+//   TRegisterSubscriberResponse resp;
+//   EXPECT_NO_THROW({
+//     ssl_client.iface()->RegisterSubscriber(resp, TRegisterSubscriberRequest());
+//   });
 
-  // Disable SSL for this client.
-  ThriftClient<StatestoreServiceClient> non_ssl_client(
-      "localhost", port, "", NULL, false);
-  ASSERT_OK(non_ssl_client.Open());
-  EXPECT_THROW(non_ssl_client.iface()->RegisterSubscriber(
-      resp, TRegisterSubscriberRequest()), TTransportException);
-}
+//   // Disable SSL for this client.
+//   ThriftClient<StatestoreServiceClient> non_ssl_client(
+//       "localhost", port, "", NULL, false);
+//   ASSERT_OK(non_ssl_client.Open());
+//   EXPECT_THROW(non_ssl_client.iface()->RegisterSubscriber(
+//       resp, TRegisterSubscriberRequest()), TTransportException);
+// }
 
-TEST(SslTest, BadCertificate) {
-  FLAGS_ssl_client_ca_certificate = "unknown";
-  int port = GetServerPort();
-  ThriftClient<StatestoreServiceClient> ssl_client("localhost", port, "", NULL, true);
-  ASSERT_FALSE(ssl_client.Open().ok());
+// TEST(SslTest, BadCertificate) {
+//   FLAGS_ssl_client_ca_certificate = "unknown";
+//   int port = GetServerPort();
+//   ThriftClient<StatestoreServiceClient> ssl_client("localhost", port, "", NULL, true);
+//   ASSERT_FALSE(ssl_client.Open().ok());
 
-  ThriftServer* server = new ThriftServer("DummyStatestore", MakeProcessor(), port, NULL,
-      NULL, 5);
-  ASSERT_OK(server->EnableSsl(SERVER_CERT, PRIVATE_KEY, "echo password"));
-  ASSERT_OK(server->Start());
+//   ThriftServer* server = new ThriftServer("DummyStatestore", MakeProcessor(), port, NULL,
+//       NULL, 5);
+//   ASSERT_OK(server->EnableSsl(SERVER_CERT, PRIVATE_KEY, "echo password"));
+//   ASSERT_OK(server->Start());
 
-  // Check that client does not recover from failure to create socket.
-  ASSERT_FALSE(ssl_client.Open().ok());
-}
+//   // Check that client does not recover from failure to create socket.
+//   ASSERT_FALSE(ssl_client.Open().ok());
+// }
 
-TEST(PasswordProtectedPemFile, CorrectOperation) {
-  // Require the server to execute a shell command to read the password to the private key
-  // file.
-  int port = GetServerPort();
-  ThriftServer* server = new ThriftServer("DummyStatestore", MakeProcessor(), port, NULL,
-      NULL, 5);
-  ASSERT_OK(server->EnableSsl(
-      SERVER_CERT, PASSWORD_PROTECTED_PRIVATE_KEY, "echo password"));
-  ASSERT_OK(server->Start());
-  FLAGS_ssl_client_ca_certificate = SERVER_CERT;
-  ThriftClient<StatestoreServiceClient> ssl_client("localhost", port, "", NULL, true);
-  ASSERT_OK(ssl_client.Open());
-  TRegisterSubscriberResponse resp;
-  EXPECT_NO_THROW({
-    ssl_client.iface()->RegisterSubscriber(resp, TRegisterSubscriberRequest());
-  });
-}
+// TEST(PasswordProtectedPemFile, CorrectOperation) {
+//   // Require the server to execute a shell command to read the password to the private key
+//   // file.
+//   int port = GetServerPort();
+//   ThriftServer* server = new ThriftServer("DummyStatestore", MakeProcessor(), port, NULL,
+//       NULL, 5);
+//   ASSERT_OK(server->EnableSsl(
+//       SERVER_CERT, PASSWORD_PROTECTED_PRIVATE_KEY, "echo password"));
+//   ASSERT_OK(server->Start());
+//   FLAGS_ssl_client_ca_certificate = SERVER_CERT;
+//   ThriftClient<StatestoreServiceClient> ssl_client("localhost", port, "", NULL, true);
+//   ASSERT_OK(ssl_client.Open());
+//   TRegisterSubscriberResponse resp;
+//   EXPECT_NO_THROW({
+//     ssl_client.iface()->RegisterSubscriber(resp, TRegisterSubscriberRequest());
+//   });
+// }
 
-TEST(PasswordProtectedPemFile, BadPassword) {
-  // Test failure when password to private key is wrong.
-  ThriftServer server("DummyStatestore", MakeProcessor(), GetServerPort(), NULL, NULL, 5);
-  ASSERT_OK(server.EnableSsl(
-      SERVER_CERT, PASSWORD_PROTECTED_PRIVATE_KEY, "echo wrongpassword"));
-  EXPECT_FALSE(server.Start().ok());
-}
+// TEST(PasswordProtectedPemFile, BadPassword) {
+//   // Test failure when password to private key is wrong.
+//   ThriftServer server("DummyStatestore", MakeProcessor(), GetServerPort(), NULL, NULL, 5);
+//   ASSERT_OK(server.EnableSsl(
+//       SERVER_CERT, PASSWORD_PROTECTED_PRIVATE_KEY, "echo wrongpassword"));
+//   EXPECT_FALSE(server.Start().ok());
+// }
 
-TEST(PasswordProtectedPemFile, BadCommand) {
-  // Test failure when password command is badly formed.
-  ThriftServer server("DummyStatestore", MakeProcessor(), GetServerPort(), NULL, NULL, 5);
-  EXPECT_FALSE(server.EnableSsl(
-      SERVER_CERT, PASSWORD_PROTECTED_PRIVATE_KEY, "cmd-no-exist").ok());
-}
+// TEST(PasswordProtectedPemFile, BadCommand) {
+//   // Test failure when password command is badly formed.
+//   ThriftServer server("DummyStatestore", MakeProcessor(), GetServerPort(), NULL, NULL, 5);
+//   EXPECT_FALSE(server.EnableSsl(
+//       SERVER_CERT, PASSWORD_PROTECTED_PRIVATE_KEY, "cmd-no-exist").ok());
+// }
 
-TEST(SslTest, ClientBeforeServer) {
-  // Instantiate a thrift client before a thrift server and test if it works (IMPALA-2747)
-  FLAGS_ssl_client_ca_certificate = SERVER_CERT;
-  int port = GetServerPort();
-  ThriftClient<StatestoreServiceClient> ssl_client("localhost", port, "", NULL, true);
-  ThriftServer* server = new ThriftServer("DummyStatestore", MakeProcessor(), port, NULL,
-      NULL, 5);
-  ASSERT_OK(server->EnableSsl(SERVER_CERT, PRIVATE_KEY));
-  ASSERT_OK(server->Start());
+// TEST(SslTest, ClientBeforeServer) {
+//   // Instantiate a thrift client before a thrift server and test if it works (IMPALA-2747)
+//   FLAGS_ssl_client_ca_certificate = SERVER_CERT;
+//   int port = GetServerPort();
+//   ThriftClient<StatestoreServiceClient> ssl_client("localhost", port, "", NULL, true);
+//   ThriftServer* server = new ThriftServer("DummyStatestore", MakeProcessor(), port, NULL,
+//       NULL, 5);
+//   ASSERT_OK(server->EnableSsl(SERVER_CERT, PRIVATE_KEY));
+//   ASSERT_OK(server->Start());
 
-  ASSERT_OK(ssl_client.Open());
-  TRegisterSubscriberResponse resp;
-    ssl_client.iface()->RegisterSubscriber(resp, TRegisterSubscriberRequest());
+//   ASSERT_OK(ssl_client.Open());
+//   TRegisterSubscriberResponse resp;
+//     ssl_client.iface()->RegisterSubscriber(resp, TRegisterSubscriberRequest());
+// }
+
+
+
+TEST(ConcurrencyTest, ConnectTimeout) {
+  ThreadPool<int64_t> pool("group", "test", 128, 10000, [](int tid, const int64_t& item) {
+        using Client = ThriftClient<ImpalaInternalServiceClient>;
+        Client* client = new Client("127.0.0.1", 22000, "", NULL, false);
+        Status status = client->Open();
+        if (status.ok()) {
+          // LOG(INFO) << "Socket " << item << " -> OK";
+        } else {
+          LOG(INFO) << "Socket " << item << " -> Failed: " << status.GetDetail();
+        }
+      });
+  for (int i = 0; i < 1024 * 16; ++i) pool.Offer(i);
+  pool.DrainAndShutdown();
 }
 
 int main(int argc, char** argv) {

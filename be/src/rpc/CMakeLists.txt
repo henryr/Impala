@@ -23,6 +23,8 @@ set(EXECUTABLE_OUTPUT_PATH "${BUILD_OUTPUT_ROOT_DIRECTORY}/rpc")
 
 add_library(Rpc
   authentication.cc
+  my-server.cc
+  my-socket.cc
   rpc-trace.cc
   thrift-util.cc
   thrift-client.cc
