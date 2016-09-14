@@ -28,6 +28,7 @@
 
 #include <thrift/transport/TSocket.h>
 #include <thrift/transport/TServerTransport.h>
+#include <thrift/server/TThreadedServer.h>
 
 #include <rpc/my-server.h>
 #include <rpc/my-socket.h>

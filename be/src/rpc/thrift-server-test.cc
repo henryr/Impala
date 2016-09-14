@@ -174,7 +174,7 @@ class DummyStatestoreService : public StatestoreServiceIf {
 
 
 TEST(ConcurrencyTest, ConnectTimeout) {
-  ThreadPool<int64_t> pool("group", "test", 128, 10000, [](int tid, const int64_t& item) {
+  ThreadPool<int64_t> pool("group", "test", 256, 10000, [](int tid, const int64_t& item) {
         using Client = ThriftClient<ImpalaInternalServiceClient>;
         Client* client = new Client("127.0.0.1", 22000, "", NULL, false);
         Status status = client->Open();

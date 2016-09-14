@@ -142,8 +142,6 @@ void MyServer::init() {
 MyServer::~MyServer() {}
 
 void MyServer::do_accept(boost::shared_ptr<TTransport> client) {
-  {
-    lock_guard<mutex> l(big_lock_);
     shared_ptr<TTransport> inputTransport = inputTransportFactory_->getTransport(client);
     shared_ptr<TTransport> outputTransport = outputTransportFactory_->getTransport(client);
     shared_ptr<TProtocol> inputProtocol = inputProtocolFactory_->getProtocol(inputTransport);
@@ -168,24 +166,21 @@ void MyServer::do_accept(boost::shared_ptr<TTransport> client) {
 
     // Insert thread into the set of threads
     {
-      //   Synchronized s(tasksMonitor_);
+      Synchronized s(tasksMonitor_);
       tasks_.insert(task);
     }
 
     // Start the thread!
     thread->start();
-
-  }
-
 }
 
 void MyServer::serve() {
 
-  shared_ptr<TTransport> client;
-  shared_ptr<TTransport> inputTransport;
-  shared_ptr<TTransport> outputTransport;
-  shared_ptr<TProtocol> inputProtocol;
-  shared_ptr<TProtocol> outputProtocol;
+  // shared_ptr<TTransport> client;
+  // shared_ptr<TTransport> inputTransport;
+  // shared_ptr<TTransport> outputTransport;
+  // shared_ptr<TProtocol> inputProtocol;
+  // shared_ptr<TProtocol> outputProtocol;
 
   // Start the server listening
   serverTransport_->listen();
@@ -195,12 +190,12 @@ void MyServer::serve() {
     eventHandler_->preServe();
   }
 
+  ThreadPool<shared_ptr<TTransport>> pool("server-accept", "test", 1, 10000,
+      [this](int tid, const shared_ptr<TTransport>& item) {
+        this->do_accept(item);
+      }
+                                          );
   while (!stop_) {
-    ThreadPool<shared_ptr<TTransport>> pool("server-accept", "test", 4, 10000,
-        [this](int tid, const shared_ptr<TTransport>& item) {
-          this->do_accept(item);
-        }
-                                            );
     try {
       // client.reset();
       // inputTransport.reset();

@@ -92,6 +92,7 @@ void ThriftClientImpl::Close() {
 Status ThriftClientImpl::CreateSocket() {
   if (!ssl_) {
     socket_.reset(new TSocket(address_.hostname, address_.port));
+    socket_->setConnTimeout(180000);
   } else {
     try {
       ssl_factory_->loadTrustedCertificates(FLAGS_ssl_client_ca_certificate.c_str());
