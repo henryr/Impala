@@ -94,12 +94,7 @@ RequestPoolService::RequestPoolService(MetricGroup* metrics) :
   resolve_pool_ms_metric_ =
       StatsMetric<double>::CreateAndRegister(metrics, RESOLVE_POOL_METRIC_NAME);
 
-  if (FLAGS_fair_scheduler_allocation_path.empty() &&
-      FLAGS_llama_site_path.empty()) {
-    if (FLAGS_enable_rm) {
-      CLEAN_EXIT_WITH_ERROR("If resource management is enabled, "
-          "-fair_scheduler_allocation_path is required.");
-    }
+  if (FLAGS_fair_scheduler_allocation_path.empty()) {
     default_pool_only_ = true;
     bool is_percent; // not used
     int64_t bytes_limit = ParseUtil::ParseMemSpec(FLAGS_default_pool_mem_limit,

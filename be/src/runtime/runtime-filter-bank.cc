@@ -66,7 +66,7 @@ RuntimeFilterBank::RuntimeFilterBank(const TQueryCtx& query_ctx, RuntimeState* s
   default_filter_size_ =
       BitUtil::RoundUpToPowerOfTwo(min<int64_t>(default_filter_size_, max_filter_size_));
 
-  filter_mem_tracker_.reset(new MemTracker(-1, -1, "Runtime Filter Bank",
+  filter_mem_tracker_.reset(new MemTracker(-1, "Runtime Filter Bank",
       state->instance_mem_tracker(), false));
 }
 
@@ -226,4 +226,3 @@ void RuntimeFilterBank::Close() {
   filter_mem_tracker_->Release(memory_allocated_->value());
   filter_mem_tracker_->UnregisterFromParent();
 }
-

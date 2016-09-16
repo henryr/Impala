@@ -24,7 +24,6 @@
 #include <gutil/strings/substitute.h>
 
 #include "common/logging.h"
-#include "resourcebroker/resource-broker.h"
 #include "runtime/backend-client.h"
 #include "runtime/client-cache.h"
 #include "runtime/coordinator.h"
@@ -51,7 +50,6 @@
 #include "util/webserver.h"
 #include "util/mem-info.h"
 #include "util/debug-util.h"
-#include "util/cgroups-mgr.h"
 #include "util/memory-metrics.h"
 #include "util/pretty-printer.h"
 #include "util/thread-pool.h"
@@ -174,7 +172,6 @@ ExecEnv::ExecEnv()
     webserver_(new Webserver()),
     mem_tracker_(NULL),
     thread_mgr_(new ThreadResourceMgr),
-    cgroups_mgr_(NULL),
     hdfs_op_thread_pool_(
         CreateHdfsOpThreadPool("hdfs-worker-pool", FLAGS_num_hdfs_worker_threads, 1024)),
     tmp_file_mgr_(new TmpFileMgr),
@@ -186,9 +183,7 @@ ExecEnv::ExecEnv()
     async_rpc_pool_(new CallableThreadPool("rpc-pool", "async-rpc-sender", 8, 10000)),
     enable_webserver_(FLAGS_enable_webserver),
     is_fe_tests_(false),
-    backend_address_(MakeNetworkAddress(FLAGS_hostname, FLAGS_be_port)),
-    is_pseudo_distributed_llama_(false) {
-  if (FLAGS_enable_rm) InitRm();
+    backend_address_(MakeNetworkAddress(FLAGS_hostname, FLAGS_be_port)) {
   // Initialize the scheduler either dynamically (with a statestore) or statically (with
   // a standalone single backend)
   if (FLAGS_use_statestore) {
@@ -203,15 +198,14 @@ ExecEnv::ExecEnv()
 
     scheduler_.reset(new SimpleScheduler(statestore_subscriber_.get(),
         statestore_subscriber_->id(), backend_address_, metrics_.get(),
-        webserver_.get(), resource_broker_.get(), request_pool_service_.get()));
+        webserver_.get(), request_pool_service_.get()));
   } else {
     vector<TNetworkAddress> addresses;
     addresses.push_back(MakeNetworkAddress(FLAGS_hostname, FLAGS_be_port));
     scheduler_.reset(new SimpleScheduler(addresses, metrics_.get(), webserver_.get(),
-        resource_broker_.get(), request_pool_service_.get()));
+        request_pool_service_.get()));
   }
   if (exec_env_ == NULL) exec_env_ = this;
-  if (FLAGS_enable_rm) resource_broker_->set_scheduler(scheduler_.get());
 }
 
 // TODO: Need refactor to get rid of duplicated code.
@@ -244,10 +238,8 @@ ExecEnv::ExecEnv(const string& hostname, int backend_port, int subscriber_port,
     async_rpc_pool_(new CallableThreadPool("rpc-pool", "async-rpc-sender", 8, 10000)),
     enable_webserver_(FLAGS_enable_webserver && webserver_port > 0),
     is_fe_tests_(false),
-    backend_address_(MakeNetworkAddress(FLAGS_hostname, FLAGS_be_port)),
-    is_pseudo_distributed_llama_(false) {
+    backend_address_(MakeNetworkAddress(FLAGS_hostname, FLAGS_be_port)) {
   request_pool_service_.reset(new RequestPoolService(metrics_.get()));
-  if (FLAGS_enable_rm) InitRm();
 
   if (FLAGS_use_statestore && statestore_port > 0) {
     TNetworkAddress subscriber_address =
@@ -261,87 +253,28 @@ ExecEnv::ExecEnv(const string& hostname, int backend_port, int subscriber_port,
 
     scheduler_.reset(new SimpleScheduler(statestore_subscriber_.get(),
         statestore_subscriber_->id(), backend_address_, metrics_.get(),
-        webserver_.get(), resource_broker_.get(), request_pool_service_.get()));
+        webserver_.get(), request_pool_service_.get()));
   } else {
     vector<TNetworkAddress> addresses;
     addresses.push_back(MakeNetworkAddress(hostname, backend_port));
     scheduler_.reset(new SimpleScheduler(addresses, metrics_.get(), webserver_.get(),
-        resource_broker_.get(), request_pool_service_.get()));
+        request_pool_service_.get()));
   }
   if (exec_env_ == NULL) exec_env_ = this;
-  if (FLAGS_enable_rm) resource_broker_->set_scheduler(scheduler_.get());
 }
 
-void ExecEnv::InitRm() {
-  // Unique addresses from FLAGS_llama_addresses and FLAGS_llama_host/FLAGS_llama_port.
-  vector<TNetworkAddress> llama_addresses;
-  if (!FLAGS_llama_addresses.empty()) {
-    vector<string> components;
-    split(components, FLAGS_llama_addresses, is_any_of(","), token_compress_on);
-    for (int i = 0; i < components.size(); ++i) {
-      to_lower(components[i]);
-      TNetworkAddress llama_address = MakeNetworkAddress(components[i]);
-      if (find(llama_addresses.begin(), llama_addresses.end(), llama_address)
-          == llama_addresses.end()) {
-        llama_addresses.push_back(llama_address);
-      }
-    }
-  }
-  // Add Llama hostport from deprecated flags (if it does not already exist).
-  if (!FLAGS_llama_host.empty()) {
-    to_lower(FLAGS_llama_host);
-    TNetworkAddress llama_address =
-        MakeNetworkAddress(FLAGS_llama_host, FLAGS_llama_port);
-    if (find(llama_addresses.begin(), llama_addresses.end(), llama_address)
-        == llama_addresses.end()) {
-      llama_addresses.push_back(llama_address);
-    }
-  }
-  for (int i = 0; i < llama_addresses.size(); ++i) {
-    LOG(INFO) << "Llama address " << i << ": " << llama_addresses[i];
-  }
-
-  TNetworkAddress llama_callback_address =
-      MakeNetworkAddress(FLAGS_hostname, FLAGS_llama_callback_port);
-  resource_broker_.reset(new ResourceBroker(llama_addresses, llama_callback_address,
-      metrics_.get()));
-  cgroups_mgr_.reset(new CgroupsMgr(metrics_.get()));
-
-  TGetHadoopConfigRequest config_request;
-  config_request.__set_name(PSEUDO_DISTRIBUTED_CONFIG_KEY);
-  TGetHadoopConfigResponse config_response;
-  frontend_->GetHadoopConfig(config_request, &config_response);
-  if (config_response.__isset.value) {
-    to_lower(config_response.value);
-    is_pseudo_distributed_llama_ = (config_response.value == "true");
-  } else {
-    is_pseudo_distributed_llama_ = false;
-  }
-  if (is_pseudo_distributed_llama_) {
-    LOG(INFO) << "Pseudo-distributed Llama cluster detected";
-  }
-}
 
 ExecEnv::~ExecEnv() {
 }
 
 Status ExecEnv::InitForFeTests() {
-  mem_tracker_.reset(new MemTracker(-1, -1, "Process"));
+  mem_tracker_.reset(new MemTracker(-1, "Process"));
   is_fe_tests_ = true;
   return Status::OK();
 }
 
 Status ExecEnv::StartServices() {
   LOG(INFO) << "Starting global services";
-
-  if (FLAGS_enable_rm) {
-    // Initialize the resource broker to make sure the Llama is up and reachable.
-    DCHECK(resource_broker_.get() != NULL);
-    RETURN_IF_ERROR(resource_broker_->Init());
-    DCHECK(cgroups_mgr_.get() != NULL);
-    RETURN_IF_ERROR(
-        cgroups_mgr_->Init(FLAGS_cgroup_hierarchy_path, FLAGS_staging_cgroup));
-  }
 
   // Initialize global memory limit.
   // Depending on the system configuration, we will have to calculate the process
@@ -397,7 +330,7 @@ Status ExecEnv::StartServices() {
 #ifndef ADDRESS_SANITIZER
   // Limit of -1 means no memory limit.
   mem_tracker_.reset(new MemTracker(TcmallocMetric::PHYSICAL_BYTES_RESERVED,
-      bytes_limit > 0 ? bytes_limit : -1, -1, "Process"));
+      bytes_limit > 0 ? bytes_limit : -1, "Process"));
 
   // Since tcmalloc does not free unused memory, we may exceed the process mem limit even
   // if Impala is not actually using that much memory. Add a callback to free any unused
@@ -407,7 +340,7 @@ Status ExecEnv::StartServices() {
 #else
   // tcmalloc metrics aren't defined in ASAN builds, just use the default behavior to
   // track process memory usage (sum of all children trackers).
-  mem_tracker_.reset(new MemTracker(bytes_limit > 0 ? bytes_limit : -1, -1, "Process"));
+  mem_tracker_.reset(new MemTracker(bytes_limit > 0 ? bytes_limit : -1, "Process"));
 #endif
 
   mem_tracker_->RegisterMetrics(metrics_.get(), "mem-tracker.process");

@@ -1318,7 +1318,7 @@ void BufferedBlockMgr::Init(DiskIoMgr* io_mgr, RuntimeProfile* parent_profile,
 
   // Create a new mem_tracker and allocate buffers.
   mem_tracker_.reset(new MemTracker(
-      profile(), mem_limit, -1, "Block Manager", parent_tracker));
+      profile(), mem_limit, "Block Manager", parent_tracker));
 
   initialized_ = true;
 }
