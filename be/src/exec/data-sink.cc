@@ -92,7 +92,7 @@ Status DataSink::CreateDataSink(ObjectPool* pool,
       break;
     case TDataSinkType::PUSH_PULL_SINK:
       if (!thrift_sink.__isset.push_pull_sink) return Status("Missing push-pull sink.");
-      sink->reset(new PushPullSink(row_desc, output_exprs, thrift_sink));
+      sink->reset(new PushPullSink(row_desc, thrift_sink));
       break;
     default:
       stringstream error_msg;

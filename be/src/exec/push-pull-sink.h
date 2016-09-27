@@ -25,20 +25,23 @@
 
 namespace impala {
 
-/// Sink which queues incoming batches from fragment, allowing consumers to pull from the
-/// queue at their own pace by calling GetNext().
+/// Sink which manages the handoff between an asynchronous plan fragment that produces
+/// batches, and a consumer (e.g. the coordinator) which consumes those batches.
 ///
-/// All batches are owned by the sink, and previously retrieved batches may be overwritten
-/// during subsequent GetNext() calls. Consumers must AcquireState() from those batches if
-/// they need a longer lifetime.
+/// All batches are owned bythe producing plan, and previously retrieved batches may be
+/// overwritten during subsequent GetNext() calls. Consumers must AcquireState() from
+/// those batches if they need a longer lifetime.
+///
+/// Although batch production and consumption happens concurrently, senders will be
+/// blocked until the previous batch has been consumed and GetNext() is called. This
+/// ensures that the sender can safely overwrite the batch that was previously returned.
 ///
 /// Consumers must call CloseConsumer() when finished to allow the fragment to shut down.
 ///
 /// The sink is thread safe up to a single producer and single consumer.
 class PushPullSink : public DataSink {
  public:
-  PushPullSink(const RowDescriptor& row_desc, const std::vector<TExpr>& output_exprs,
-      const TDataSink& thrift_sink);
+  PushPullSink(const RowDescriptor& row_desc, const TDataSink& thrift_sink);
 
   virtual std::string GetName() { return NAME; }
 
@@ -46,9 +49,8 @@ class PushPullSink : public DataSink {
 
   virtual Status Open(RuntimeState* state);
 
-  /// Enqueues a new batch. If the queue is full, blocks until GetNext() opens a spot in
-  /// the queue, or CloseConsumer() shuts the queue down. The sink will acquire all the
-  /// state of 'batch' before enqueuing it.
+  /// Sends a new batch. Blocks until the consumer calls GetNext() to consume the batch or
+  /// CloseConsumer() shuts the queue down.
   virtual Status Send(RuntimeState* state, RowBatch* batch);
 
   /// No-op: batches are not pushed out by this sink, so flushing has no meaning.
@@ -57,9 +59,9 @@ class PushPullSink : public DataSink {
   /// To be called by sender only. Blocks until CloseConsumer() is called.
   virtual void Close(RuntimeState* state);
 
-  /// Returns a batch from the queue in 'row_batch'. The batch is still owned by the
-  /// sink. Subsequent calls to GetNext() will overwrite that batch, so consumers must
-  /// acquire the state of the batch before returning control to the sink.
+  /// Returns a batch from the queue in 'row_batch'. The batch is not owned by the
+  /// caller. Subsequent calls to GetNext() will overwrite that batch, so consumers must
+  /// acquire the state of the batch if needed before returning control to the sink.
   ///
   /// '*row_batch' is set to nullptr when there is no more input to consume.
   virtual Status GetNext(RuntimeState* state, RowBatch** row_batch);
@@ -72,16 +74,18 @@ class PushPullSink : public DataSink {
   static const std::string NAME;
 
  private:
-  /// Queue of pending row batches. Queue entry should be movable to avoid excessive
-  /// copying overhead; since RowBatch is not movable it's wrapped in a unique_ptr.
-  BlockingQueue<std::unique_ptr<RowBatch>> row_batch_queue_;
+  boost::mutex sender_cv_lock_;
+  boost::condition_variable sender_cv_;
 
-  /// The last batch consumed is saved here. When another batch is consumed via GetNext(),
-  /// all state associated with this batch is freed.
-  std::unique_ptr<RowBatch> cur_batch_;
+  boost::mutex consumer_lock_;
+  boost::condition_variable consumer_cv_;
 
   /// Signals to producer that the consumer is done, and the sink may be torn down.
-  Promise<bool> consumer_done_;
+  bool consumer_done_ = false;
+
+  /// Signals to consumer that the sender is done, and that there are no more row batches
+  /// to consume.
+  bool sender_done_ = false;
 };
 }
 
