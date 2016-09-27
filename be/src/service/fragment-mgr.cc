@@ -43,8 +43,6 @@ Status FragmentMgr::ExecPlanFragment(const TExecPlanFragmentParams& exec_params)
              << " fragment instance#="
              << exec_params.fragment_instance_ctx.instance_state_idx;
 
-  lock_guard<SpinLock> l(fragment_exec_state_map_lock_);
-
   // Preparing and opening the fragment creates a thread and consumes a non-trivial
   // amount of memory. If we are already starved for memory, cancel the fragment as
   // early as possible to avoid digging the hole deeper.
@@ -64,6 +62,7 @@ Status FragmentMgr::ExecPlanFragment(const TExecPlanFragmentParams& exec_params)
   // Register exec_state before this RPC returns so that async Cancel() calls (which can
   // only happen after this RPC returns) can always find this fragment.
   {
+    lock_guard<SpinLock> l(fragment_exec_state_map_lock_);
     DCHECK(fragment_exec_state_map_.find(exec_state->fragment_instance_id())
         == fragment_exec_state_map_.end());
     fragment_exec_state_map_.insert(
@@ -86,8 +85,7 @@ Status FragmentMgr::ExecPlanFragment(const TExecPlanFragmentParams& exec_params)
 void FragmentMgr::FragmentThread(TUniqueId fragment_instance_id) {
   shared_ptr<FragmentExecState> exec_state = GetFragmentExecState(fragment_instance_id);
   if (exec_state.get() == NULL) return;
-  Status status = exec_state->Prepare();
-  if (status.ok()) exec_state->Exec();
+  exec_state->Exec();
 
   // We're done with this plan fragment
   {

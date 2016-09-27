@@ -20,10 +20,11 @@
 
 #include "exec/data-sink.h"
 
-#include "util/blocking-queue.h"
-#include "util/promise.h"
+#include <boost/thread/condition_variable.hpp>
 
 namespace impala {
+
+class RowBatch;
 
 /// Sink which manages the handoff between an asynchronous plan fragment that produces
 /// batches, and a consumer (e.g. the coordinator) which consumes those batches.
@@ -64,7 +65,7 @@ class PushPullSink : public DataSink {
   /// acquire the state of the batch if needed before returning control to the sink.
   ///
   /// '*row_batch' is set to nullptr when there is no more input to consume.
-  virtual Status GetNext(RuntimeState* state, RowBatch** row_batch);
+  Status GetNext(RuntimeState* state, RowBatch** row_batch);
 
   /// Signals to the producer that the sink will no longer be used. It's an error to call
   /// GetNext() after this returns. May be called more than once; only the first call has
@@ -74,10 +75,8 @@ class PushPullSink : public DataSink {
   static const std::string NAME;
 
  private:
-  boost::mutex sender_cv_lock_;
+  boost::mutex cv_lock_;
   boost::condition_variable sender_cv_;
-
-  boost::mutex consumer_lock_;
   boost::condition_variable consumer_cv_;
 
   /// Signals to producer that the consumer is done, and the sink may be torn down.
@@ -86,6 +85,10 @@ class PushPullSink : public DataSink {
   /// Signals to consumer that the sender is done, and that there are no more row batches
   /// to consume.
   bool sender_done_ = false;
+
+  bool sender_ready_ = false;
+
+  RowBatch* cur_batch_;
 };
 }
 

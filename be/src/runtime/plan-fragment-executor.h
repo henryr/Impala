@@ -108,6 +108,8 @@ class PlanFragmentExecutor {
   /// the status-reporting thread will have been stopped.
   Status Open();
 
+  Status Exec();
+
   /// Closes the underlying plan fragment and frees up all resources allocated in Open().
   void Close();
 
@@ -287,7 +289,7 @@ class PlanFragmentExecutor {
 
   /// Pulls row batches from fragment instance and pushes them to sink_ in a loop. Returns
   /// OK if the input was exhausted and sent to the sink successfully, an error otherwise.
-  Status DriveSink();
+  Status ExecInternal();
 
   /// Performs all the logic of Prepare() and returns resulting status.
   Status PrepareInternal(const TExecPlanFragmentParams& request);

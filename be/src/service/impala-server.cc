@@ -1881,7 +1881,7 @@ Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port, int
 
   if (be_port != 0 && be_server != NULL) {
     boost::shared_ptr<ImpalaInternalService> thrift_if(
-        new ImpalaInternalService(handler, exec_env->fragment_mgr()));
+        new ImpalaInternalService(handler));
     boost::shared_ptr<TProcessor> be_processor(
         new ImpalaInternalServiceProcessor(thrift_if));
     boost::shared_ptr<TProcessorEventHandler> event_handler(

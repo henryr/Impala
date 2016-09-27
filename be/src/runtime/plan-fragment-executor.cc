@@ -71,7 +71,8 @@ PlanFragmentExecutor::PlanFragmentExecutor(ExecEnv* exec_env,
 }
 
 PlanFragmentExecutor::~PlanFragmentExecutor() {
-  Close();
+  LOG(INFO) << "CLOSING PFE";
+  DCHECK(closed_);
   // at this point, the report thread should have been stopped
   DCHECK(!report_thread_active_);
 }
@@ -263,9 +264,16 @@ Status PlanFragmentExecutor::Open() {
   VLOG_QUERY << "Open(): instance_id="
       << runtime_state_->fragment_instance_id();
 
+  Status status = OpenInternal();
+  UpdateStatus(status);
+  opened_promise_.Set(status);
+  return status;
+}
+
+Status PlanFragmentExecutor::OpenInternal() {
   RETURN_IF_ERROR(runtime_state_->desc_tbl().PrepareAndOpenPartitionExprs(runtime_state_.get()));
 
-  // we need to start the profile-reporting thread before calling Open(), since it
+  // we need to start the profile-reporting thread before calling plan_->Open(), since it
   // may block
   if (!report_status_cb_.empty() && FLAGS_status_report_interval > 0) {
     unique_lock<mutex> l(report_thread_lock_);
@@ -280,18 +288,19 @@ Status PlanFragmentExecutor::Open() {
 
   OptimizeLlvmModule();
 
-  Status status = OpenInternal();
-  opened_promise_.Set(status);
+  SCOPED_TIMER(profile()->total_time_counter());
+  RETURN_IF_ERROR(plan_->Open(runtime_state_.get()));
+  return sink_->Open(runtime_state_.get());
+}
 
-  if (status.ok()) status = DriveSink();
+Status PlanFragmentExecutor::Exec() {
+  {
+    lock_guard<mutex> l(status_lock_);
+    RETURN_IF_ERROR(status_);
+  }
+  Status status = ExecInternal();
 
-  // We call Close() here rather than in DriveSink() because we want to make sure
-  // that Close() gets called even if there was an error in DriveSink().
-  // We also want to call sink_->Close() here rather than in PlanFragmentExecutor::Close
-  // because we do not want the sink_ to hold on to all its resources as we will never
-  // use it after this.
-  sink_->Close(runtime_state());
-  // If there's no error, OpenInternal() completed the fragment execution.
+  // If there's no error, ExecInternal() completed the fragment execution.
   if (status.ok()) {
     done_ = true;
     FragmentComplete();
@@ -307,17 +316,11 @@ Status PlanFragmentExecutor::Open() {
   return status;
 }
 
-Status PlanFragmentExecutor::OpenInternal() {
-  SCOPED_TIMER(profile()->total_time_counter());
-  RETURN_IF_ERROR(plan_->Open(runtime_state_.get()));
-  return sink_->Open(runtime_state_.get());
-}
-
-Status PlanFragmentExecutor::DriveSink() {
+Status PlanFragmentExecutor::ExecInternal() {
   while (!done_) {
     row_batch_->Reset();
     RETURN_IF_ERROR(plan_->GetNext(runtime_state_.get(), row_batch_.get(), &done_));
-    if (VLOG_ROW_IS_ON) row_batch_->VLogRows("PlanFragmentExecutor::DriveSink()");
+    if (VLOG_ROW_IS_ON) row_batch_->VLogRows("PlanFragmentExecutor::ExecInternal()");
     COUNTER_ADD(rows_produced_counter_, row_batch_->num_rows());
     RETURN_IF_ERROR(sink_->Send(runtime_state(), row_batch_.get()));
   }
@@ -476,21 +479,23 @@ void PlanFragmentExecutor::ReleaseThreadToken() {
 
 void PlanFragmentExecutor::Close() {
   if (closed_) return;
+  sink_->Close(runtime_state());
+
   row_batch_.reset();
   if (sink_mem_tracker_ != NULL) {
     sink_mem_tracker_->UnregisterFromParent();
     sink_mem_tracker_.reset();
   }
-  // Prepare may not have been called, which sets runtime_state_
-  if (runtime_state_.get() != NULL) {
-    if (plan_ != NULL) plan_->Close(runtime_state_.get());
-    for (DiskIoRequestContext* context: *runtime_state_->reader_contexts()) {
-      runtime_state_->io_mgr()->UnregisterContext(context);
+  // Prepare should always have been called, and so runtime_state_ should be set
+  DCHECK(prepared_promise_.IsSet());
+  if (plan_ != NULL) plan_->Close(runtime_state_.get());
+  for (DiskIoRequestContext* context : *runtime_state_->reader_contexts()) {
+    runtime_state_->io_mgr()->UnregisterContext(context);
     }
     exec_env_->thread_mgr()->UnregisterPool(runtime_state_->resource_pool());
     runtime_state_->desc_tbl().ClosePartitionExprs(runtime_state_.get());
     runtime_state_->filter_bank()->Close();
-  }
+
   if (mem_usage_sampled_counter_ != NULL) {
     PeriodicCounterUpdater::StopTimeSeriesCounter(mem_usage_sampled_counter_);
     mem_usage_sampled_counter_ = NULL;

@@ -1945,6 +1945,7 @@ void Coordinator::SetExecPlanDescriptorTable(const TPlanFragment& fragment,
 
   rpc_params->query_ctx.__set_desc_tbl(thrift_desc_tbl);
 }
+
 namespace {
 
 void DistributeFilters(shared_ptr<TPublishFilterParams> params, TNetworkAddress impalad,

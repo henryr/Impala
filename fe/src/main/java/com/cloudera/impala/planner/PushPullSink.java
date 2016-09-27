@@ -19,8 +19,7 @@ package com.cloudera.impala.planner;
 
 import com.cloudera.impala.thrift.TDataSink;
 import com.cloudera.impala.thrift.TDataSinkType;
-import com.cloudera.impala.thrift.TPushPullSink;
-import com.cloudera.impala.thrift.TExplainLevel;
+import com.cloudera.impala.thrift.
 
 /**
  * A sink which acts as a buffer for results produced by a fragment instance, so that a
@@ -34,8 +33,6 @@ public class PushPullSink extends DataSink {
   }
 
   protected TDataSink toThrift() {
-    TDataSink result = new TDataSink(TDataSinkType.PUSH_PULL_SINK);
-    result.setPush_pull_sink(new TPushPullSink());
-    return result;
+    return new TDataSink(TDataSinkType.PUSH_PULL_SINK);    
   }
 }

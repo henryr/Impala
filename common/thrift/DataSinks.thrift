@@ -86,17 +86,12 @@ struct TJoinBuildSink {
   2: required list<Exprs.TExpr> build_exprs
 }
 
-// Sink whose results are pushed to it by its fragment, but pulled from by a consumer.
-struct TPushPullSink {
-
-}
-
 // Union type of all table sinks.
 struct TTableSink {
-  1: required Types.TTableId  target_table_id
+  1: required Types.TTableId target_table_id
   2: required TTableSinkType type
   3: required TSinkAction action
-  4: optional THdfsTableSink  hdfs_table_sink
+  4: optional THdfsTableSink hdfs_table_sink
   5: optional TKuduTableSink kudu_table_sink
 }
 
@@ -105,5 +100,4 @@ struct TDataSink {
   2: optional TDataStreamSink stream_sink
   3: optional TTableSink table_sink
   4: optional TJoinBuildSink join_build_sink
-  5: optional TPushPullSink push_pull_sink
 }

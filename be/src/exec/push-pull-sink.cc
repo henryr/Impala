@@ -45,48 +45,45 @@ Status PushPullSink::Open(RuntimeState* state) {
 }
 
 Status PushPullSink::Send(RuntimeState* state, RowBatch* batch) {
-  {
-    unique_lock<mutex> l(sender_cv_lock_);
-    if (consumer_done_) return Status::OK();
-    DCHECK(cur_batch_ == nullptr);
-    cur_batch_ = batch;
-    consumer_cv_.notify_all();
+  unique_lock<mutex> l(cv_lock_);
+  if (consumer_done_) return Status::OK();
+  DCHECK(cur_batch_ == nullptr);
+  cur_batch_ = batch;
+  consumer_cv_.notify_all();
 
-    while (cur_batch_ != nullptr) {
-      sender_cv_.wait(l);
-    }
+  while (!sender_ready_) {
+    sender_cv_.wait(l);
   }
 
   return Status::OK();
 }
 
 void PushPullSink::Close(RuntimeState* state) {
-  {
-    unique_lock<mutex> l(consumer_lock_);
-    sender_done_ = true;
-    consumer_cv_.notify_all();
-  }
+  unique_lock<mutex> l(cv_lock_);
+  sender_done_ = true;
+  consumer_cv_.notify_all();
+  // Wait for consumer to be done, in case sender tries to tear-down this sink while the
+  // sender is still reading from it.
+  while (!consumer_done_) sender_cv_.wait(l);
 }
 
 void PushPullSink::CloseConsumer() {
-  {
-    unique_lock<mutex> l(sender_cv_lock_);
-    consumer_done_ = true;
-    sender_cv_.notify_all();
-  }
+  unique_lock<mutex> l(cv_lock_);
+  consumer_done_ = true;
+  sender_cv_.notify_all();
 }
 
 Status PushPullSink::GetNext(RuntimeState* state, RowBatch** row_batch) {
-  unique_lock<mutex> l(consumer_lock_);
+  unique_lock<mutex> l(cv_lock_);
+  sender_ready_ = true;
   // Trigger sender to send next row batch now.
-  sender_cv_.notify_all();
-  while (cur_batch_ == nullptr && !sender_done_) consumer_cv_.wait(l);
-  if (sender_done_) {
-    *row_batch = nullptr;
-  } else {
-    *row_batch = cur_batch_;
-    cur_batch_ = nullptr;
+  if (cur_batch_ == nullptr) {
+    sender_cv_.notify_all();
+    while (cur_batch_ == nullptr && !sender_done_) consumer_cv_.wait(l);
   }
+  *row_batch = cur_batch_;
+  cur_batch_ = nullptr;
+  sender_ready_ = false;
   return Status::OK();
 }
 }
