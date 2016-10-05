@@ -79,7 +79,7 @@ public class JoinBuildSink extends DataSink {
   }
 
   @Override
-  public String getExplainString(String prefix, String detailPrefix,
+  protected String getExplainStringImpl(String prefix, String detailPrefix,
       TExplainLevel detailLevel) {
     StringBuilder output = new StringBuilder();
     output.append(String.format("%s%s\n", prefix, "JOIN BUILD"));

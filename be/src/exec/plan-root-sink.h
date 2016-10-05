@@ -55,8 +55,7 @@ class ExprContext;
 /// and consumer. See IMPALA-4268.
 class PlanRootSink : public DataSink {
  public:
-  PlanRootSink(const RowDescriptor& row_desc, const std::vector<TExpr>& output_exprs,
-      const TDataSink& thrift_sink);
+  PlanRootSink(const RowDescriptor& row_desc, const TDataSink& thrift_sink);
 
   virtual std::string GetName() { return NAME; }
 

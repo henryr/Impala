@@ -80,10 +80,9 @@ class DataSink {
 
   /// Creates a new data sink from thrift_sink. A pointer to the
   /// new sink is written to *sink, and is owned by the caller.
-  static Status CreateDataSink(ObjectPool* pool,
-    const TDataSink& thrift_sink, const std::vector<TExpr>& output_exprs,
-    const TPlanFragmentInstanceCtx& fragment_instance_ctx,
-    const RowDescriptor& row_desc, boost::scoped_ptr<DataSink>* sink);
+  static Status CreateDataSink(ObjectPool* pool, const TDataSink& thrift_sink,
+      const TPlanFragmentInstanceCtx& fragment_instance_ctx,
+      const RowDescriptor& row_desc, boost::scoped_ptr<DataSink>* sink);
 
   /// Merges one update to the insert stats for a partition. dst_stats will have the
   /// combined stats of src_stats and dst_stats after this method returns.

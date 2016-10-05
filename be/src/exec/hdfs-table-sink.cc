@@ -55,20 +55,19 @@ namespace impala {
 const static string& ROOT_PARTITION_KEY =
     g_ImpalaInternalService_constants.ROOT_PARTITION_KEY;
 
-HdfsTableSink::HdfsTableSink(const RowDescriptor& row_desc,
-    const vector<TExpr>& select_list_texprs,
-    const TDataSink& tsink)
-    :  DataSink(row_desc),
-       table_desc_(NULL),
-       default_partition_(NULL),
-       current_row_(NULL),
-       table_id_(tsink.table_sink.target_table_id),
-       skip_header_line_count_(
-           tsink.table_sink.hdfs_table_sink.__isset.skip_header_line_count
-           ? tsink.table_sink.hdfs_table_sink.skip_header_line_count : 0),
-       select_list_texprs_(select_list_texprs),
-       partition_key_texprs_(tsink.table_sink.hdfs_table_sink.partition_key_exprs),
-       overwrite_(tsink.table_sink.hdfs_table_sink.overwrite) {
+HdfsTableSink::HdfsTableSink(const RowDescriptor& row_desc, const TDataSink& tsink)
+  : DataSink(row_desc),
+    table_desc_(NULL),
+    default_partition_(NULL),
+    current_row_(NULL),
+    table_id_(tsink.table_sink.target_table_id),
+    skip_header_line_count_(
+        tsink.table_sink.hdfs_table_sink.__isset.skip_header_line_count ?
+            tsink.table_sink.hdfs_table_sink.skip_header_line_count :
+            0),
+    select_list_texprs_(tsink.output_exprs),
+    partition_key_texprs_(tsink.table_sink.hdfs_table_sink.partition_key_exprs),
+    overwrite_(tsink.table_sink.hdfs_table_sink.overwrite) {
   DCHECK(tsink.__isset.table_sink);
 }
 

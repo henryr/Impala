@@ -91,7 +91,7 @@ public class PlanFragment extends TreeNode<PlanFragment> {
   private ExchangeNode destNode_;
 
   // if null, outputs the entire row produced by planRoot_
-  private List<Expr> outputExprs_;
+  // private List<Expr> outputExprs_;
 
   // created in finalize() or set in setSink()
   private DataSink sink_;
@@ -143,11 +143,6 @@ public class PlanFragment extends TreeNode<PlanFragment> {
     if (root instanceof ExchangeNode) return;
     for (PlanNode child: root.getChildren()) collectPlanNodesHelper(child, nodes);
   }
-
-  public void setOutputExprs(List<Expr> outputExprs) {
-    outputExprs_ = Expr.cloneList(outputExprs);
-  }
-  public List<Expr> getOutputExprs() { return outputExprs_; }
 
   /**
    * Finalize plan tree and create stream sink, if needed.
@@ -239,9 +234,9 @@ public class PlanFragment extends TreeNode<PlanFragment> {
     TPlanFragment result = new TPlanFragment();
     result.setDisplay_name(fragmentId_.toString());
     if (planRoot_ != null) result.setPlan(planRoot_.treeToThrift());
-    if (outputExprs_ != null) {
-      result.setOutput_exprs(Expr.treesToThrift(outputExprs_));
-    }
+    // if (outputExprs_ != null) {
+    //   result.setOutput_exprs(Expr.treesToThrift(outputExprs_));
+    // }
     if (sink_ != null) result.setOutput_sink(sink_.toThrift());
     result.setPartition(dataPartition_.toThrift());
     return result;

@@ -19,6 +19,7 @@ package org.apache.impala.planner;
 
 import java.util.List;
 
+import org.apache.commons.lang3.text.WordUtils;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.catalog.HBaseTable;
 import org.apache.impala.catalog.HdfsTable;
@@ -26,6 +27,8 @@ import org.apache.impala.catalog.KuduTable;
 import org.apache.impala.catalog.Table;
 import org.apache.impala.thrift.TDataSink;
 import org.apache.impala.thrift.TExplainLevel;
+import com.google.common.base.Joiner;
+import com.google.common.collect.Lists;
 
 /**
  * A DataSink describes the destination of a plan fragment's output rows.
@@ -42,11 +45,22 @@ public abstract class DataSink {
   // Fragment that this DataSink belongs to. Set by the PlanFragment enclosing this sink.
   protected PlanFragment fragment_;
 
+  // Exprs evaluated by this sink before emitting its results. May be null.
+  protected List<Expr> outputExprs_;
+
   /**
    * Return an explain string for the DataSink. Each line of the explain will be prefixed
-   * by "prefix".
+   * by "prefix". The output string will be wrapped to 100 chars.
+   *
+   * TODO: Wrap every line in the
    */
-  public abstract String getExplainString(String prefix, String detailPrefix,
+  public String getExplainString(String prefix, String detailPrefix,
+      TExplainLevel explainLevel) {
+    String explain = getExplainStringImpl(prefix, detailPrefix, explainLevel);
+    return prefix + WordUtils.wrap(explain, 100, "\n" + detailPrefix, false);
+  }
+
+  protected abstract String getExplainStringImpl(String prefix, String detailPrefix,
       TExplainLevel explainLevel);
 
   protected abstract TDataSink toThrift();
@@ -55,10 +69,31 @@ public abstract class DataSink {
   public PlanFragment getFragment() { return fragment_; }
   public long getPerHostMemCost() { return perHostMemCost_; }
 
+  public void setOutputExprs(List<Expr> outputExprs) {
+    outputExprs_ = outputExprs;
+  }
+  public List<Expr> getOutputExprs() { return outputExprs_; }
+
   /**
    * Estimates the cost of executing this DataSink. Currently only sets perHostMemCost.
    */
   public void computeCosts() {
     perHostMemCost_ = 0;
+  }
+
+  /**
+   * Helper method for adding output expressions to the explain string
+   */
+  protected String getOutputExprsString() {
+    StringBuilder outputExprStr = new StringBuilder("OUTPUT-EXPRS=(");
+    List<String> exprStrings = Lists.newArrayList();
+    if (outputExprs_ != null) {
+      for (Expr e : outputExprs_) {
+        exprStrings.add(e.toSql());
+      }
+      outputExprStr.append(Joiner.on(", ").join(exprStrings));
+    }
+    outputExprStr.append(")");
+    return outputExprStr.toString();
   }
 }

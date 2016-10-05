@@ -34,9 +34,8 @@ namespace impala {
 
 const string PlanRootSink::NAME = "PLAN_ROOT_SINK";
 
-PlanRootSink::PlanRootSink(const RowDescriptor& row_desc,
-    const std::vector<TExpr>& output_exprs, const TDataSink& thrift_sink)
-  : DataSink(row_desc), thrift_output_exprs_(output_exprs) {}
+PlanRootSink::PlanRootSink(const RowDescriptor& row_desc, const TDataSink& thrift_sink)
+  : DataSink(row_desc), thrift_output_exprs_(thrift_sink.output_exprs) {}
 
 Status PlanRootSink::Prepare(RuntimeState* state, MemTracker* mem_tracker) {
   RETURN_IF_ERROR(DataSink::Prepare(state, mem_tracker));

@@ -43,8 +43,7 @@ namespace impala {
 /// change the flushing behavior as it will likely make writes more efficient.
 class KuduTableSink : public DataSink {
  public:
-  KuduTableSink(const RowDescriptor& row_desc,
-      const std::vector<TExpr>& select_list_texprs, const TDataSink& tsink);
+  KuduTableSink(const RowDescriptor& row_desc, const TDataSink& tsink);
 
   virtual std::string GetName() { return "KuduTableSink"; }
 

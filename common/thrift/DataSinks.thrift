@@ -100,4 +100,6 @@ struct TDataSink {
   2: optional TDataStreamSink stream_sink
   3: optional TTableSink table_sink
   4: optional TJoinBuildSink join_build_sink
+
+  5: optional list<Exprs.TExpr> output_exprs
 }

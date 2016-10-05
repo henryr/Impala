@@ -130,7 +130,6 @@ public class Planner {
     PlanFragment rootFragment = fragments.get(fragments.size() - 1);
     rootFragment.verifyTree();
     ExprSubstitutionMap rootNodeSmap = rootFragment.getPlanRoot().getOutputSmap();
-    List<Expr> resultExprs = null;
     if (ctx_.isInsertOrCtas()) {
       InsertStmt insertStmt = ctx_.getAnalysisResult().getInsertStmt();
       insertStmt.substituteResultExprs(rootNodeSmap, ctx_.getRootAnalyzer());
@@ -141,7 +140,7 @@ public class Planner {
       }
       // set up table sink for root fragment
       rootFragment.setSink(insertStmt.createDataSink());
-      resultExprs = insertStmt.getResultExprs();
+      rootFragment.getSink().setOutputExprs(insertStmt.getResultExprs());
     } else {
       if (ctx_.isUpdate()) {
         // Set up update sink for root fragment
@@ -154,12 +153,12 @@ public class Planner {
       }
       QueryStmt queryStmt = ctx_.getQueryStmt();
       queryStmt.substituteResultExprs(rootNodeSmap, ctx_.getRootAnalyzer());
-      resultExprs = queryStmt.getResultExprs();
+      rootFragment.getSink().setOutputExprs(queryStmt.getResultExprs());
     }
-    rootFragment.setOutputExprs(resultExprs);
+    List<Expr> resultExprs = rootFragment.getSink().getOutputExprs();
 
     LOG.debug("desctbl: " + ctx_.getRootAnalyzer().getDescTbl().debugString());
-    LOG.debug("resultexprs: " + Expr.debugString(rootFragment.getOutputExprs()));
+    LOG.debug("resultexprs: " + Expr.debugString(rootFragment.getSink().getOutputExprs()));
     LOG.debug("finalize plan fragments");
     for (PlanFragment fragment: fragments) {
       fragment.finalize(ctx_.getRootAnalyzer());

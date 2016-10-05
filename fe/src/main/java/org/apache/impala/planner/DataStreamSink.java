@@ -38,13 +38,14 @@ public class DataStreamSink extends DataSink {
   }
 
   @Override
-  public String getExplainString(String prefix, String detailPrefix,
+  public String getExplainStringImpl(String prefix, String detailPrefix,
       TExplainLevel detailLevel) {
     StringBuilder output = new StringBuilder();
     output.append(
         String.format("%sDATASTREAM SINK [FRAGMENT=%s, EXCHANGE=%s, %s]",
         prefix, exchNode_.getFragment().getId().toString(),
         exchNode_.getId().toString(), exchNode_.getDisplayLabelDetail()));
+
     return output.toString();
   }
 

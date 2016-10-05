@@ -36,10 +36,11 @@ public class HBaseTableSink extends TableSink {
   }
 
   @Override
-  public String getExplainString(String prefix, String detailPrefix,
+  protected String getExplainStringImpl(String prefix, String detailPrefix,
       TExplainLevel explainLevel) {
     StringBuilder output = new StringBuilder();
-    output.append(prefix + "WRITE TO HBASE table=" + targetTable_.getFullName() + "\n");
+    output.append(String.format("%sWRITE TO HBASE table=%s [%s]\n", prefix,
+        targetTable_.getFullName(), getOutputExprsString()));
     if (explainLevel.ordinal() >= TExplainLevel.EXTENDED.ordinal()) {
       output.append(PrintUtils.printHosts(detailPrefix, fragment_.getNumNodes()));
       output.append(PrintUtils.printMemCost(" ", perHostMemCost_));

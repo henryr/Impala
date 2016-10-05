@@ -48,10 +48,9 @@ DataSink::~DataSink() {
   DCHECK(closed_);
 }
 
-Status DataSink::CreateDataSink(ObjectPool* pool,
-    const TDataSink& thrift_sink, const vector<TExpr>& output_exprs,
-    const TPlanFragmentInstanceCtx& fragment_instance_ctx,
-    const RowDescriptor& row_desc, scoped_ptr<DataSink>* sink) {
+Status DataSink::CreateDataSink(ObjectPool* pool, const TDataSink& thrift_sink,
+    const TPlanFragmentInstanceCtx& fragment_instance_ctx, const RowDescriptor& row_desc,
+    scoped_ptr<DataSink>* sink) {
   DataSink* tmp_sink = NULL;
   switch (thrift_sink.type) {
     case TDataSinkType::DATA_STREAM_SINK:
@@ -70,16 +69,16 @@ Status DataSink::CreateDataSink(ObjectPool* pool,
       if (!thrift_sink.__isset.table_sink) return Status("Missing table sink.");
       switch (thrift_sink.table_sink.type) {
         case TTableSinkType::HDFS:
-          tmp_sink = new HdfsTableSink(row_desc, output_exprs, thrift_sink);
+          tmp_sink = new HdfsTableSink(row_desc, thrift_sink);
           sink->reset(tmp_sink);
           break;
         case TTableSinkType::HBASE:
-          tmp_sink = new HBaseTableSink(row_desc, output_exprs, thrift_sink);
+          tmp_sink = new HBaseTableSink(row_desc, thrift_sink);
           sink->reset(tmp_sink);
           break;
         case TTableSinkType::KUDU:
           RETURN_IF_ERROR(CheckKuduAvailability());
-          tmp_sink = new KuduTableSink(row_desc, output_exprs, thrift_sink);
+          tmp_sink = new KuduTableSink(row_desc, thrift_sink);
           sink->reset(tmp_sink);
           break;
         default:
@@ -93,10 +92,9 @@ Status DataSink::CreateDataSink(ObjectPool* pool,
           error_msg << str << " not implemented.";
           return Status(error_msg.str());
       }
-
       break;
     case TDataSinkType::PLAN_ROOT_SINK:
-      sink->reset(new PlanRootSink(row_desc, output_exprs, thrift_sink));
+      sink->reset(new PlanRootSink(row_desc, thrift_sink));
       break;
     default:
       stringstream error_msg;

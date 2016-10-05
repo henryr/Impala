@@ -17,6 +17,7 @@
 
 package org.apache.impala.planner;
 
+import org.apache.impala.analysis.Expr;
 import org.apache.impala.thrift.TDataSink;
 import org.apache.impala.thrift.TDataSinkType;
 import org.apache.impala.thrift.TExplainLevel;
@@ -27,13 +28,14 @@ import org.apache.impala.thrift.TExplainLevel;
  * client, despite both executing concurrently.
  */
 public class PlanRootSink extends DataSink {
-
-  public String getExplainString(String prefix, String detailPrefix,
+  protected String getExplainStringImpl(String prefix, String detailPrefix,
       TExplainLevel explainLevel) {
-    return String.format("%sPLAN-ROOT SINK\n", prefix);
+    return String.format("PLAN-ROOT SINK [%s]\n", getOutputExprsString());
   }
 
   protected TDataSink toThrift() {
-    return new TDataSink(TDataSinkType.PLAN_ROOT_SINK);
+    TDataSink result = new TDataSink(TDataSinkType.PLAN_ROOT_SINK);
+    result.setOutput_exprs(Expr.treesToThrift(outputExprs_));
+    return result;
   }
 }

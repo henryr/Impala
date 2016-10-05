@@ -212,8 +212,7 @@ Status PlanFragmentExecutor::PrepareInternal(const TExecPlanFragmentParams& requ
   DCHECK(request.fragment_ctx.fragment.__isset.output_sink);
   RETURN_IF_ERROR(
       DataSink::CreateDataSink(obj_pool(), request.fragment_ctx.fragment.output_sink,
-          request.fragment_ctx.fragment.output_exprs, fragment_instance_ctx,
-          exec_tree_->row_desc(), &sink_));
+          fragment_instance_ctx, exec_tree_->row_desc(), &sink_));
   sink_mem_tracker_.reset(
       new MemTracker(-1, sink_->GetName(), runtime_state_->instance_mem_tracker(), true));
   RETURN_IF_ERROR(sink_->Prepare(runtime_state(), sink_mem_tracker_.get()));

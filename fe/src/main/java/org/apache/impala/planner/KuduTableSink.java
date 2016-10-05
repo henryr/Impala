@@ -52,11 +52,12 @@ public class KuduTableSink extends TableSink {
   }
 
   @Override
-  public String getExplainString(String prefix, String detailPrefix,
+  protected String getExplainStringImpl(String prefix, String detailPrefix,
       TExplainLevel explainLevel) {
     StringBuilder output = new StringBuilder();
     output.append(prefix + sinkOp_.toExplainString());
-    output.append(" KUDU [" + targetTable_.getFullName() + "]\n");
+    output.append(String.format(" KUDU [%s, %s]\n", targetTable_.getFullName(),
+        getOutputExprsString()));
     output.append(detailPrefix);
     if (sinkOp_ == Op.INSERT) {
       output.append("check unique keys: ");

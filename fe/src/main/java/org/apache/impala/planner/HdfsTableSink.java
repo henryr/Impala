@@ -99,7 +99,7 @@ public class HdfsTableSink extends TableSink {
   }
 
   @Override
-  public String getExplainString(String prefix, String detailPrefix,
+  protected String getExplainStringImpl(String prefix, String detailPrefix,
       TExplainLevel explainLevel) {
     StringBuilder output = new StringBuilder();
     String overwriteStr = ", OVERWRITE=" + (overwrite_ ? "true" : "false");
@@ -113,8 +113,8 @@ public class HdfsTableSink extends TableSink {
       tmpBuilder.append(")");
       partitionKeyStr = tmpBuilder.toString();
     }
-    output.append(String.format("%sWRITE TO HDFS [%s%s%s]\n", prefix,
-        targetTable_.getFullName(), overwriteStr, partitionKeyStr));
+    output.append(String.format("%sWRITE TO HDFS [%s%s%s, %s]\n", prefix,
+            targetTable_.getFullName(), overwriteStr, partitionKeyStr, getOutputExprsString()));
     // Report the total number of partitions, independent of the number of nodes
     // and the data partition of the fragment executing this sink.
     if (explainLevel.ordinal() > TExplainLevel.MINIMAL.ordinal()) {
