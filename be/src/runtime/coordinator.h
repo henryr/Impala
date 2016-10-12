@@ -293,7 +293,7 @@ class Coordinator {
   /// materialized into a QueryResultSet provided to the coordinator during GetNext().
   ///
   /// Not owned by this class, created during fragment instance start-up by
-  /// FragmentExecState.
+  /// FragmentExecState and set here in Exec().
   PlanFragmentExecutor* executor_ = nullptr;
   PlanRootSink* root_sink_ = nullptr;
 

@@ -377,7 +377,6 @@ Coordinator::Coordinator(const QuerySchedule& schedule, ExecEnv* exec_env,
     exec_env_(exec_env),
     has_called_wait_(false),
     returned_all_results_(false),
-    executor_(nullptr),   // Set in Exec()
     query_mem_tracker_(), // Set in Exec()
     num_remaining_fragment_instances_(0),
     obj_pool_(new ObjectPool()),
@@ -514,10 +513,9 @@ Status Coordinator::Exec() {
     DCHECK(root_fragment_instance.get() != nullptr);
     executor_ = root_fragment_instance->executor();
 
-    // After WaitForPrepare() returns, the executor's root sink may be set up. At that
-    // point, the coordinator must be sure to call
-    // root_sink()->CloseConsumer(); the fragment instance's executor will not
-    // complete until that point.
+    // When WaitForPrepare() returns OK(), the executor's root sink will be set up. At
+    // that point, the coordinator must be sure to call root_sink()->CloseConsumer(); the
+    // fragment instance's executor will not complete until that point.
     // TODO: Consider moving this to Wait().
     Status prepare_status = executor_->WaitForPrepare();
     root_sink_ = executor_->root_sink();
@@ -1150,6 +1148,10 @@ Status Coordinator::Wait() {
 
   query_profile_->AddInfoString(
       "Insert Stats", DataSink::OutputInsertStats(per_partition_status_, "\n"));
+  // For DML queries, when Wait is done, the query is complete.  Report aggregate
+  // query profiles at this point.
+  // TODO: make sure ReportQuerySummary gets called on error
+  ReportQuerySummary();
 
   return status;
 }
@@ -1175,7 +1177,6 @@ Status Coordinator::GetNext(QueryResultSet* results, int max_rows, bool* eos) {
     // Trigger tear-down of coordinator fragment by closing the consumer. Must do before
     // WaitForAllInstances().
     root_sink_->CloseConsumer();
-    root_sink_ = nullptr;
 
     // Don't return final NULL until all instances have completed.  GetNext must wait for
     // all instances to complete before ultimately signalling the end of execution via a
