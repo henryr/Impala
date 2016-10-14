@@ -22,7 +22,9 @@ order by
   l_returnflag,
   l_linestatus
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_returnflag, l_linestatus, sum(l_quantity), sum(l_extendedprice),
+|  sum(l_extendedprice * (1 - l_discount)), sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)),
+|  avg(l_quantity), avg(l_extendedprice), avg(l_discount), count(*))]
 |
 02:SORT
 |  order by: l_returnflag ASC, l_linestatus ASC
@@ -35,7 +37,9 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    predicates: l_shipdate <= '1998-09-02'
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_returnflag, l_linestatus, sum(l_quantity), sum(l_extendedprice),
+|  sum(l_extendedprice * (1 - l_discount)), sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)),
+|  avg(l_quantity), avg(l_extendedprice), avg(l_discount), count(*))]
 |
 05:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: l_returnflag ASC, l_linestatus ASC
@@ -57,7 +61,9 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    predicates: l_shipdate <= '1998-09-02'
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_returnflag, l_linestatus, sum(l_quantity), sum(l_extendedprice),
+|  sum(l_extendedprice * (1 - l_discount)), sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)),
+|  avg(l_quantity), avg(l_extendedprice), avg(l_discount), count(*))]
 |
 05:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: l_returnflag ASC, l_linestatus ASC
@@ -126,7 +132,8 @@ order by
   p_partkey
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone,
+|  s_comment)]
 |
 18:TOP-N [LIMIT=100]
 |  order by: s_acctbal DESC, n_name ASC, s_name ASC, p_partkey ASC
@@ -203,7 +210,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=112.71MB
    runtime filters: RF001 -> tpch.partsupp.ps_partkey, RF004 -> ps_suppkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone,
+|  s_comment)]
 |
 30:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_acctbal DESC, n_name ASC, s_name ASC, p_partkey ASC
@@ -308,7 +316,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=112.71MB
    runtime filters: RF001 -> tpch.partsupp.ps_partkey, RF004 -> ps_suppkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone,
+|  s_comment)]
 |
 30:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_acctbal DESC, n_name ASC, s_name ASC, p_partkey ASC
@@ -323,7 +332,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
-|  |  build expressions: ps_supplycost, p_partkey
+|  |  build expressions: ps_supplycost,
+|  |  p_partkey
 |  |
 |  29:EXCHANGE [HASH(ps_supplycost,p_partkey)]
 |  |
@@ -333,7 +343,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: r_regionkey
+|  |  |  build expressions:
+|  |  |  r_regionkey
 |  |  |
 |  |  27:EXCHANGE [BROADCAST]
 |  |  |
@@ -347,7 +358,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=02 plan-id=03 cohort-id=02
-|  |  |  build expressions: n_nationkey
+|  |  |  build expressions:
+|  |  |  n_nationkey
 |  |  |
 |  |  26:EXCHANGE [BROADCAST]
 |  |  |
@@ -371,7 +383,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=04 plan-id=05 cohort-id=03
-|  |  |  |  build expressions: p_partkey
+|  |  |  |  build expressions:
+|  |  |  |  p_partkey
 |  |  |  |
 |  |  |  24:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -471,7 +484,8 @@ order by
   o_orderdate
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_orderkey, sum(l_extendedprice * (1 - l_discount)), o_orderdate,
+|  o_shippriority)]
 |
 06:TOP-N [LIMIT=10]
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC, o_orderdate ASC
@@ -502,7 +516,8 @@ PLAN-ROOT SINK
    predicates: l_shipdate > '1995-03-15'
    runtime filters: RF001 -> l_orderkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_orderkey, sum(l_extendedprice * (1 - l_discount)), o_orderdate,
+|  o_shippriority)]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC, o_orderdate ASC
@@ -547,7 +562,8 @@ PLAN-ROOT SINK
    predicates: l_shipdate > '1995-03-15'
    runtime filters: RF001 -> l_orderkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_orderkey, sum(l_extendedprice * (1 - l_discount)), o_orderdate,
+|  o_shippriority)]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC, o_orderdate ASC
@@ -624,7 +640,7 @@ group by
 order by
   o_orderpriority
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_orderpriority, count(*))]
 |
 04:SORT
 |  order by: o_orderpriority ASC
@@ -646,7 +662,7 @@ PLAN-ROOT SINK
    predicates: l_commitdate < l_receiptdate
    runtime filters: RF000 -> l_orderkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_orderpriority, count(*))]
 |
 09:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: o_orderpriority ASC
@@ -681,7 +697,7 @@ PLAN-ROOT SINK
    predicates: l_commitdate < l_receiptdate
    runtime filters: RF000 -> l_orderkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_orderpriority, count(*))]
 |
 09:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: o_orderpriority ASC
@@ -747,7 +763,7 @@ group by
 order by
   revenue desc
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(n_name, sum(l_extendedprice * (1 - l_discount)))]
 |
 12:SORT
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC
@@ -801,7 +817,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    runtime filters: RF002 -> l_suppkey, RF005 -> l_orderkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(n_name, sum(l_extendedprice * (1 - l_discount)))]
 |
 20:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC
@@ -874,7 +890,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    runtime filters: RF002 -> l_suppkey, RF005 -> l_orderkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(n_name, sum(l_extendedprice * (1 - l_discount)))]
 |
 20:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC
@@ -926,7 +942,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
-|  |  build expressions: s_suppkey, s_nationkey
+|  |  build expressions: s_suppkey,
+|  |  s_nationkey
 |  |
 |  15:EXCHANGE [BROADCAST]
 |  |
@@ -979,7 +996,7 @@ where
   and l_discount between 0.05 and 0.07
   and l_quantity < 24
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice * l_discount))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: sum(l_extendedprice * l_discount)
@@ -988,7 +1005,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    predicates: l_discount >= 0.05, l_discount <= 0.07, l_quantity < 24, l_shipdate >= '1994-01-01', l_shipdate < '1995-01-01'
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice * l_discount))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice * l_discount)
@@ -1002,7 +1019,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    predicates: l_discount >= 0.05, l_discount <= 0.07, l_quantity < 24, l_shipdate >= '1994-01-01', l_shipdate < '1995-01-01'
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice * l_discount))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice * l_discount)
@@ -1057,7 +1074,7 @@ order by
   cust_nation,
   l_year
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(supp_nation, cust_nation, l_year, sum(volume))]
 |
 12:SORT
 |  order by: supp_nation ASC, cust_nation ASC, l_year ASC
@@ -1110,7 +1127,7 @@ PLAN-ROOT SINK
    predicates: l_shipdate >= '1995-01-01', l_shipdate <= '1996-12-31'
    runtime filters: RF003 -> l_suppkey, RF004 -> l_orderkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(supp_nation, cust_nation, l_year, sum(volume))]
 |
 21:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: supp_nation ASC, cust_nation ASC, l_year ASC
@@ -1184,7 +1201,7 @@ PLAN-ROOT SINK
    predicates: l_shipdate >= '1995-01-01', l_shipdate <= '1996-12-31'
    runtime filters: RF003 -> l_suppkey, RF004 -> l_orderkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(supp_nation, cust_nation, l_year, sum(volume))]
 |
 21:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: supp_nation ASC, cust_nation ASC, l_year ASC
@@ -1318,7 +1335,8 @@ group by
 order by
   o_year
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_year, sum(CASE WHEN nation = 'BRAZIL' THEN volume ELSE 0 END) /
+|  sum(volume))]
 |
 16:SORT
 |  order by: o_year ASC
@@ -1387,7 +1405,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=23.08MB
    runtime filters: RF002 -> c_nationkey, RF003 -> c_custkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_year, sum(CASE WHEN nation = 'BRAZIL' THEN volume ELSE 0 END) /
+|  sum(volume))]
 |
 28:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: o_year ASC
@@ -1483,7 +1502,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=23.08MB
    runtime filters: RF002 -> c_nationkey, RF003 -> c_custkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_year, sum(CASE WHEN nation = 'BRAZIL' THEN volume ELSE 0 END) /
+|  sum(volume))]
 |
 28:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: o_year ASC
@@ -1584,7 +1604,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=06 plan-id=07 cohort-id=03
-|  |  |  |  build expressions: p_partkey
+|  |  |  |  build expressions:
+|  |  |  |  p_partkey
 |  |  |  |
 |  |  |  17:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -1641,7 +1662,7 @@ order by
   nation,
   o_year desc
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(nation, o_year, sum(amount))]
 |
 12:SORT
 |  order by: nation ASC, o_year DESC
@@ -1692,7 +1713,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    runtime filters: RF001 -> l_suppkey, RF002 -> l_partkey, RF003 -> l_suppkey, RF004 -> l_orderkey, RF005 -> l_partkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(nation, o_year, sum(amount))]
 |
 21:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: nation ASC, o_year DESC
@@ -1764,7 +1785,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    runtime filters: RF001 -> l_suppkey, RF002 -> l_partkey, RF003 -> l_suppkey, RF004 -> l_orderkey, RF005 -> l_partkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(nation, o_year, sum(amount))]
 |
 21:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: nation ASC, o_year DESC
@@ -1801,7 +1822,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
-|  |  build expressions: ps_suppkey, ps_partkey
+|  |  build expressions: ps_suppkey,
+|  |  ps_partkey
 |  |
 |  17:EXCHANGE [BROADCAST]
 |  |
@@ -1892,7 +1914,8 @@ order by
   revenue desc
 limit 20
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_custkey, c_name, sum(l_extendedprice * (1 - l_discount)), c_acctbal,
+|  n_name, c_address, c_phone, c_comment)]
 |
 08:TOP-N [LIMIT=20]
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC
@@ -1929,7 +1952,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=23.08MB
    runtime filters: RF000 -> c_nationkey, RF001 -> c_custkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_custkey, c_name, sum(l_extendedprice * (1 - l_discount)), c_acctbal,
+|  n_name, c_address, c_phone, c_comment)]
 |
 14:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC
@@ -1982,7 +2006,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=23.08MB
    runtime filters: RF000 -> c_nationkey, RF001 -> c_custkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_custkey, c_name, sum(l_extendedprice * (1 - l_discount)), c_acctbal,
+|  n_name, c_address, c_phone, c_comment)]
 |
 14:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC
@@ -2083,7 +2108,7 @@ where
 order by
   value desc
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(ps_partkey, value)]
 |
 13:SORT
 |  order by: value DESC
@@ -2138,7 +2163,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=112.71MB
    runtime filters: RF001 -> ps_suppkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(ps_partkey, value)]
 |
 23:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: value DESC
@@ -2217,7 +2242,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=112.71MB
    runtime filters: RF001 -> ps_suppkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(ps_partkey, value)]
 |
 23:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: value DESC
@@ -2248,7 +2273,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: n_nationkey
+|  |  |  build expressions:
+|  |  |  n_nationkey
 |  |  |
 |  |  19:EXCHANGE [BROADCAST]
 |  |  |
@@ -2347,7 +2373,9 @@ group by
 order by
   l_shipmode
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_shipmode, sum(CASE WHEN o_orderpriority = '1-URGENT' OR
+|  o_orderpriority = '2-HIGH' THEN 1 ELSE 0 END), sum(CASE WHEN o_orderpriority != '1-URGENT' AND
+|  o_orderpriority != '2-HIGH' THEN 1 ELSE 0 END))]
 |
 04:SORT
 |  order by: l_shipmode ASC
@@ -2368,7 +2396,9 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=162.56MB
    runtime filters: RF000 -> o_orderkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_shipmode, sum(CASE WHEN o_orderpriority = '1-URGENT' OR
+|  o_orderpriority = '2-HIGH' THEN 1 ELSE 0 END), sum(CASE WHEN o_orderpriority != '1-URGENT' AND
+|  o_orderpriority != '2-HIGH' THEN 1 ELSE 0 END))]
 |
 09:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: l_shipmode ASC
@@ -2402,7 +2432,9 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=162.56MB
    runtime filters: RF000 -> o_orderkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_shipmode, sum(CASE WHEN o_orderpriority = '1-URGENT' OR
+|  o_orderpriority = '2-HIGH' THEN 1 ELSE 0 END), sum(CASE WHEN o_orderpriority != '1-URGENT' AND
+|  o_orderpriority != '2-HIGH' THEN 1 ELSE 0 END))]
 |
 09:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: l_shipmode ASC
@@ -2463,7 +2495,7 @@ order by
   custdist desc,
   c_count desc
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_count, count(*))]
 |
 05:SORT
 |  order by: count(*) DESC, c_count DESC
@@ -2488,7 +2520,7 @@ PLAN-ROOT SINK
    predicates: NOT o_comment LIKE '%special%requests%'
    runtime filters: RF000 -> o_custkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_count, count(*))]
 |
 10:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: count(*) DESC, c_count DESC
@@ -2526,7 +2558,7 @@ PLAN-ROOT SINK
    predicates: NOT o_comment LIKE '%special%requests%'
    runtime filters: RF000 -> o_custkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_count, count(*))]
 |
 10:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: count(*) DESC, c_count DESC
@@ -2584,7 +2616,8 @@ where
   and l_shipdate >= '1995-09-01'
   and l_shipdate < '1995-10-01'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(100.00 * sum(CASE WHEN p_type LIKE 'PROMO%' THEN l_extendedprice * (1
+|  - l_discount) ELSE 0.0 END) / sum(l_extendedprice * (1 - l_discount)))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: sum(CASE WHEN p_type LIKE 'PROMO%' THEN l_extendedprice * (1 - l_discount) ELSE 0.0 END), sum(l_extendedprice * (1 - l_discount))
@@ -2601,7 +2634,8 @@ PLAN-ROOT SINK
    predicates: l_shipdate >= '1995-09-01', l_shipdate < '1995-10-01'
    runtime filters: RF000 -> l_partkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(100.00 * sum(CASE WHEN p_type LIKE 'PROMO%' THEN l_extendedprice * (1
+|  - l_discount) ELSE 0.0 END) / sum(l_extendedprice * (1 - l_discount)))]
 |
 07:AGGREGATE [FINALIZE]
 |  output: sum:merge(CASE WHEN p_type LIKE 'PROMO%' THEN l_extendedprice * (1 - l_discount) ELSE 0.0 END), sum:merge(l_extendedprice * (1 - l_discount))
@@ -2627,7 +2661,8 @@ PLAN-ROOT SINK
    predicates: l_shipdate >= '1995-09-01', l_shipdate < '1995-10-01'
    runtime filters: RF000 -> l_partkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(100.00 * sum(CASE WHEN p_type LIKE 'PROMO%' THEN l_extendedprice * (1
+|  - l_discount) ELSE 0.0 END) / sum(l_extendedprice * (1 - l_discount)))]
 |
 07:AGGREGATE [FINALIZE]
 |  output: sum:merge(CASE WHEN p_type LIKE 'PROMO%' THEN l_extendedprice * (1 - l_discount) ELSE 0.0 END), sum:merge(l_extendedprice * (1 - l_discount))
@@ -2690,7 +2725,7 @@ where
 order by
   s_suppkey
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_suppkey, s_name, s_address, s_phone, total_revenue)]
 |
 08:SORT
 |  order by: s_suppkey ASC
@@ -2725,7 +2760,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=1.33MB
    runtime filters: RF000 -> s_suppkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_suppkey, s_name, s_address, s_phone, total_revenue)]
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_suppkey ASC
@@ -2784,7 +2819,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=1.33MB
    runtime filters: RF000 -> s_suppkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_suppkey, s_name, s_address, s_phone, total_revenue)]
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_suppkey ASC
@@ -2797,7 +2832,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
-|  |  build expressions: max(total_revenue)
+|  |  build expressions:
+|  |  max(total_revenue)
 |  |
 |  16:EXCHANGE [BROADCAST]
 |  |
@@ -2884,7 +2920,7 @@ order by
   p_type,
   p_size
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(p_brand, p_type, p_size, count(ps_suppkey))]
 |
 07:SORT
 |  order by: count(ps_suppkey) DESC, p_brand ASC, p_type ASC, p_size ASC
@@ -2915,7 +2951,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=112.71MB
    runtime filters: RF000 -> ps_partkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(p_brand, p_type, p_size, count(ps_suppkey))]
 |
 12:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: count(ps_suppkey) DESC, p_brand ASC, p_type ASC, p_size ASC
@@ -2958,7 +2994,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=112.71MB
    runtime filters: RF000 -> ps_partkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(p_brand, p_type, p_size, count(ps_suppkey))]
 |
 12:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: count(ps_suppkey) DESC, p_brand ASC, p_type ASC, p_size ASC
@@ -3029,7 +3065,7 @@ where
       l_partkey = p_partkey
   )
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice) / 7.0)]
 |
 06:AGGREGATE [FINALIZE]
 |  output: sum(l_extendedprice)
@@ -3059,7 +3095,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    runtime filters: RF000 -> tpch.lineitem.l_partkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice) / 7.0)]
 |
 12:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice)
@@ -3104,7 +3140,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    runtime filters: RF000 -> tpch.lineitem.l_partkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice) / 7.0)]
 |
 12:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice)
@@ -3194,7 +3230,8 @@ order by
   o_orderdate
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice,
+|  sum(l_quantity))]
 |
 09:TOP-N [LIMIT=100]
 |  order by: o_totalprice DESC, o_orderdate ASC
@@ -3234,7 +3271,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    runtime filters: RF000 -> tpch.lineitem.l_orderkey, RF002 -> l_orderkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice,
+|  sum(l_quantity))]
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: o_totalprice DESC, o_orderdate ASC
@@ -3296,7 +3334,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    runtime filters: RF000 -> tpch.lineitem.l_orderkey, RF002 -> l_orderkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice,
+|  sum(l_quantity))]
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: o_totalprice DESC, o_orderdate ASC
@@ -3408,7 +3447,7 @@ where
     )
   )
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice * (1 - l_discount)))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: sum(l_extendedprice * (1 - l_discount))
@@ -3425,7 +3464,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    runtime filters: RF000 -> l_partkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice * (1 - l_discount)))]
 |
 06:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice * (1 - l_discount))
@@ -3449,7 +3488,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    runtime filters: RF000 -> l_partkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice * (1 - l_discount)))]
 |
 06:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice * (1 - l_discount))
@@ -3517,7 +3556,7 @@ where
 order by
   s_name
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_name, s_address)]
 |
 10:SORT
 |  order by: s_name ASC
@@ -3564,7 +3603,7 @@ PLAN-ROOT SINK
    predicates: l_shipdate >= '1994-01-01', l_shipdate < '1995-01-01'
    runtime filters: RF000 -> tpch.lineitem.l_suppkey, RF001 -> tpch.lineitem.l_suppkey, RF002 -> tpch.lineitem.l_partkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_name, s_address)]
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_name ASC
@@ -3630,7 +3669,7 @@ PLAN-ROOT SINK
    predicates: l_shipdate >= '1994-01-01', l_shipdate < '1995-01-01'
    runtime filters: RF000 -> tpch.lineitem.l_suppkey, RF001 -> tpch.lineitem.l_suppkey, RF002 -> tpch.lineitem.l_partkey
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_name, s_address)]
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_name ASC
@@ -3654,7 +3693,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: n_nationkey
+|  |  |  build expressions:
+|  |  |  n_nationkey
 |  |  |
 |  |  15:EXCHANGE [BROADCAST]
 |  |  |
@@ -3675,7 +3715,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
-|  |  build expressions: ps_suppkey, ps_partkey
+|  |  build expressions: ps_suppkey,
+|  |  ps_partkey
 |  |
 |  14:EXCHANGE [HASH(ps_partkey,ps_suppkey)]
 |  |
@@ -3755,7 +3796,7 @@ order by
   s_name
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_name, count(*))]
 |
 12:TOP-N [LIMIT=100]
 |  order by: count(*) DESC, s_name ASC
@@ -3810,7 +3851,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    predicates: l3.l_receiptdate > l3.l_commitdate
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_name, count(*))]
 |
 21:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: count(*) DESC, s_name ASC
@@ -3887,7 +3928,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    predicates: l3.l_receiptdate > l3.l_commitdate
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_name, count(*))]
 |
 21:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: count(*) DESC, s_name ASC
@@ -3921,7 +3962,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: l1.l_orderkey
+|  |  |  build expressions:
+|  |  |  l1.l_orderkey
 |  |  |
 |  |  08:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  |  hash predicates: s_nationkey = n_nationkey
@@ -3929,7 +3971,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=02 plan-id=03 cohort-id=03
-|  |  |  |  build expressions: n_nationkey
+|  |  |  |  build expressions:
+|  |  |  |  n_nationkey
 |  |  |  |
 |  |  |  16:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -3943,7 +3986,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=03 plan-id=04 cohort-id=03
-|  |  |  |  build expressions: s_suppkey
+|  |  |  |  build expressions:
+|  |  |  |  s_suppkey
 |  |  |  |
 |  |  |  15:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -3957,7 +4001,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=04 plan-id=05 cohort-id=03
-|  |  |  |  build expressions: o_orderkey
+|  |  |  |  build expressions:
+|  |  |  |  o_orderkey
 |  |  |  |
 |  |  |  14:EXCHANGE [HASH(o_orderkey)]
 |  |  |  |
@@ -4021,7 +4066,7 @@ group by
 order by
   cntrycode
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(cntrycode, count(*), sum(c_acctbal))]
 |
 07:SORT
 |  order by: cntrycode ASC
@@ -4050,7 +4095,7 @@ PLAN-ROOT SINK
 03:SCAN HDFS [tpch.orders]
    partitions=1/1 files=1 size=162.56MB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(cntrycode, count(*), sum(c_acctbal))]
 |
 15:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: cntrycode ASC
@@ -4099,7 +4144,7 @@ PLAN-ROOT SINK
 03:SCAN HDFS [tpch.orders]
    partitions=1/1 files=1 size=162.56MB
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(cntrycode, count(*), sum(c_acctbal))]
 |
 15:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: cntrycode ASC

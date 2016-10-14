@@ -3,7 +3,7 @@ from functional.testtbl
 order by name
 limit 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(name, zip)]
 |
 01:TOP-N [LIMIT=1]
 |  order by: name ASC
@@ -11,7 +11,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.testtbl]
    partitions=1/1 files=0 size=0B
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(name, zip)]
 |
 02:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: name ASC
@@ -30,7 +30,7 @@ group by 1
 order by 2 desc
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(zip, count(*))]
 |
 02:TOP-N [LIMIT=10]
 |  order by: count(*) DESC
@@ -43,7 +43,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=0 size=0B
    predicates: name LIKE 'm%'
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(zip, count(*))]
 |
 05:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: count(*) DESC
@@ -73,7 +73,7 @@ group by 1
 order by 2
 limit 4
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, sum(float_col))]
 |
 02:TOP-N [LIMIT=4]
 |  order by: sum(float_col) ASC
@@ -85,7 +85,7 @@ PLAN-ROOT SINK
 00:SCAN HBASE [functional_hbase.alltypessmall]
    predicates: id < 5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, sum(float_col))]
 |
 05:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(float_col) ASC
@@ -113,11 +113,11 @@ group by 1
 order by 2,3 desc
 limit 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, sum(float_col), min(float_col))]
 |
 00:EMPTYSET
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, sum(float_col), min(float_col))]
 |
 00:EMPTYSET
 ====
@@ -130,7 +130,7 @@ where t1.id = t2.id and t2.int_col is not null
 order by int_col
 limit 2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col)]
 |
 03:TOP-N [LIMIT=2]
 |  order by: int_col ASC
@@ -147,7 +147,7 @@ PLAN-ROOT SINK
    partitions=4/4 files=4 size=6.32KB
    runtime filters: RF000 -> t1.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col)]
 |
 05:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: int_col ASC
@@ -173,7 +173,7 @@ PLAN-ROOT SINK
 # Test that the top-n is on int_col and not on the id column
 select int_col as id from functional.alltypessmall order by id limit 2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col)]
 |
 01:TOP-N [LIMIT=2]
 |  order by: int_col ASC
@@ -181,7 +181,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypessmall]
    partitions=4/4 files=4 size=6.32KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col)]
 |
 02:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: int_col ASC
@@ -196,7 +196,7 @@ PLAN-ROOT SINK
 # Test that the top-n is on id and not on int_col
 select int_col as id from functional.alltypessmall order by functional.alltypessmall.id limit 2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col)]
 |
 01:TOP-N [LIMIT=2]
 |  order by: id ASC
@@ -204,7 +204,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypessmall]
    partitions=4/4 files=4 size=6.32KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col)]
 |
 02:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: id ASC
@@ -224,7 +224,7 @@ where t1.id = t2.id and t2.int_col is not null
 order by int_col
 limit 10 offset 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col)]
 |
 03:TOP-N [LIMIT=10 OFFSET=5]
 |  order by: int_col ASC
@@ -252,7 +252,7 @@ NODE 1:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypessmall/year=2009/month=3/090301.txt 0:1620
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypessmall/year=2009/month=4/090401.txt 0:1621
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col)]
 |
 05:MERGING-EXCHANGE [UNPARTITIONED]
 |  offset: 5
@@ -283,7 +283,7 @@ select int_col, bigint_col from
    select * from functional.alltypessmall) t
 order by int_col desc limit 10 offset 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col)]
 |
 03:TOP-N [LIMIT=10 OFFSET=5]
 |  order by: int_col DESC
@@ -296,7 +296,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col)]
 |
 04:MERGING-EXCHANGE [UNPARTITIONED]
 |  offset: 5
@@ -321,7 +321,7 @@ select int_col, bigint_col from
    select * from functional.alltypessmall) t
 order by int_col desc limit 10 offset 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col)]
 |
 04:TOP-N [LIMIT=10 OFFSET=5]
 |  order by: int_col DESC
@@ -337,7 +337,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col)]
 |
 07:MERGING-EXCHANGE [UNPARTITIONED]
 |  offset: 5
@@ -367,7 +367,8 @@ PLAN-ROOT SINK
 select * from (select * from functional.alltypes limit 10) t
 order by int_col limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 01:TOP-N [LIMIT=10]
 |  order by: int_col ASC
@@ -376,7 +377,8 @@ PLAN-ROOT SINK
    partitions=24/24 files=24 size=478.45KB
    limit: 10
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 01:TOP-N [LIMIT=10]
 |  order by: int_col ASC
@@ -395,7 +397,8 @@ select * from
    (select * from functional.alltypessmall) limit 10) t
 order by int_col limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 03:TOP-N [LIMIT=10]
 |  order by: int_col ASC
@@ -409,7 +412,8 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 03:TOP-N [LIMIT=10]
 |  order by: int_col ASC

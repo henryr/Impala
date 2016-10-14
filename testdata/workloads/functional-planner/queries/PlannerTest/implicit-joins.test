@@ -5,7 +5,13 @@ from (select * from functional.alltypestiny) t1
   join (select * from functional.alltypestiny) t2 on (t1.id = t2.id)
   join functional.alltypestiny t3 on (coalesce(t1.id, t3.id) = t3.id)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypestiny.id, functional.alltypestiny.bool_col,
+|  functional.alltypestiny.tinyint_col, functional.alltypestiny.smallint_col,
+|  functional.alltypestiny.int_col, functional.alltypestiny.bigint_col,
+|  functional.alltypestiny.float_col, functional.alltypestiny.double_col,
+|  functional.alltypestiny.date_string_col, functional.alltypestiny.string_col,
+|  functional.alltypestiny.timestamp_col, functional.alltypestiny.year,
+|  functional.alltypestiny.month)]
 |
 04:NESTED LOOP JOIN [INNER JOIN]
 |  predicates: (coalesce(functional.alltypestiny.id, t3.id) = t3.id)
@@ -32,7 +38,7 @@ from
 where
   v.x < v.y
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t2.id)]
 |
 02:NESTED LOOP JOIN [INNER JOIN]
 |  predicates: t1.id < t2.id
@@ -51,7 +57,12 @@ from
 where
   t1.id = t2.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month, t2.id, t2.bool_col, t2.tinyint_col, t2.smallint_col, t2.int_col, t2.bigint_col,
+|  t2.float_col, t2.double_col, t2.date_string_col, t2.string_col, t2.timestamp_col, t2.year, t2.month,
+|  t3.id, t3.bool_col, t3.tinyint_col, t3.smallint_col, t3.int_col, t3.bigint_col, t3.float_col,
+|  t3.double_col, t3.date_string_col, t3.string_col, t3.timestamp_col, t3.year, t3.month)]
 |
 04:NESTED LOOP JOIN [CROSS JOIN]
 |
@@ -77,7 +88,12 @@ from
 where
   t1.id = t3.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month, t2.id, t2.bool_col, t2.tinyint_col, t2.smallint_col, t2.int_col, t2.bigint_col,
+|  t2.float_col, t2.double_col, t2.date_string_col, t2.string_col, t2.timestamp_col, t2.year, t2.month,
+|  t3.id, t3.bool_col, t3.tinyint_col, t3.smallint_col, t3.int_col, t3.bigint_col, t3.float_col,
+|  t3.double_col, t3.date_string_col, t3.string_col, t3.timestamp_col, t3.year, t3.month)]
 |
 04:NESTED LOOP JOIN [CROSS JOIN]
 |
@@ -106,7 +122,12 @@ from
 where
   t2.id = t3.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month, t2.id, t2.bool_col, t2.tinyint_col, t2.smallint_col, t2.int_col, t2.bigint_col,
+|  t2.float_col, t2.double_col, t2.date_string_col, t2.string_col, t2.timestamp_col, t2.year, t2.month,
+|  t3.id, t3.bool_col, t3.tinyint_col, t3.smallint_col, t3.int_col, t3.bigint_col, t3.float_col,
+|  t3.double_col, t3.date_string_col, t3.string_col, t3.timestamp_col, t3.year, t3.month)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: t2.id = t3.id
@@ -131,7 +152,14 @@ from
   functional.alltypes t3 on t3.id = t2.id,
   functional.alltypes t4
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month, t2.id, t2.bool_col, t2.tinyint_col, t2.smallint_col, t2.int_col, t2.bigint_col,
+|  t2.float_col, t2.double_col, t2.date_string_col, t2.string_col, t2.timestamp_col, t2.year, t2.month,
+|  t3.id, t3.bool_col, t3.tinyint_col, t3.smallint_col, t3.int_col, t3.bigint_col, t3.float_col,
+|  t3.double_col, t3.date_string_col, t3.string_col, t3.timestamp_col, t3.year, t3.month, t4.id,
+|  t4.bool_col, t4.tinyint_col, t4.smallint_col, t4.int_col, t4.bigint_col, t4.float_col,
+|  t4.double_col, t4.date_string_col, t4.string_col, t4.timestamp_col, t4.year, t4.month)]
 |
 06:NESTED LOOP JOIN [CROSS JOIN]
 |
@@ -159,7 +187,9 @@ select a.* from
   functional.alltypessmall b full outer join
   functional.alltypes c on a.id = c.id and a.id < b.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 04:HASH JOIN [FULL OUTER JOIN]
 |  hash predicates: a.id = c.id
@@ -183,7 +213,9 @@ functional.alltypestiny c,
 functional.alltypes d
 where a.id = d.id and b.id = c.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: d.id = a.id
@@ -217,7 +249,7 @@ from
     on t1.id < t2.id,
   functional.alltypes t3
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 07:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -250,7 +282,7 @@ from
 where
   t1.id = t2.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 07:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -287,7 +319,7 @@ from
 where
   t1.id = t2.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 07:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -320,7 +352,7 @@ from
   functional.alltypes t0 left semi join
   functional.alltypes t1 on ( t0.id < t1.id )
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -344,7 +376,7 @@ where
   b.id in (select avg(id) from functional.alltypes group by month) and
   a.id < b.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 06:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -374,7 +406,14 @@ from functional.alltypes t1,
 functional.alltypes t2 join functional.alltypes t3 on (t1.id = t2.id),
 functional.alltypes t4
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month, t2.id, t2.bool_col, t2.tinyint_col, t2.smallint_col, t2.int_col, t2.bigint_col,
+|  t2.float_col, t2.double_col, t2.date_string_col, t2.string_col, t2.timestamp_col, t2.year, t2.month,
+|  t3.id, t3.bool_col, t3.tinyint_col, t3.smallint_col, t3.int_col, t3.bigint_col, t3.float_col,
+|  t3.double_col, t3.date_string_col, t3.string_col, t3.timestamp_col, t3.year, t3.month, t4.id,
+|  t4.bool_col, t4.tinyint_col, t4.smallint_col, t4.int_col, t4.bigint_col, t4.float_col,
+|  t4.double_col, t4.date_string_col, t4.string_col, t4.timestamp_col, t4.year, t4.month)]
 |
 06:NESTED LOOP JOIN [CROSS JOIN]
 |

@@ -1,12 +1,22 @@
 create table t as select * from functional.alltypes
 ---- PLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(functional.alltypes.id,
+|  functional.alltypes.bool_col, functional.alltypes.tinyint_col, functional.alltypes.smallint_col,
+|  functional.alltypes.int_col, functional.alltypes.bigint_col, functional.alltypes.float_col,
+|  functional.alltypes.double_col, functional.alltypes.date_string_col, functional.alltypes.string_col,
+|  functional.alltypes.timestamp_col, functional.alltypes.year, functional.alltypes.month)]
+| 
 |  partitions=1
 |
 00:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(functional.alltypes.id,
+|  functional.alltypes.bool_col, functional.alltypes.tinyint_col, functional.alltypes.smallint_col,
+|  functional.alltypes.int_col, functional.alltypes.bigint_col, functional.alltypes.float_col,
+|  functional.alltypes.double_col, functional.alltypes.date_string_col, functional.alltypes.string_col,
+|  functional.alltypes.timestamp_col, functional.alltypes.year, functional.alltypes.month)]
+| 
 |  partitions=1
 |
 00:SCAN HDFS [functional.alltypes]
@@ -17,7 +27,7 @@ select distinct a.int_col, a.string_col from functional.alltypes a
 inner join functional.alltypessmall b on (a.id = b.id)
 where a.year = 2009 and b.month = 2
 ---- PLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(a.int_col, a.string_col)]
 |  partitions=1
 |
 03:AGGREGATE [FINALIZE]
@@ -34,7 +44,7 @@ WRITE TO HDFS [default.t, OVERWRITE=false]
    partitions=12/24 files=12 size=238.68KB
    runtime filters: RF000 -> a.id
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(a.int_col, a.string_col)]
 |  partitions=1
 |
 06:AGGREGATE [FINALIZE]
@@ -62,14 +72,14 @@ WRITE TO HDFS [default.t, OVERWRITE=false]
 create table t as
 select int_col from functional.hive_view
 ---- PLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(1)]
 |  partitions=1
 |
 00:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
    limit: 1
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(1)]
 |  partitions=1
 |
 01:EXCHANGE [UNPARTITIONED]
@@ -85,14 +95,14 @@ select * from
   (select * from
      (select int_col from functional.alltypestiny limit 1) v1 ) v2
 ---- PLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(int_col)]
 |  partitions=1
 |
 00:SCAN HDFS [functional.alltypestiny]
    partitions=4/4 files=4 size=460B
    limit: 1
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(int_col)]
 |  partitions=1
 |
 01:EXCHANGE [UNPARTITIONED]
@@ -107,7 +117,9 @@ WRITE TO HDFS [default.t, OVERWRITE=false]
 create table t as
 select * from functional.alltypestiny order by id limit 1 offset 5
 ---- PLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col,
+|  int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year,
+|  month)]
 |  partitions=1
 |
 01:TOP-N [LIMIT=1 OFFSET=5]
@@ -116,7 +128,9 @@ WRITE TO HDFS [default.t, OVERWRITE=false]
 00:SCAN HDFS [functional.alltypestiny]
    partitions=4/4 files=4 size=460B
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col,
+|  int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year,
+|  month)]
 |  partitions=1
 |
 02:MERGING-EXCHANGE [UNPARTITIONED]
@@ -135,7 +149,7 @@ create table t as
 select * from
   (select int_col from functional.alltypestiny order by id limit 2 offset 5) v
 ---- PLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(int_col)]
 |  partitions=1
 |
 01:TOP-N [LIMIT=2 OFFSET=5]
@@ -144,7 +158,7 @@ WRITE TO HDFS [default.t, OVERWRITE=false]
 00:SCAN HDFS [functional.alltypestiny]
    partitions=4/4 files=4 size=460B
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [default.t, OVERWRITE=false]
+WRITE TO HDFS [default.t, OVERWRITE=false, OUTPUT-EXPRS=(int_col)]
 |  partitions=1
 |
 02:MERGING-EXCHANGE [UNPARTITIONED]

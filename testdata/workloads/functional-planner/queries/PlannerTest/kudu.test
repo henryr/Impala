@@ -1,15 +1,17 @@
 select * from functional_kudu.testtbl
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 00:SCAN KUDU [functional_kudu.testtbl]
 ---- SCANRANGELOCATIONS
 NODE 0:
-  ScanToken{table=testtbl, range-partition: [(int64 id=1003), (int64 id=1007))}
-  ScanToken{table=testtbl, range-partition: [(int64 id=1007), <end>)}
-  ScanToken{table=testtbl, range-partition: [<start>, (int64 id=1003))}
+  ScanToken{table=testtbl, hash-partition-buckets: [0], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [1], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [2], range-partition: [<start>, <end>)}
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -17,17 +19,19 @@ PLAN-ROOT SINK
 ====
 select * from functional_kudu.testtbl where name = '10'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 00:SCAN KUDU [functional_kudu.testtbl]
    kudu predicates: name = '10'
 ---- SCANRANGELOCATIONS
 NODE 0:
-  ScanToken{table=testtbl, range-partition: [(int64 id=1003), (int64 id=1007))}
-  ScanToken{table=testtbl, range-partition: [(int64 id=1007), <end>)}
-  ScanToken{table=testtbl, range-partition: [<start>, (int64 id=1003))}
+  ScanToken{table=testtbl, hash-partition-buckets: [0], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [1], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [2], range-partition: [<start>, <end>)}
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -36,34 +40,39 @@ PLAN-ROOT SINK
 ====
 select * from functional_kudu.testtbl where name = NULL
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 00:SCAN KUDU [functional_kudu.testtbl]
    predicates: name = NULL
 ====
 insert into functional_kudu.testtbl(id) values (10)
 ---- PLAN
-INSERT INTO KUDU [functional_kudu.testtbl]
-|  check unique keys: false
+INSERT INTO KUDU [functional_kudu.testtbl, OUTPUT-EXPRS=(10, NULL, NULL)]
+|  check unique keys:
+|  false
 |
 00:UNION
    constant-operands=1
 ---- DISTRIBUTEDPLAN
-INSERT INTO KUDU [functional_kudu.testtbl]
-|  check unique keys: false
+INSERT INTO KUDU [functional_kudu.testtbl, OUTPUT-EXPRS=(10, NULL, NULL)]
+|  check unique keys:
+|  false
 |
 00:UNION
    constant-operands=1
 ====
 insert into functional_kudu.testtbl(id) select int_col from functional_kudu.tinyinttable
 ---- PLAN
-INSERT INTO KUDU [functional_kudu.testtbl]
-|  check unique keys: false
+INSERT INTO KUDU [functional_kudu.testtbl, OUTPUT-EXPRS=(int_col, NULL, NULL)]
+|  check unique keys:
+|  false
 |
 00:SCAN KUDU [functional_kudu.tinyinttable]
 ---- DISTRIBUTEDPLAN
-INSERT INTO KUDU [functional_kudu.testtbl]
-|  check unique keys: false
+INSERT INTO KUDU [functional_kudu.testtbl, OUTPUT-EXPRS=(int_col, NULL, NULL)]
+|  check unique keys:
+|  false
 |
 00:SCAN KUDU [functional_kudu.tinyinttable]
 ====
@@ -71,8 +80,9 @@ insert into functional_kudu.testtbl(id, name)
 select count(distinct id), name from functional_kudu.dimtbl
 group by name
 ---- PLAN
-INSERT INTO KUDU [functional_kudu.testtbl]
-|  check unique keys: false
+INSERT INTO KUDU [functional_kudu.testtbl, OUTPUT-EXPRS=(count(id), name, NULL)]
+|  check unique
+|  keys: false
 |
 02:AGGREGATE [FINALIZE]
 |  output: count(id)
@@ -83,8 +93,9 @@ INSERT INTO KUDU [functional_kudu.testtbl]
 |
 00:SCAN KUDU [functional_kudu.dimtbl]
 ---- DISTRIBUTEDPLAN
-INSERT INTO KUDU [functional_kudu.testtbl]
-|  check unique keys: false
+INSERT INTO KUDU [functional_kudu.testtbl, OUTPUT-EXPRS=(count(id), name, NULL)]
+|  check unique
+|  keys: false
 |
 02:AGGREGATE [FINALIZE]
 |  output: count(id)
@@ -105,15 +116,19 @@ select * from functional_kudu.testtbl
 where id >= 10 and zip <= 5 and 20 >= id and 'foo' = name and zip >= 0 and 30 >= zip
 and zip > 1 and zip < 50
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 00:SCAN KUDU [functional_kudu.testtbl]
    kudu predicates: id >= 10, zip <= 5, id <= 20, zip >= 0, zip <= 30, zip > 1, zip < 50, name = 'foo'
 ---- SCANRANGELOCATIONS
 NODE 0:
-  ScanToken{table=testtbl, range-partition: [<start>, (int64 id=1003))}
+  ScanToken{table=testtbl, hash-partition-buckets: [0], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [1], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [2], range-partition: [<start>, <end>)}
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -124,16 +139,20 @@ PLAN-ROOT SINK
 select * from functional_kudu.testtbl
 where id < 10 + 30  and cast(sin(id) as boolean) = true and 20 * 3 >= id and 10 * 10 + 3 > id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 00:SCAN KUDU [functional_kudu.testtbl]
    predicates: CAST(sin(id) AS BOOLEAN) = TRUE
    kudu predicates: id < 40, id <= 60, id < 103
 ---- SCANRANGELOCATIONS
 NODE 0:
-  ScanToken{table=testtbl, range-partition: [<start>, (int64 id=1003))}
+  ScanToken{table=testtbl, hash-partition-buckets: [0], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [1], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [2], range-partition: [<start>, <end>)}
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -145,18 +164,20 @@ PLAN-ROOT SINK
 select * from functional_kudu.testtbl
 where cast(sin(id) as boolean) = true and name = 'a'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 00:SCAN KUDU [functional_kudu.testtbl]
    predicates: CAST(sin(id) AS BOOLEAN) = TRUE
    kudu predicates: name = 'a'
 ---- SCANRANGELOCATIONS
 NODE 0:
-  ScanToken{table=testtbl, range-partition: [(int64 id=1003), (int64 id=1007))}
-  ScanToken{table=testtbl, range-partition: [(int64 id=1007), <end>)}
-  ScanToken{table=testtbl, range-partition: [<start>, (int64 id=1003))}
+  ScanToken{table=testtbl, hash-partition-buckets: [0], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [1], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [2], range-partition: [<start>, <end>)}
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -169,17 +190,19 @@ PLAN-ROOT SINK
 select * from functional_kudu.testtbl
 where cast(sin(id) as boolean) = true and name is null
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 00:SCAN KUDU [functional_kudu.testtbl]
    predicates: name IS NULL, CAST(sin(id) AS BOOLEAN) = TRUE
 ---- SCANRANGELOCATIONS
 NODE 0:
-  ScanToken{table=testtbl, range-partition: [(int64 id=1003), (int64 id=1007))}
-  ScanToken{table=testtbl, range-partition: [(int64 id=1007), <end>)}
-  ScanToken{table=testtbl, range-partition: [<start>, (int64 id=1003))}
+  ScanToken{table=testtbl, hash-partition-buckets: [0], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [1], range-partition: [<start>, <end>)}
+  ScanToken{table=testtbl, hash-partition-buckets: [2], range-partition: [<start>, <end>)}
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_kudu.testtbl.id, functional_kudu.testtbl.name,
+|  functional_kudu.testtbl.zip)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -189,38 +212,16 @@ PLAN-ROOT SINK
 # IMPALA-3856: KuduScanNode crash when pushing predicates including a cast
 select o_orderkey from tpch_kudu.orders where o_orderkey < 10.0 order by 1
 ---- PLAN
-PLAN-ROOT SINK
-|
-01:SORT
-|  order by: o_orderkey ASC
-|
-00:SCAN KUDU [tpch_kudu.orders]
-   predicates: o_orderkey < 10.0
 ====
 # IMPALA-3871: Casting literals to TIMESTAMP throw when pushed to KuduScanNode
 select t.c from
   (select cast(o_orderdate as timestamp) c from tpch_kudu.orders where o_orderkey < 10) t
 where t.c <= cast('1995-01-01 00:00:00' as timestamp) order by c
 ---- PLAN
-PLAN-ROOT SINK
-|
-01:SORT
-|  order by: c ASC
-|
-00:SCAN KUDU [tpch_kudu.orders]
-   predicates: CAST(o_orderdate AS TIMESTAMP) <= CAST('1995-01-01 00:00:00' AS TIMESTAMP)
-   kudu predicates: o_orderkey < 10
 ====
 # IMPALA-4213: Planner not pushing some predicates with constant exprs to Kudu
 select count(*) from functional_kudu.alltypes
 where id < 1475059765 + 10
 and 1475059765 + 100 < id
 ---- PLAN
-PLAN-ROOT SINK
-|
-01:AGGREGATE [FINALIZE]
-|  output: count(*)
-|
-00:SCAN KUDU [functional_kudu.alltypes]
-   kudu predicates: id < 1475059775, id > 1475059865
 ====

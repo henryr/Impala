@@ -1,7 +1,13 @@
 # full scan of string typed row-key
 select * from functional_hbase.stringids
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
 ====
@@ -10,17 +16,29 @@ PLAN-ROOT SINK
 select * from functional_hbase.alltypessmall
 where id < 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    predicates: id < 5
 ---- SCANRANGELOCATIONS
 NODE 0:
-  HBASE KEYRANGE port=16201 <unbounded>:3
-  HBASE KEYRANGE port=16202 3:7
-  HBASE KEYRANGE port=16203 7:<unbounded>
+  HBASE KEYRANGE port=16201 7:<unbounded>
+  HBASE KEYRANGE port=16202 <unbounded>:1
+  HBASE KEYRANGE port=16203 1:7
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -32,7 +50,13 @@ select * from functional_hbase.stringids
 where id = '5'
 and tinyint_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    start key: 5
@@ -40,9 +64,15 @@ PLAN-ROOT SINK
    predicates: tinyint_col = 5
 ---- SCANRANGELOCATIONS
 NODE 0:
-  HBASE KEYRANGE port=16202 5:5\0
+  HBASE KEYRANGE port=16201 5:5\0
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -55,17 +85,30 @@ select * from functional_hbase.stringids
 where id > '5'
 and tinyint_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    start key: 5\0
    predicates: tinyint_col = 5
 ---- SCANRANGELOCATIONS
 NODE 0:
-  HBASE KEYRANGE port=16202 5\0:7
-  HBASE KEYRANGE port=16203 7:<unbounded>
+  HBASE KEYRANGE port=16201 5\0:7
+  HBASE KEYRANGE port=16202 7:9
+  HBASE KEYRANGE port=16203 9:<unbounded>
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -77,17 +120,30 @@ select * from functional_hbase.stringids
 where id >= '5'
 and tinyint_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    start key: 5
    predicates: tinyint_col = 5
 ---- SCANRANGELOCATIONS
 NODE 0:
-  HBASE KEYRANGE port=16202 5:7
-  HBASE KEYRANGE port=16203 7:<unbounded>
+  HBASE KEYRANGE port=16201 5:7
+  HBASE KEYRANGE port=16202 7:9
+  HBASE KEYRANGE port=16203 9:<unbounded>
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -99,17 +155,30 @@ select * from functional_hbase.stringids
 where id < '5'
 and tinyint_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    stop key: 5
    predicates: tinyint_col = 5
 ---- SCANRANGELOCATIONS
 NODE 0:
-  HBASE KEYRANGE port=16201 <unbounded>:3
+  HBASE KEYRANGE port=16201 <unbounded>:1
   HBASE KEYRANGE port=16202 3:5
+  HBASE KEYRANGE port=16203 1:3
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -121,7 +190,13 @@ select * from functional_hbase.stringids
 where id <= '5'
 and tinyint_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    stop key: 5\0
@@ -131,7 +206,13 @@ select * from functional_hbase.stringids
 where id > '4' and id < '5'
 and tinyint_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    start key: 4\0
@@ -141,7 +222,13 @@ PLAN-ROOT SINK
 NODE 0:
   HBASE KEYRANGE port=16202 4\0:5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -154,7 +241,13 @@ select * from functional_hbase.stringids
 where id >= '4' and id < '5'
 and tinyint_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    start key: 4
@@ -164,7 +257,13 @@ PLAN-ROOT SINK
 NODE 0:
   HBASE KEYRANGE port=16202 4:5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -177,7 +276,13 @@ select * from functional_hbase.stringids
 where id > '4' and id <= '5'
 and tinyint_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    start key: 4\0
@@ -185,9 +290,16 @@ PLAN-ROOT SINK
    predicates: tinyint_col = 5
 ---- SCANRANGELOCATIONS
 NODE 0:
-  HBASE KEYRANGE port=16202 4\0:5\0
+  HBASE KEYRANGE port=16201 5:5\0
+  HBASE KEYRANGE port=16202 4\0:5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -200,7 +312,13 @@ select * from functional_hbase.stringids
 where id >= '4' and id <= '5'
 and tinyint_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    start key: 4
@@ -208,9 +326,16 @@ PLAN-ROOT SINK
    predicates: tinyint_col = 5
 ---- SCANRANGELOCATIONS
 NODE 0:
-  HBASE KEYRANGE port=16202 4:5\0
+  HBASE KEYRANGE port=16201 5:5\0
+  HBASE KEYRANGE port=16202 4:5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -225,7 +350,7 @@ from functional_hbase.alltypessmall
 where id < 5
 group by 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, count(*))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -234,7 +359,7 @@ PLAN-ROOT SINK
 00:SCAN HBASE [functional_hbase.alltypessmall]
    predicates: id < 5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, count(*))]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -254,13 +379,25 @@ PLAN-ROOT SINK
 # predicates on string columns against a constant string are converted to HBase filters
 select * from functional_hbase.alltypessmall where string_col = '4'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    hbase filters: d:string_col EQUAL '4'
    predicates: string_col = '4'
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -271,13 +408,25 @@ PLAN-ROOT SINK
 # test all comparison ops
 select * from functional_hbase.alltypessmall where string_col != '4'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    hbase filters: d:string_col NOT_EQUAL '4'
    predicates: string_col != '4'
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -287,13 +436,25 @@ PLAN-ROOT SINK
 ====
 select * from functional_hbase.alltypessmall where string_col < '4'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    hbase filters: d:string_col LESS '4'
    predicates: string_col < '4'
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -303,13 +464,25 @@ PLAN-ROOT SINK
 ====
 select * from functional_hbase.alltypessmall where string_col > '4'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    hbase filters: d:string_col GREATER '4'
    predicates: string_col > '4'
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -319,13 +492,25 @@ PLAN-ROOT SINK
 ====
 select * from functional_hbase.alltypessmall where string_col <= '4'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    hbase filters: d:string_col LESS_OR_EQUAL '4'
    predicates: string_col <= '4'
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -335,13 +520,25 @@ PLAN-ROOT SINK
 ====
 select * from functional_hbase.alltypessmall where string_col >= '4'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    hbase filters: d:string_col GREATER_OR_EQUAL '4'
    predicates: string_col >= '4'
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -353,7 +550,13 @@ PLAN-ROOT SINK
 select * from functional_hbase.alltypessmall
 where string_col >= '4' and string_col != '2' and date_string_col = '04/03/09'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    hbase filters:
@@ -362,7 +565,13 @@ PLAN-ROOT SINK
   d:date_string_col EQUAL '04/03/09'
    predicates: string_col >= '4', string_col != '2', date_string_col = '04/03/09'
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -376,7 +585,13 @@ PLAN-ROOT SINK
 # mix of predicates and functional_hbase. filters
 select * from functional_hbase.alltypessmall where string_col = '4' and tinyint_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    hbase filters: d:string_col EQUAL '4'
@@ -386,7 +601,13 @@ PLAN-ROOT SINK
 select * from functional_hbase.stringids
 where string_col = '4' and tinyint_col = 5 and id >= '4' and id <= '5'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    start key: 4
@@ -395,9 +616,16 @@ PLAN-ROOT SINK
    predicates: tinyint_col = 5, string_col = '4'
 ---- SCANRANGELOCATIONS
 NODE 0:
-  HBASE KEYRANGE port=16202 4:5\0
+  HBASE KEYRANGE port=16201 5:5\0
+  HBASE KEYRANGE port=16202 4:5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -410,7 +638,13 @@ PLAN-ROOT SINK
 # predicates involving casts (ie, non-string comparisons) cannot be turned into filters
 select * from functional_hbase.alltypessmall where cast(string_col as int) >= 4
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    predicates: CAST(string_col AS INT) >= 4
@@ -418,7 +652,13 @@ PLAN-ROOT SINK
 # non-const comparisons cannot be turned into filters
 select * from functional_hbase.alltypessmall where string_col >= date_string_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    predicates: string_col >= date_string_col
@@ -428,7 +668,13 @@ select * from functional_hbase.stringids
 where id = concat('', '5')
 and tinyint_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    start key: 5
@@ -440,7 +686,13 @@ select * from functional_hbase.stringids
 where string_col = '4' and tinyint_col = 5
   and id >= concat('', '4') and id <= concat('5', '')
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    start key: 4
@@ -449,9 +701,16 @@ PLAN-ROOT SINK
    predicates: tinyint_col = 5, string_col = '4'
 ---- SCANRANGELOCATIONS
 NODE 0:
-  HBASE KEYRANGE port=16202 4:5\0
+  HBASE KEYRANGE port=16201 5:5\0
+  HBASE KEYRANGE port=16202 4:5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -464,11 +723,23 @@ PLAN-ROOT SINK
 # IMP-1188 - row key predicate is null.
 select * from functional_hbase.stringids where id = null
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 empty scan node
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -477,11 +748,23 @@ empty scan node
 # IMP-1188 - row key lower bound is bigger than upper bound.
 select * from functional_hbase.stringids where id > 'b' and id < 'a'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 empty scan node
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -492,7 +775,13 @@ empty scan node
 select * from functional_hbase.stringids
 where cast(id as int) < 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.stringids.id, functional_hbase.stringids.bigint_col,
+|  functional_hbase.stringids.bool_col, functional_hbase.stringids.date_string_col,
+|  functional_hbase.stringids.day, functional_hbase.stringids.double_col,
+|  functional_hbase.stringids.float_col, functional_hbase.stringids.int_col,
+|  functional_hbase.stringids.month, functional_hbase.stringids.smallint_col,
+|  functional_hbase.stringids.string_col, functional_hbase.stringids.timestamp_col,
+|  functional_hbase.stringids.tinyint_col, functional_hbase.stringids.year)]
 |
 00:SCAN HBASE [functional_hbase.stringids]
    predicates: CAST(id AS INT) < 5
@@ -505,7 +794,14 @@ PLAN-ROOT SINK
 select * from functional_hbase.alltypesagg
 where bigint_col is null
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypesagg.id,
+|  functional_hbase.alltypesagg.bigint_col, functional_hbase.alltypesagg.bool_col,
+|  functional_hbase.alltypesagg.date_string_col, functional_hbase.alltypesagg.day,
+|  functional_hbase.alltypesagg.double_col, functional_hbase.alltypesagg.float_col,
+|  functional_hbase.alltypesagg.int_col, functional_hbase.alltypesagg.month,
+|  functional_hbase.alltypesagg.smallint_col, functional_hbase.alltypesagg.string_col,
+|  functional_hbase.alltypesagg.timestamp_col, functional_hbase.alltypesagg.tinyint_col,
+|  functional_hbase.alltypesagg.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypesagg]
    predicates: bigint_col IS NULL
@@ -515,7 +811,7 @@ PLAN-ROOT SINK
 select bigint_col, day from functional_hbase.alltypesagg
 where bigint_col is null
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(bigint_col, day)]
 |
 00:SCAN HBASE [functional_hbase.alltypesagg]
    predicates: bigint_col IS NULL
@@ -524,7 +820,14 @@ PLAN-ROOT SINK
 select * from functional_hbase.alltypesagg
 where bigint_col is not null
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypesagg.id,
+|  functional_hbase.alltypesagg.bigint_col, functional_hbase.alltypesagg.bool_col,
+|  functional_hbase.alltypesagg.date_string_col, functional_hbase.alltypesagg.day,
+|  functional_hbase.alltypesagg.double_col, functional_hbase.alltypesagg.float_col,
+|  functional_hbase.alltypesagg.int_col, functional_hbase.alltypesagg.month,
+|  functional_hbase.alltypesagg.smallint_col, functional_hbase.alltypesagg.string_col,
+|  functional_hbase.alltypesagg.timestamp_col, functional_hbase.alltypesagg.tinyint_col,
+|  functional_hbase.alltypesagg.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypesagg]
    predicates: bigint_col IS NOT NULL
@@ -533,7 +836,14 @@ PLAN-ROOT SINK
 select * from functional_hbase.alltypesagg
 where bigint_col is null and day = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypesagg.id,
+|  functional_hbase.alltypesagg.bigint_col, functional_hbase.alltypesagg.bool_col,
+|  functional_hbase.alltypesagg.date_string_col, functional_hbase.alltypesagg.day,
+|  functional_hbase.alltypesagg.double_col, functional_hbase.alltypesagg.float_col,
+|  functional_hbase.alltypesagg.int_col, functional_hbase.alltypesagg.month,
+|  functional_hbase.alltypesagg.smallint_col, functional_hbase.alltypesagg.string_col,
+|  functional_hbase.alltypesagg.timestamp_col, functional_hbase.alltypesagg.tinyint_col,
+|  functional_hbase.alltypesagg.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypesagg]
    predicates: bigint_col IS NULL, day = 1
@@ -542,17 +852,34 @@ PLAN-ROOT SINK
 select * from functional_hbase.alltypesagg
 where bigint_col is not null and bool_col = true
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypesagg.id,
+|  functional_hbase.alltypesagg.bigint_col, functional_hbase.alltypesagg.bool_col,
+|  functional_hbase.alltypesagg.date_string_col, functional_hbase.alltypesagg.day,
+|  functional_hbase.alltypesagg.double_col, functional_hbase.alltypesagg.float_col,
+|  functional_hbase.alltypesagg.int_col, functional_hbase.alltypesagg.month,
+|  functional_hbase.alltypesagg.smallint_col, functional_hbase.alltypesagg.string_col,
+|  functional_hbase.alltypesagg.timestamp_col, functional_hbase.alltypesagg.tinyint_col,
+|  functional_hbase.alltypesagg.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypesagg]
    predicates: bigint_col IS NOT NULL, bool_col = TRUE
 ---- SCANRANGELOCATIONS
 NODE 0:
-  HBASE KEYRANGE port=16201 <unbounded>:3
-  HBASE KEYRANGE port=16202 3:7
-  HBASE KEYRANGE port=16203 7:<unbounded>
+  HBASE KEYRANGE port=16201 5:7
+  HBASE KEYRANGE port=16201 <unbounded>:1
+  HBASE KEYRANGE port=16202 3:5
+  HBASE KEYRANGE port=16202 7:9
+  HBASE KEYRANGE port=16203 1:3
+  HBASE KEYRANGE port=16203 9:<unbounded>
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypesagg.id,
+|  functional_hbase.alltypesagg.bigint_col, functional_hbase.alltypesagg.bool_col,
+|  functional_hbase.alltypesagg.date_string_col, functional_hbase.alltypesagg.day,
+|  functional_hbase.alltypesagg.double_col, functional_hbase.alltypesagg.float_col,
+|  functional_hbase.alltypesagg.int_col, functional_hbase.alltypesagg.month,
+|  functional_hbase.alltypesagg.smallint_col, functional_hbase.alltypesagg.string_col,
+|  functional_hbase.alltypesagg.timestamp_col, functional_hbase.alltypesagg.tinyint_col,
+|  functional_hbase.alltypesagg.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -563,7 +890,7 @@ PLAN-ROOT SINK
 select count(*) from functional_hbase.alltypesagg
 where bigint_col = 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -571,7 +898,7 @@ PLAN-ROOT SINK
 00:SCAN HBASE [functional_hbase.alltypesagg]
    predicates: bigint_col = 10
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: count:merge(*)
@@ -588,7 +915,7 @@ PLAN-ROOT SINK
 select count(*) from functional_hbase.alltypesagg
 where bigint_col = 10 and day = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -608,7 +935,7 @@ where
   a.int_col = b.int_col and
   c.int_col = b.int_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, b.id, c.id)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: b.int_col = a.int_col

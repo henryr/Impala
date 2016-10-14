@@ -2,7 +2,7 @@ select tinyint_col, count(*)
 from functional.alltypesagg
 group by 1
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(tinyint_col, count(*))]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -22,7 +22,7 @@ PLAN-ROOT SINK
 select count(distinct id)
 from functional.alltypesagg
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(id))]
 |
 06:AGGREGATE [FINALIZE]
 |  output: count:merge(id)

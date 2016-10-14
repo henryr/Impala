@@ -12,7 +12,9 @@ from (
 join functional.alltypes t2 on (t1.int_col = t2.int_col)
 where month = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, count(*), t2.id, t2.bool_col, t2.tinyint_col,
+|  t2.smallint_col, t2.int_col, t2.bigint_col, t2.float_col, t2.double_col, t2.date_string_col,
+|  t2.string_col, t2.timestamp_col, t2.year, t2.month)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: t2.int_col = int_col
@@ -33,7 +35,9 @@ PLAN-ROOT SINK
    partitions=2/24 files=2 size=40.32KB
    runtime filters: RF000 -> t2.int_col
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, count(*), t2.id, t2.bool_col, t2.tinyint_col,
+|  t2.smallint_col, t2.int_col, t2.bigint_col, t2.float_col, t2.double_col, t2.date_string_col,
+|  t2.string_col, t2.timestamp_col, t2.year, t2.month)]
 |
 09:EXCHANGE [UNPARTITIONED]
 |
@@ -71,11 +75,11 @@ PLAN-ROOT SINK
 # simple full scan subquery
 select * from (select y x from (select id y from functional_hbase.alltypessmall) a) b
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -86,7 +90,7 @@ select * from (select t2.*
 from functional.testtbl t1 join functional.testtbl t2 using(id)
 where t1.zip = 94611) x
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t2.id, t2.name, t2.zip)]
 |
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: t1.id = t2.id
@@ -100,7 +104,7 @@ PLAN-ROOT SINK
    predicates: t1.zip = 94611
    runtime filters: RF000 -> t1.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t2.id, t2.name, t2.zip)]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -133,7 +137,9 @@ from
      and b.string_col = '15'
      and a.tinyint_col + b.tinyint_col < 15) x
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month, a.day)]
 |
 02:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: a.id = b.id, a.int_col = b.int_col
@@ -159,7 +165,9 @@ NODE 1:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypessmall/year=2009/month=3/090301.txt 0:1620
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypessmall/year=2009/month=4/090401.txt 0:1621
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month, a.day)]
 |
 05:EXCHANGE [UNPARTITIONED]
 |
@@ -184,7 +192,13 @@ PLAN-ROOT SINK
 # predicate pushdown
 select * from (select * from functional_hbase.alltypessmall) a where id < 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
    predicates: functional_hbase.alltypessmall.id < 5
@@ -206,7 +220,8 @@ and b.string_col = '15'
 and a.tinyint_col + b.tinyint_col < 15
 and b.id + 15 = 27
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, int_col, day, tinyint_col, id, int_col, month, string_col,
+|  tinyint_col)]
 |
 02:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: id = id, int_col = int_col
@@ -222,7 +237,8 @@ PLAN-ROOT SINK
    predicates: functional.alltypesagg.tinyint_col = 15, functional.alltypesagg.id + 15 = 27
    runtime filters: RF000 -> id, RF001 -> int_col
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, int_col, day, tinyint_col, id, int_col, month, string_col,
+|  tinyint_col)]
 |
 05:EXCHANGE [UNPARTITIONED]
 |
@@ -262,7 +278,8 @@ and a.tinyint_col = 15
 and b.string_col = '15'
 and a.tinyint_col + b.tinyint_col < 15
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, int_col, day, tinyint_col, id, int_col, month, string_col,
+|  tinyint_col)]
 |
 02:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: id = id, int_col = int_col
@@ -288,7 +305,8 @@ NODE 1:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypessmall/year=2009/month=3/090301.txt 0:1620
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypessmall/year=2009/month=4/090401.txt 0:1621
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, int_col, day, tinyint_col, id, int_col, month, string_col,
+|  tinyint_col)]
 |
 05:EXCHANGE [UNPARTITIONED]
 |
@@ -327,7 +345,8 @@ and x.float_col > 4.5
 and c.string_col < '7'
 and x.int_col + x.float_col + cast(c.string_col as float) < 1000
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.smallint_col, b.id, a.tinyint_col, c.id, a.int_col, b.float_col,
+|  c.string_col)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: c.id = a.tinyint_col
@@ -365,7 +384,8 @@ NODE 2:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypessmall/year=2009/month=3/090301.txt 0:1620
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypessmall/year=2009/month=4/090401.txt 0:1621
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.smallint_col, b.id, a.tinyint_col, c.id, a.int_col, b.float_col,
+|  c.string_col)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -404,7 +424,8 @@ avg(tinyint_col)
 from (select * from functional.alltypesagg) a
 group by 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(tinyint_col, count(*), min(tinyint_col), max(tinyint_col),
+|  sum(tinyint_col), avg(tinyint_col))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*), min(functional.alltypesagg.tinyint_col), max(functional.alltypesagg.tinyint_col), sum(functional.alltypesagg.tinyint_col), avg(functional.alltypesagg.tinyint_col)
@@ -426,7 +447,8 @@ NODE 0:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypesagg/year=2010/month=1/day=9/100109.txt 0:76263
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypesagg/year=2010/month=1/day=__HIVE_DEFAULT_PARTITION__/000000_0 0:72759
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(tinyint_col, count(*), min(tinyint_col), max(tinyint_col),
+|  sum(tinyint_col), avg(tinyint_col))]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -451,7 +473,8 @@ from functional.alltypesagg
 group by 1
 ) a
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(tinyint_col, count(*), min(tinyint_col), max(tinyint_col),
+|  sum(tinyint_col), avg(tinyint_col))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*), min(tinyint_col), max(tinyint_col), sum(tinyint_col), avg(tinyint_col)
@@ -460,7 +483,8 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(tinyint_col, count(*), min(tinyint_col), max(tinyint_col),
+|  sum(tinyint_col), avg(tinyint_col))]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -488,7 +512,7 @@ from
     limit 5
 ) y
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c1, c2, c3)]
 |
 02:TOP-N [LIMIT=5]
 |  order by: c2 ASC, c3 DESC
@@ -499,7 +523,7 @@ PLAN-ROOT SINK
 |
 00:SCAN HBASE [functional_hbase.alltypessmall]
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c1, c2, c3)]
 |
 05:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c2 ASC, c3 DESC
@@ -538,11 +562,11 @@ from (
 order by 2,1 desc
 limit 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c1, x2)]
 |
 00:EMPTYSET
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c1, x2)]
 |
 00:EMPTYSET
 ====
@@ -550,7 +574,7 @@ PLAN-ROOT SINK
 select distinct *
 from (select distinct * from functional.testtbl) x
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x.id, x.name, x.zip)]
 |
 02:AGGREGATE [FINALIZE]
 |  group by: functional.testtbl.id, functional.testtbl.name, functional.testtbl.zip
@@ -561,7 +585,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.testtbl]
    partitions=1/1 files=0 size=0B
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x.id, x.name, x.zip)]
 |
 05:EXCHANGE [UNPARTITIONED]
 |
@@ -583,7 +607,7 @@ PLAN-ROOT SINK
 select distinct id, zip
 from (select distinct * from functional.testtbl) x
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, zip)]
 |
 02:AGGREGATE [FINALIZE]
 |  group by: functional.testtbl.id, functional.testtbl.zip
@@ -594,7 +618,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.testtbl]
    partitions=1/1 files=0 size=0B
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, zip)]
 |
 07:EXCHANGE [UNPARTITIONED]
 |
@@ -630,7 +654,7 @@ from (
 where c1 is not null
 and   c2 > 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col % 7, count(*), avg(int_col))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*), avg(functional.alltypesagg.int_col)
@@ -640,7 +664,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col % 7, count(*), avg(int_col))]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -672,7 +696,8 @@ from (
      on (j.test_name = d.name)
 where j.test_id <= 1006
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.test_id, a.test_name, a.test_zip, a.alltypes_id, b.id, b.name,
+|  b.zip)]
 |
 02:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: b.name = a.test_name
@@ -686,7 +711,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=171B
    runtime filters: RF000 -> b.name
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.test_id, a.test_name, a.test_zip, a.alltypes_id, b.id, b.name,
+|  b.zip)]
 |
 05:EXCHANGE [UNPARTITIONED]
 |
@@ -725,7 +751,7 @@ from functional.alltypessmall c
      on (x.tinyint_col = c.id)
 group by x.smallint_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x.smallint_col, count(x.id))]
 |
 05:AGGREGATE [FINALIZE]
 |  output: count(b.id)
@@ -749,7 +775,7 @@ PLAN-ROOT SINK
    partitions=11/11 files=11 size=814.73KB
    runtime filters: RF000 -> a.tinyint_col, RF001 -> a.smallint_col
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x.smallint_col, count(x.id))]
 |
 11:EXCHANGE [UNPARTITIONED]
 |
@@ -812,7 +838,8 @@ and x.float_col > 4.5
 and c.string_col < '7'
 and x.int_col + x.float_col + CAST(c.string_col AS FLOAT) < 1000
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.smallint_col, b.id, a.tinyint_col, c.id, a.int_col, b.float_col,
+|  c.string_col)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: c.id = a.tinyint_col
@@ -837,7 +864,8 @@ PLAN-ROOT SINK
    predicates: c.string_col < '7'
    runtime filters: RF000 -> c.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.smallint_col, b.id, a.tinyint_col, c.id, a.int_col, b.float_col,
+|  c.string_col)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -882,7 +910,7 @@ from functional.alltypessmall c
   ) x on (x.smallint_col = c.id)
 group by x.smallint_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x.smallint_col, sum(x.cnt))]
 |
 06:AGGREGATE [FINALIZE]
 |  output: sum(count(a.id))
@@ -911,7 +939,7 @@ PLAN-ROOT SINK
    partitions=4/4 files=4 size=6.32KB
    runtime filters: RF000 -> c.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x.smallint_col, sum(x.cnt))]
 |
 13:EXCHANGE [UNPARTITIONED]
 |
@@ -961,12 +989,12 @@ PLAN-ROOT SINK
 # Values statement in subqueries with predicate
 select * from (select y from (values((1 as y),(11))) a where y < 10) b
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(y)]
 |
 00:UNION
    constant-operands=1
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(y)]
 |
 00:UNION
    constant-operands=1
@@ -980,7 +1008,7 @@ select * from
      (select tinyint_col from functional.alltypes)) a
    where y < 10) b
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(y)]
 |
 00:UNION
 |  constant-operands=1
@@ -989,7 +1017,7 @@ PLAN-ROOT SINK
    partitions=24/24 files=24 size=478.45KB
    predicates: functional.alltypes.tinyint_col < 10
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(y)]
 |
 02:EXCHANGE [UNPARTITIONED]
 |
@@ -1004,12 +1032,12 @@ PLAN-ROOT SINK
 select * from (select 1 as y union all select 2 union all select * from (select 11) a) b
 where y < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(y)]
 |
 00:UNION
    constant-operands=2
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(y)]
 |
 00:UNION
    constant-operands=2
@@ -1019,14 +1047,14 @@ PLAN-ROOT SINK
 select * from (values(1 as y) union all values(2) union all select * from (values(11)) a) b
 where y < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(y)]
 |
 00:UNION
 |  constant-operands=2
 |
 01:UNION
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(y)]
 |
 00:UNION
 |  constant-operands=2
@@ -1041,7 +1069,7 @@ inner join
 inner join
 (select 1 a, 3 b union all select 1 a, 3 b) z on z.b = y.b
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a, b, a, b, a, b)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: b = b
@@ -1058,7 +1086,7 @@ PLAN-ROOT SINK
 00:UNION
    constant-operands=2
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a, b, a, b, a, b)]
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: b = b
@@ -1086,7 +1114,9 @@ left semi join
 inner join
 (select 1 a, 3 b union all select 1 a, 3 b) z on z.b = x.id + 2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x.id, x.bool_col, x.tinyint_col, x.smallint_col, x.int_col,
+|  x.bigint_col, x.float_col, x.double_col, x.date_string_col, x.string_col, x.timestamp_col, x.year,
+|  x.month, a, b)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: x.id + 2 = b
@@ -1106,7 +1136,9 @@ PLAN-ROOT SINK
    partitions=4/4 files=4 size=6.32KB
    runtime filters: RF000 -> x.id + 2, RF001 -> x.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x.id, x.bool_col, x.tinyint_col, x.smallint_col, x.int_col,
+|  x.bigint_col, x.float_col, x.double_col, x.date_string_col, x.string_col, x.timestamp_col, x.year,
+|  x.month, a, b)]
 |
 07:EXCHANGE [UNPARTITIONED]
 |
@@ -1137,7 +1169,7 @@ select b.* from functional.decimal_tbl a left outer join
   (select d1, d1 + NULL IS NULL x from functional.decimal_tbl) b
 on (a.d1 = b.d1)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(d1, if(TupleIsNull(), NULL, d1 + NULL IS NULL))]
 |
 02:HASH JOIN [LEFT OUTER JOIN]
 |  hash predicates: a.d1 = d1
@@ -1156,7 +1188,7 @@ where foo = 10
 group by foo
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(foo, sum(foo))]
 |
 02:AGGREGATE [FINALIZE]
 |  output: sum(foo)
@@ -1177,7 +1209,7 @@ select * from
    from functional.alltypestiny t1 left outer join functional.alltypes t2
    on t1.int_col = t2.int_col and t1.tinyint_col = t2.tinyint_col) t
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.int_col, t1.tinyint_col, t2.int_col, t2.tinyint_col)]
 |
 02:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: t2.int_col = t1.int_col, t2.tinyint_col = t1.tinyint_col
@@ -1200,7 +1232,7 @@ select 1 from
 inner join functional.alltypestiny c
 on (aid < bid and aid = c.id)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: a.id = c.id
@@ -1237,7 +1269,7 @@ inner join
    on a.id = b.int_col) v
 on (t1.id = v.id and v.int_col is null and v.int_col < 10 and v.id < 10)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: a.id = t1.id
@@ -1269,7 +1301,7 @@ select * from
      from functional.alltypestiny) iv
   ) ivv
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(bigint_col, bigint_col)]
 |
 00:SCAN HDFS [functional.alltypestiny]
    partitions=4/4 files=4 size=460B
@@ -1281,7 +1313,7 @@ select * from
      from functional.alltypestiny) iv
   ) ivv where bigint_col = bigint_col2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(bigint_col, bigint_col)]
 |
 00:SCAN HDFS [functional.alltypestiny]
    partitions=4/4 files=4 size=460B
@@ -1295,7 +1327,7 @@ select * from
      from functional.alltypestiny) iv
   ) ivv
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(bigint_col), sum(bigint_col))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: sum(bigint_col)
@@ -1310,7 +1342,7 @@ select * from
      from functional.alltypestiny) iv
   ) ivv where s1 = s2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(bigint_col), sum(bigint_col))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: sum(bigint_col)

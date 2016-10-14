@@ -52,7 +52,9 @@ public abstract class DataSink {
    * Return an explain string for the DataSink. Each line of the explain will be prefixed
    * by "prefix". The output string will be wrapped to 100 chars.
    *
-   * TODO: Wrap every line in the
+   * TODO: Wrap every line in the explain plan. This is tricky to do without knowing the
+   * prefix for every line. For now, wrap the data sinks because they can be especially
+   * long.
    */
   public String getExplainString(String prefix, String detailPrefix,
       TExplainLevel explainLevel) {
@@ -85,15 +87,6 @@ public abstract class DataSink {
    * Helper method for adding output expressions to the explain string
    */
   protected String getOutputExprsString() {
-    StringBuilder outputExprStr = new StringBuilder("OUTPUT-EXPRS=(");
-    List<String> exprStrings = Lists.newArrayList();
-    if (outputExprs_ != null) {
-      for (Expr e : outputExprs_) {
-        exprStrings.add(e.toSql());
-      }
-      outputExprStr.append(Joiner.on(", ").join(exprStrings));
-    }
-    outputExprStr.append(")");
-    return outputExprStr.toString();
+    return String.format("OUTPUT-EXPRS=(%s)", Expr.toSql(outputExprs_));
   }
 }

@@ -1,12 +1,16 @@
 select * from functional_seq.alltypes t1 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month)]
 |
 00:SCAN HDFS [functional_seq.alltypes t1]
    partitions=24/24 files=24 size=562.59KB
    limit: 5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month)]
 |
 00:SCAN HDFS [functional_seq.alltypes t1]
    partitions=24/24 files=24 size=562.59KB
@@ -15,13 +19,17 @@ PLAN-ROOT SINK
 # Query is over the limit of 8 rows to be optimized, will distribute the query
 select * from functional.alltypes t1 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month)]
 |
 00:SCAN HDFS [functional.alltypes t1]
    partitions=24/24 files=24 size=478.45KB
    limit: 10
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |  limit: 10
@@ -33,13 +41,17 @@ PLAN-ROOT SINK
 # Query is optimized, run on coordinator only
 select * from functional.alltypes t1 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month)]
 |
 00:SCAN HDFS [functional.alltypes t1]
    partitions=24/24 files=24 size=478.45KB
    limit: 5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month)]
 |
 00:SCAN HDFS [functional.alltypes t1]
    partitions=24/24 files=24 size=478.45KB
@@ -48,14 +60,18 @@ PLAN-ROOT SINK
 # If a predicate is applied the optimization is disabled
 select * from functional.alltypes t1 where t1.id < 99 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month)]
 |
 00:SCAN HDFS [functional.alltypes t1]
    partitions=24/24 files=24 size=478.45KB
    predicates: t1.id < 99
    limit: 5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |  limit: 5
@@ -68,13 +84,17 @@ PLAN-ROOT SINK
 # No optimization for hbase tables
 select * from functional_hbase.alltypes t1 where t1.id < 99 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bigint_col, t1.bool_col, t1.date_string_col, t1.double_col,
+|  t1.float_col, t1.int_col, t1.month, t1.smallint_col, t1.string_col, t1.timestamp_col,
+|  t1.tinyint_col, t1.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypes t1]
    predicates: t1.id < 99
    limit: 5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bigint_col, t1.bool_col, t1.date_string_col, t1.double_col,
+|  t1.float_col, t1.int_col, t1.month, t1.smallint_col, t1.string_col, t1.timestamp_col,
+|  t1.tinyint_col, t1.year)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |  limit: 5
@@ -86,12 +106,16 @@ PLAN-ROOT SINK
 # Applies optimization for small queries in hbase
 select * from functional_hbase.alltypes t1 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bigint_col, t1.bool_col, t1.date_string_col, t1.double_col,
+|  t1.float_col, t1.int_col, t1.month, t1.smallint_col, t1.string_col, t1.timestamp_col,
+|  t1.tinyint_col, t1.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypes t1]
    limit: 5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bigint_col, t1.bool_col, t1.date_string_col, t1.double_col,
+|  t1.float_col, t1.int_col, t1.month, t1.smallint_col, t1.string_col, t1.timestamp_col,
+|  t1.tinyint_col, t1.year)]
 |
 00:SCAN HBASE [functional_hbase.alltypes t1]
    limit: 5
@@ -101,25 +125,39 @@ insert into
   values (1, 1, true, "1999-12-01", 2.0, 1.0, 1, 12, 2, "abs",
   cast(now() as timestamp), 1, 1999)
 ---- PLAN
-WRITE TO HBASE table=functional_hbase.alltypes
+WRITE TO HBASE table=functional_hbase.alltypes [OUTPUT-EXPRS=(1, 1, true, '1999-12-01', 2.0, 1.0, 1,
+|  12, 2, 'abs', cast(now() as timestamp), 1, 1999)]
 |
 00:UNION
    constant-operands=1
 ---- DISTRIBUTEDPLAN
-WRITE TO HBASE table=functional_hbase.alltypes
+WRITE TO HBASE table=functional_hbase.alltypes [OUTPUT-EXPRS=(1, 1, true, '1999-12-01', 2.0, 1.0, 1,
+|  12, 2, 'abs', cast(now() as timestamp), 1, 1999)]
 |
 00:UNION
    constant-operands=1
 ====
 create table tm as select * from functional_hbase.alltypes limit 5
 ---- PLAN
-WRITE TO HDFS [default.tm, OVERWRITE=false]
+WRITE TO HDFS [default.tm, OVERWRITE=false, OUTPUT-EXPRS=(functional_hbase.alltypes.id,
+|  functional_hbase.alltypes.bigint_col, functional_hbase.alltypes.bool_col,
+|  functional_hbase.alltypes.date_string_col, functional_hbase.alltypes.double_col,
+|  functional_hbase.alltypes.float_col, functional_hbase.alltypes.int_col,
+|  functional_hbase.alltypes.month, functional_hbase.alltypes.smallint_col,
+|  functional_hbase.alltypes.string_col, functional_hbase.alltypes.timestamp_col,
+|  functional_hbase.alltypes.tinyint_col, functional_hbase.alltypes.year)]
 |  partitions=1
 |
 00:SCAN HBASE [functional_hbase.alltypes]
    limit: 5
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [default.tm, OVERWRITE=false]
+WRITE TO HDFS [default.tm, OVERWRITE=false, OUTPUT-EXPRS=(functional_hbase.alltypes.id,
+|  functional_hbase.alltypes.bigint_col, functional_hbase.alltypes.bool_col,
+|  functional_hbase.alltypes.date_string_col, functional_hbase.alltypes.double_col,
+|  functional_hbase.alltypes.float_col, functional_hbase.alltypes.int_col,
+|  functional_hbase.alltypes.month, functional_hbase.alltypes.smallint_col,
+|  functional_hbase.alltypes.string_col, functional_hbase.alltypes.timestamp_col,
+|  functional_hbase.alltypes.tinyint_col, functional_hbase.alltypes.year)]
 |  partitions=1
 |
 00:SCAN HBASE [functional_hbase.alltypes]
@@ -127,13 +165,25 @@ WRITE TO HDFS [default.tm, OVERWRITE=false]
 ====
 create table tm as select * from functional_hbase.alltypes limit 50
 ---- PLAN
-WRITE TO HDFS [default.tm, OVERWRITE=false]
+WRITE TO HDFS [default.tm, OVERWRITE=false, OUTPUT-EXPRS=(functional_hbase.alltypes.id,
+|  functional_hbase.alltypes.bigint_col, functional_hbase.alltypes.bool_col,
+|  functional_hbase.alltypes.date_string_col, functional_hbase.alltypes.double_col,
+|  functional_hbase.alltypes.float_col, functional_hbase.alltypes.int_col,
+|  functional_hbase.alltypes.month, functional_hbase.alltypes.smallint_col,
+|  functional_hbase.alltypes.string_col, functional_hbase.alltypes.timestamp_col,
+|  functional_hbase.alltypes.tinyint_col, functional_hbase.alltypes.year)]
 |  partitions=1
 |
 00:SCAN HBASE [functional_hbase.alltypes]
    limit: 50
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [default.tm, OVERWRITE=false]
+WRITE TO HDFS [default.tm, OVERWRITE=false, OUTPUT-EXPRS=(functional_hbase.alltypes.id,
+|  functional_hbase.alltypes.bigint_col, functional_hbase.alltypes.bool_col,
+|  functional_hbase.alltypes.date_string_col, functional_hbase.alltypes.double_col,
+|  functional_hbase.alltypes.float_col, functional_hbase.alltypes.int_col,
+|  functional_hbase.alltypes.month, functional_hbase.alltypes.smallint_col,
+|  functional_hbase.alltypes.string_col, functional_hbase.alltypes.timestamp_col,
+|  functional_hbase.alltypes.tinyint_col, functional_hbase.alltypes.year)]
 |  partitions=1
 |
 01:EXCHANGE [UNPARTITIONED]
@@ -146,7 +196,8 @@ select * from functional_hbase.alltypes limit 5
 union all
 select * from functional_hbase.alltypes limit 2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bigint_col, bool_col, date_string_col, double_col, float_col,
+|  int_col, month, smallint_col, string_col, timestamp_col, tinyint_col, year)]
 |
 00:UNION
 |
@@ -156,7 +207,8 @@ PLAN-ROOT SINK
 01:SCAN HBASE [functional_hbase.alltypes]
    limit: 5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bigint_col, bool_col, date_string_col, double_col, float_col,
+|  int_col, month, smallint_col, string_col, timestamp_col, tinyint_col, year)]
 |
 00:UNION
 |
@@ -170,7 +222,8 @@ select * from functional_hbase.alltypes limit 5
 union all
 select * from functional_hbase.alltypes limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bigint_col, bool_col, date_string_col, double_col, float_col,
+|  int_col, month, smallint_col, string_col, timestamp_col, tinyint_col, year)]
 |
 00:UNION
 |
@@ -180,7 +233,8 @@ PLAN-ROOT SINK
 01:SCAN HBASE [functional_hbase.alltypes]
    limit: 5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bigint_col, bool_col, date_string_col, double_col, float_col,
+|  int_col, month, smallint_col, string_col, timestamp_col, tinyint_col, year)]
 |
 00:UNION
 |
@@ -200,7 +254,7 @@ PLAN-ROOT SINK
 select * from
   functional.testtbl a join functional.testtbl b on a.id = b.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.name, a.zip, b.id, b.name, b.zip)]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -220,7 +274,7 @@ PLAN-ROOT SINK
 select * from
   functional.testtbl a, functional.testtbl b
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.name, a.zip, b.id, b.name, b.zip)]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -238,7 +292,9 @@ select * from
   functional.alltypestiny a
 where a.id in (select id from functional.alltypestiny limit 5) limit 5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 05:EXCHANGE [UNPARTITIONED]
 |  limit: 5
@@ -275,7 +331,7 @@ select id, bool_col
 from functional.alltypestiny c
 where year=2009 and month=2
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col)]
 |
 04:UNION
 |
@@ -296,7 +352,7 @@ PLAN-ROOT SINK
 # IMPALA-2527: Tests that the small query optimization is disabled for colleciton types
 select key from functional.allcomplextypes.map_map_col.value limit 5;
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(key)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |  limit: 5

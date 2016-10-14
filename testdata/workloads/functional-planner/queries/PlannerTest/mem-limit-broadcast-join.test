@@ -2,7 +2,8 @@ select * from tpch.nation n1
 join[broadcast]
 tpch.nation n2 on n1.n_regionkey=n2.n_regionkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(n1.n_nationkey, n1.n_name, n1.n_regionkey, n1.n_comment,
+|  n2.n_nationkey, n2.n_name, n2.n_regionkey, n2.n_comment)]
 |
 04:EXCHANGE [UNPARTITIONED]
 |

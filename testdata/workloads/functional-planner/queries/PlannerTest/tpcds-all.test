@@ -28,7 +28,7 @@ order by
   brand_id
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(dt.d_year, item.i_brand_id, item.i_brand, sum(ss_ext_sales_price))]
 |
 06:TOP-N [LIMIT=100]
 |  order by: dt.d_year ASC, sum(ss_ext_sales_price) DESC, item.i_brand_id ASC
@@ -58,7 +58,7 @@ PLAN-ROOT SINK
    predicates: dt.d_moy = 12, (dt.d_date_sk BETWEEN 2451149 AND 2451179 OR dt.d_date_sk BETWEEN 2451514 AND 2451544 OR dt.d_date_sk BETWEEN 2451880 AND 2451910 OR dt.d_date_sk BETWEEN 2452245 AND 2452275 OR dt.d_date_sk BETWEEN 2452610 AND 2452640)
    runtime filters: RF000 -> dt.d_date_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(dt.d_year, item.i_brand_id, item.i_brand, sum(ss_ext_sales_price))]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: dt.d_year ASC, sum(ss_ext_sales_price) DESC, item.i_brand_id ASC
@@ -102,7 +102,7 @@ PLAN-ROOT SINK
    predicates: dt.d_moy = 12, (dt.d_date_sk BETWEEN 2451149 AND 2451179 OR dt.d_date_sk BETWEEN 2451514 AND 2451544 OR dt.d_date_sk BETWEEN 2451880 AND 2451910 OR dt.d_date_sk BETWEEN 2452245 AND 2452275 OR dt.d_date_sk BETWEEN 2452610 AND 2452640)
    runtime filters: RF000 -> dt.d_date_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(dt.d_year, item.i_brand_id, item.i_brand, sum(ss_ext_sales_price))]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: dt.d_year ASC, sum(ss_ext_sales_price) DESC, item.i_brand_id ASC
@@ -127,7 +127,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
-|  |  build expressions: store_sales.ss_sold_date_sk
+|  |  build expressions:
+|  |  store_sales.ss_sold_date_sk
 |  |
 |  08:EXCHANGE [BROADCAST]
 |  |
@@ -137,7 +138,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: item.i_item_sk
+|  |  |  build expressions:
+|  |  |  item.i_item_sk
 |  |  |
 |  |  07:EXCHANGE [BROADCAST]
 |  |  |
@@ -184,7 +186,8 @@ order by
   i_item_id
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_item_id, avg(ss_quantity), avg(ss_list_price), avg(ss_coupon_amt),
+|  avg(ss_sales_price))]
 |
 10:TOP-N [LIMIT=100]
 |  order by: i_item_id ASC
@@ -228,7 +231,8 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss_item_sk, RF001 -> ss_sold_date_sk, RF002 -> ss_cdemo_sk, RF003 -> ss_promo_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_item_id, avg(ss_quantity), avg(ss_list_price), avg(ss_coupon_amt),
+|  avg(ss_sales_price))]
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: i_item_id ASC
@@ -292,7 +296,8 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss_item_sk, RF001 -> ss_sold_date_sk, RF002 -> ss_cdemo_sk, RF003 -> ss_promo_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_item_id, avg(ss_quantity), avg(ss_list_price), avg(ss_coupon_amt),
+|  avg(ss_sales_price))]
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: i_item_id ASC
@@ -442,7 +447,7 @@ order by
   s_store_name
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name, sum(ss_net_profit))]
 |
 11:TOP-N [LIMIT=100]
 |  order by: s_store_name ASC
@@ -493,7 +498,7 @@ PLAN-ROOT SINK
    partitions=7/120 files=7 size=1.02MB
    runtime filters: RF001 -> store_sales.ss_store_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name, sum(ss_net_profit))]
 |
 20:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_store_name ASC
@@ -568,7 +573,7 @@ PLAN-ROOT SINK
    partitions=7/120 files=7 size=1.02MB
    runtime filters: RF001 -> store_sales.ss_store_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name, sum(ss_net_profit))]
 |
 20:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_store_name ASC
@@ -593,7 +598,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
-|  |  build expressions: substr(substr(ca_zip, 1, 5), 1, 2)
+|  |  build expressions:
+|  |  substr(substr(ca_zip, 1, 5), 1, 2)
 |  |
 |  17:EXCHANGE [BROADCAST]
 |  |
@@ -603,7 +609,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: substr(ca_zip, 1, 5)
+|  |  |  build expressions:
+|  |  |  substr(ca_zip, 1, 5)
 |  |  |
 |  |  15:AGGREGATE [FINALIZE]
 |  |  |  output: count:merge(*)
@@ -622,7 +629,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=02 plan-id=03 cohort-id=03
-|  |  |  |  build expressions: customer.c_current_addr_sk
+|  |  |  |  build expressions:
+|  |  |  |  customer.c_current_addr_sk
 |  |  |  |
 |  |  |  13:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -697,7 +705,8 @@ order by
   i_manufact
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_brand_id, i_brand, i_manufact_id, i_manufact,
+|  sum(ss_ext_sales_price))]
 |
 12:TOP-N [LIMIT=100]
 |  order by: sum(ss_ext_sales_price) DESC, i_brand ASC, i_brand_id ASC, i_manufact_id ASC, i_manufact ASC
@@ -750,7 +759,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=5.25MB
    runtime filters: RF004 -> ca_address_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_brand_id, i_brand, i_manufact_id, i_manufact,
+|  sum(ss_ext_sales_price))]
 |
 20:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(ss_ext_sales_price) DESC, i_brand ASC, i_brand_id ASC, i_manufact_id ASC, i_manufact ASC
@@ -823,7 +833,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=5.25MB
    runtime filters: RF004 -> ca_address_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_brand_id, i_brand, i_manufact_id, i_manufact,
+|  sum(ss_ext_sales_price))]
 |
 20:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(ss_ext_sales_price) DESC, i_brand ASC, i_brand_id ASC, i_manufact_id ASC, i_manufact ASC
@@ -904,7 +915,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=04 plan-id=05 cohort-id=01
-|  |  build expressions: c_current_addr_sk
+|  |  build expressions:
+|  |  c_current_addr_sk
 |  |
 |  13:EXCHANGE [BROADCAST]
 |  |
@@ -948,7 +960,8 @@ order by
   s_state
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_item_id, s_state, avg(ss_quantity), avg(ss_list_price),
+|  avg(ss_coupon_amt), avg(ss_sales_price))]
 |
 10:TOP-N [LIMIT=100]
 |  order by: i_item_id ASC, s_state ASC
@@ -992,7 +1005,8 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss_item_sk, RF001 -> ss_store_sk, RF002 -> ss_sold_date_sk, RF003 -> ss_cdemo_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_item_id, s_state, avg(ss_quantity), avg(ss_list_price),
+|  avg(ss_coupon_amt), avg(ss_sales_price))]
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: i_item_id ASC, s_state ASC
@@ -1056,7 +1070,8 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss_item_sk, RF001 -> ss_store_sk, RF002 -> ss_sold_date_sk, RF003 -> ss_cdemo_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_item_id, s_state, avg(ss_quantity), avg(ss_list_price),
+|  avg(ss_coupon_amt), avg(ss_sales_price))]
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: i_item_id ASC, s_state ASC
@@ -1181,7 +1196,8 @@ order by
   c_preferred_cust_flag desc
 limit 100000
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, c_salutation, c_preferred_cust_flag,
+|  ss_ticket_number, cnt)]
 |
 10:TOP-N [LIMIT=100000]
 |  order by: c_last_name ASC, c_first_name ASC, c_salutation ASC, c_preferred_cust_flag DESC
@@ -1227,7 +1243,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=12.60MB
    runtime filters: RF000 -> c_customer_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, c_salutation, c_preferred_cust_flag,
+|  ss_ticket_number, cnt)]
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, c_first_name ASC, c_salutation ASC, c_preferred_cust_flag DESC
@@ -1291,7 +1308,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=12.60MB
    runtime filters: RF000 -> c_customer_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, c_salutation, c_preferred_cust_flag,
+|  ss_ticket_number, cnt)]
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, c_first_name ASC, c_salutation ASC, c_preferred_cust_flag DESC
@@ -1327,7 +1345,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: store.s_store_sk
+|  |  |  build expressions:
+|  |  |  store.s_store_sk
 |  |  |
 |  |  13:EXCHANGE [BROADCAST]
 |  |  |
@@ -1341,7 +1360,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=02 plan-id=03 cohort-id=02
-|  |  |  build expressions: date_dim.d_date_sk
+|  |  |  build expressions:
+|  |  |  date_dim.d_date_sk
 |  |  |
 |  |  12:EXCHANGE [BROADCAST]
 |  |  |
@@ -1355,7 +1375,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=03 plan-id=04 cohort-id=02
-|  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  build expressions:
+|  |  |  household_demographics.hd_demo_sk
 |  |  |
 |  |  11:EXCHANGE [BROADCAST]
 |  |  |
@@ -1398,7 +1419,8 @@ order by
   item.i_category
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(dt.d_year, item.i_category_id, item.i_category,
+|  sum(ss_ext_sales_price))]
 |
 06:TOP-N [LIMIT=100]
 |  order by: sum(ss_ext_sales_price) DESC, dt.d_year ASC, item.i_category_id ASC, item.i_category ASC
@@ -1427,7 +1449,8 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> store_sales.ss_sold_date_sk, RF001 -> store_sales.ss_item_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(dt.d_year, item.i_category_id, item.i_category,
+|  sum(ss_ext_sales_price))]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(ss_ext_sales_price) DESC, dt.d_year ASC, item.i_category_id ASC, item.i_category ASC
@@ -1470,7 +1493,8 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> store_sales.ss_sold_date_sk, RF001 -> store_sales.ss_item_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(dt.d_year, item.i_category_id, item.i_category,
+|  sum(ss_ext_sales_price))]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(ss_ext_sales_price) DESC, dt.d_year ASC, item.i_category_id ASC, item.i_category ASC
@@ -1556,7 +1580,13 @@ order by
   sat_sales
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name, s_store_id, sum(CASE WHEN (d_day_name = 'Sunday') THEN
+|  ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name = 'Monday') THEN ss_sales_price ELSE NULL
+|  END), sum(CASE WHEN (d_day_name = 'Tuesday') THEN ss_sales_price ELSE NULL END), sum(CASE WHEN
+|  (d_day_name = 'Wednesday') THEN ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name =
+|  'Thursday') THEN ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name = 'Friday') THEN
+|  ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name = 'Saturday') THEN ss_sales_price ELSE NULL
+|  END))]
 |
 06:TOP-N [LIMIT=100]
 |  order by: s_store_name ASC, s_store_id ASC, sum(CASE WHEN (d_day_name = 'Sunday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Monday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Tuesday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Wednesday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Thursday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Friday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Saturday') THEN ss_sales_price ELSE NULL END) ASC
@@ -1585,7 +1615,13 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss_store_sk, RF001 -> ss_sold_date_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name, s_store_id, sum(CASE WHEN (d_day_name = 'Sunday') THEN
+|  ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name = 'Monday') THEN ss_sales_price ELSE NULL
+|  END), sum(CASE WHEN (d_day_name = 'Tuesday') THEN ss_sales_price ELSE NULL END), sum(CASE WHEN
+|  (d_day_name = 'Wednesday') THEN ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name =
+|  'Thursday') THEN ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name = 'Friday') THEN
+|  ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name = 'Saturday') THEN ss_sales_price ELSE NULL
+|  END))]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_store_name ASC, s_store_id ASC, sum(CASE WHEN (d_day_name = 'Sunday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Monday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Tuesday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Wednesday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Thursday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Friday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Saturday') THEN ss_sales_price ELSE NULL END) ASC
@@ -1628,7 +1664,13 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss_store_sk, RF001 -> ss_sold_date_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name, s_store_id, sum(CASE WHEN (d_day_name = 'Sunday') THEN
+|  ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name = 'Monday') THEN ss_sales_price ELSE NULL
+|  END), sum(CASE WHEN (d_day_name = 'Tuesday') THEN ss_sales_price ELSE NULL END), sum(CASE WHEN
+|  (d_day_name = 'Wednesday') THEN ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name =
+|  'Thursday') THEN ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name = 'Friday') THEN
+|  ss_sales_price ELSE NULL END), sum(CASE WHEN (d_day_name = 'Saturday') THEN ss_sales_price ELSE NULL
+|  END))]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_store_name ASC, s_store_id ASC, sum(CASE WHEN (d_day_name = 'Sunday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Monday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Tuesday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Wednesday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Thursday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Friday') THEN ss_sales_price ELSE NULL END) ASC, sum(CASE WHEN (d_day_name = 'Saturday') THEN ss_sales_price ELSE NULL END) ASC
@@ -1758,7 +1800,8 @@ order by
   ss_ticket_number
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, ca_city, bought_city, ss_ticket_number,
+|  amt, profit)]
 |
 14:TOP-N [LIMIT=100]
 |  order by: c_last_name ASC, c_first_name ASC, ca_city ASC, bought_city ASC, ss_ticket_number ASC
@@ -1820,7 +1863,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=5.25MB
    runtime filters: RF000 -> current_addr.ca_address_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, ca_city, bought_city, ss_ticket_number,
+|  amt, profit)]
 |
 23:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, c_first_name ASC, ca_city ASC, bought_city ASC, ss_ticket_number ASC
@@ -1904,7 +1948,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=5.25MB
    runtime filters: RF000 -> current_addr.ca_address_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, ca_city, bought_city, ss_ticket_number,
+|  amt, profit)]
 |
 23:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, c_first_name ASC, ca_city ASC, bought_city ASC, ss_ticket_number ASC
@@ -1920,7 +1965,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
-|  |  build expressions: customer.c_current_addr_sk
+|  |  build expressions:
+|  |  customer.c_current_addr_sk
 |  |
 |  22:EXCHANGE [BROADCAST]
 |  |
@@ -1930,7 +1976,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: ss_customer_sk
+|  |  |  build expressions:
+|  |  |  ss_customer_sk
 |  |  |
 |  |  21:EXCHANGE [BROADCAST]
 |  |  |
@@ -1950,7 +1997,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=02 plan-id=03 cohort-id=03
-|  |  |  |  build expressions: store.s_store_sk
+|  |  |  |  build expressions:
+|  |  |  |  store.s_store_sk
 |  |  |  |
 |  |  |  18:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -1964,7 +2012,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=03 plan-id=04 cohort-id=03
-|  |  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  |  build expressions:
+|  |  |  |  household_demographics.hd_demo_sk
 |  |  |  |
 |  |  |  17:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -1978,7 +2027,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=04 plan-id=05 cohort-id=03
-|  |  |  |  build expressions: date_dim.d_date_sk
+|  |  |  |  build expressions:
+|  |  |  |  date_dim.d_date_sk
 |  |  |  |
 |  |  |  16:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -1992,7 +2042,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=05 plan-id=06 cohort-id=03
-|  |  |  |  build expressions: store_sales.ss_addr_sk
+|  |  |  |  build expressions:
+|  |  |  |  store_sales.ss_addr_sk
 |  |  |  |
 |  |  |  15:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -2038,7 +2089,7 @@ order by
   brand_id
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(dt.d_year, item.i_brand_id, item.i_brand, sum(ss_ext_sales_price))]
 |
 06:TOP-N [LIMIT=100]
 |  order by: dt.d_year ASC, sum(ss_ext_sales_price) DESC, item.i_brand_id ASC
@@ -2067,7 +2118,7 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> store_sales.ss_sold_date_sk, RF001 -> store_sales.ss_item_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(dt.d_year, item.i_brand_id, item.i_brand, sum(ss_ext_sales_price))]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: dt.d_year ASC, sum(ss_ext_sales_price) DESC, item.i_brand_id ASC
@@ -2110,7 +2161,7 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> store_sales.ss_sold_date_sk, RF001 -> store_sales.ss_item_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(dt.d_year, item.i_brand_id, item.i_brand, sum(ss_ext_sales_price))]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: dt.d_year ASC, sum(ss_ext_sales_price) DESC, item.i_brand_id ASC
@@ -2193,7 +2244,7 @@ order by
   i_manufact_id
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_manufact_id, sum_sales)]
 |
 08:TOP-N [LIMIT=100]
 |  order by: sum_sales ASC, i_manufact_id ASC
@@ -2230,7 +2281,7 @@ PLAN-ROOT SINK
    predicates: d_month_seq IN (1212, 1212 + 1, 1212 + 2, 1212 + 3, 1212 + 4, 1212 + 5, 1212 + 6, 1212 + 7, 1212 + 8, 1212 + 9, 1212 + 10, 1212 + 11)
    runtime filters: RF001 -> d_date_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_manufact_id, sum_sales)]
 |
 14:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum_sales ASC, i_manufact_id ASC
@@ -2283,7 +2334,7 @@ PLAN-ROOT SINK
    predicates: d_month_seq IN (1212, 1212 + 1, 1212 + 2, 1212 + 3, 1212 + 4, 1212 + 5, 1212 + 6, 1212 + 7, 1212 + 8, 1212 + 9, 1212 + 10, 1212 + 11)
    runtime filters: RF001 -> d_date_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_manufact_id, sum_sales)]
 |
 14:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum_sales ASC, i_manufact_id ASC
@@ -2371,7 +2422,7 @@ order by
   i_brand_id
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_brand_id, i_brand, sum(ss_ext_sales_price))]
 |
 06:TOP-N [LIMIT=100]
 |  order by: sum(ss_ext_sales_price) DESC, i_brand_id ASC
@@ -2400,7 +2451,7 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss_sold_date_sk, RF001 -> ss_item_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_brand_id, i_brand, sum(ss_ext_sales_price))]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(ss_ext_sales_price) DESC, i_brand_id ASC
@@ -2443,7 +2494,7 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss_sold_date_sk, RF001 -> ss_item_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_brand_id, i_brand, sum(ss_ext_sales_price))]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum(ss_ext_sales_price) DESC, i_brand_id ASC
@@ -2577,7 +2628,9 @@ order by
   d_week_seq1
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name1, s_store_id1, d_week_seq1, sun_sales1 / sun_sales2,
+|  mon_sales1 / mon_sales2, tue_sales1 / tue_sales2, wed_sales1 / wed_sales2, thu_sales1 / thu_sales2,
+|  fri_sales1 / fri_sales2, sat_sales1 / sat_sales2)]
 |
 17:TOP-N [LIMIT=100]
 |  order by: s_store_name1 ASC, s_store_id1 ASC, d_week_seq1 ASC
@@ -2650,7 +2703,9 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF002 -> tpcds.store_sales.ss_store_sk, RF004 -> ss_sold_date_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name1, s_store_id1, d_week_seq1, sun_sales1 / sun_sales2,
+|  mon_sales1 / mon_sales2, tue_sales1 / tue_sales2, wed_sales1 / wed_sales2, thu_sales1 / thu_sales2,
+|  fri_sales1 / fri_sales2, sat_sales1 / sat_sales2)]
 |
 32:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_store_name1 ASC, s_store_id1 ASC, d_week_seq1 ASC
@@ -2759,7 +2814,9 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF002 -> tpcds.store_sales.ss_store_sk, RF004 -> ss_sold_date_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name1, s_store_id1, d_week_seq1, sun_sales1 / sun_sales2,
+|  mon_sales1 / mon_sales2, tue_sales1 / tue_sales2, wed_sales1 / wed_sales2, thu_sales1 / thu_sales2,
+|  fri_sales1 / fri_sales2, sat_sales1 / sat_sales2)]
 |
 32:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_store_name1 ASC, s_store_id1 ASC, d_week_seq1 ASC
@@ -2774,7 +2831,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
-|  |  build expressions: d_week_seq - 52, s_store_id
+|  |  build expressions: d_week_seq - 52,
+|  |  s_store_id
 |  |
 |  31:EXCHANGE [HASH(d_week_seq - 52,s_store_id)]
 |  |
@@ -2797,7 +2855,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=02 plan-id=03 cohort-id=02
-|  |  |  build expressions: d.d_week_seq
+|  |  |  build expressions:
+|  |  |  d.d_week_seq
 |  |  |
 |  |  28:EXCHANGE [BROADCAST]
 |  |  |
@@ -2933,7 +2992,7 @@ order by
   sum_sales
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_manager_id, sum_sales, avg_monthly_sales)]
 |
 11:TOP-N [LIMIT=100]
 |  order by: i_manager_id ASC, avg_monthly_sales ASC, sum_sales ASC
@@ -2980,7 +3039,7 @@ PLAN-ROOT SINK
    predicates: tpcds.date_dim.d_date_sk >= 2451911, tpcds.date_dim.d_date_sk <= 2452275, d_month_seq IN (1212, 1212 + 1, 1212 + 2, 1212 + 3, 1212 + 4, 1212 + 5, 1212 + 6, 1212 + 7, 1212 + 8, 1212 + 9, 1212 + 10, 1212 + 11)
    runtime filters: RF001 -> d_date_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_manager_id, sum_sales, avg_monthly_sales)]
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: i_manager_id ASC, avg_monthly_sales ASC, sum_sales ASC
@@ -3043,7 +3102,7 @@ PLAN-ROOT SINK
    predicates: tpcds.date_dim.d_date_sk >= 2451911, tpcds.date_dim.d_date_sk <= 2452275, d_month_seq IN (1212, 1212 + 1, 1212 + 2, 1212 + 3, 1212 + 4, 1212 + 5, 1212 + 6, 1212 + 7, 1212 + 8, 1212 + 9, 1212 + 10, 1212 + 11)
    runtime filters: RF001 -> d_date_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_manager_id, sum_sales, avg_monthly_sales)]
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: i_manager_id ASC, avg_monthly_sales ASC, sum_sales ASC
@@ -3174,7 +3233,8 @@ order by
   i_item_desc
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name, i_item_desc, revenue, i_current_price, i_wholesale_cost,
+|  i_brand)]
 |
 14:TOP-N [LIMIT=100]
 |  order by: s_store_name ASC, i_item_desc ASC
@@ -3236,7 +3296,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=4.82MB
    runtime filters: RF000 -> i_item_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name, i_item_desc, revenue, i_current_price, i_wholesale_cost,
+|  i_brand)]
 |
 26:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_store_name ASC, i_item_desc ASC
@@ -3330,7 +3391,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=4.82MB
    runtime filters: RF000 -> i_item_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_store_name, i_item_desc, revenue, i_current_price, i_wholesale_cost,
+|  i_brand)]
 |
 26:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: s_store_name ASC, i_item_desc ASC
@@ -3355,7 +3417,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: ss_store_sk
+|  |  |  build expressions:
+|  |  |  ss_store_sk
 |  |  |
 |  |  24:EXCHANGE [BROADCAST]
 |  |  |
@@ -3366,7 +3429,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=02 plan-id=03 cohort-id=03
-|  |  |  |  build expressions: ss_store_sk
+|  |  |  |  build expressions:
+|  |  |  |  ss_store_sk
 |  |  |  |
 |  |  |  23:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -3396,7 +3460,8 @@ PLAN-ROOT SINK
 |  |  |  |
 |  |  |  |--JOIN BUILD
 |  |  |  |  |  join-table-id=03 plan-id=04 cohort-id=04
-|  |  |  |  |  build expressions: d_date_sk
+|  |  |  |  |  build expressions:
+|  |  |  |  |  d_date_sk
 |  |  |  |  |
 |  |  |  |  18:EXCHANGE [BROADCAST]
 |  |  |  |  |
@@ -3424,7 +3489,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=04 plan-id=05 cohort-id=03
-|  |  |  |  build expressions: d_date_sk
+|  |  |  |  build expressions:
+|  |  |  |  d_date_sk
 |  |  |  |
 |  |  |  15:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -3494,7 +3560,8 @@ order by
   ss_ticket_number
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, ca_city, bought_city, ss_ticket_number,
+|  extended_price, extended_tax, list_price)]
 |
 14:TOP-N [LIMIT=100]
 |  order by: c_last_name ASC, ss_ticket_number ASC
@@ -3554,7 +3621,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=12.60MB
    runtime filters: RF000 -> customer.c_current_addr_sk, RF001 -> c_customer_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, ca_city, bought_city, ss_ticket_number,
+|  extended_price, extended_tax, list_price)]
 |
 23:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, ss_ticket_number ASC
@@ -3636,7 +3704,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=12.60MB
    runtime filters: RF000 -> customer.c_current_addr_sk, RF001 -> c_customer_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, ca_city, bought_city, ss_ticket_number,
+|  extended_price, extended_tax, list_price)]
 |
 23:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, ss_ticket_number ASC
@@ -3652,7 +3721,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
-|  |  build expressions: current_addr.ca_address_sk
+|  |  build expressions:
+|  |  current_addr.ca_address_sk
 |  |
 |  22:EXCHANGE [BROADCAST]
 |  |
@@ -3685,7 +3755,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=02 plan-id=03 cohort-id=02
-|  |  |  build expressions: customer_address.ca_address_sk
+|  |  |  build expressions:
+|  |  |  customer_address.ca_address_sk
 |  |  |
 |  |  18:EXCHANGE [BROADCAST]
 |  |  |
@@ -3698,7 +3769,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=03 plan-id=04 cohort-id=02
-|  |  |  build expressions: store.s_store_sk
+|  |  |  build expressions:
+|  |  |  store.s_store_sk
 |  |  |
 |  |  17:EXCHANGE [BROADCAST]
 |  |  |
@@ -3712,7 +3784,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=04 plan-id=05 cohort-id=02
-|  |  |  build expressions: date_dim.d_date_sk
+|  |  |  build expressions:
+|  |  |  date_dim.d_date_sk
 |  |  |
 |  |  16:EXCHANGE [BROADCAST]
 |  |  |
@@ -3726,7 +3799,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=05 plan-id=06 cohort-id=02
-|  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  build expressions:
+|  |  |  household_demographics.hd_demo_sk
 |  |  |
 |  |  15:EXCHANGE [BROADCAST]
 |  |  |
@@ -3781,7 +3855,8 @@ order by
   cnt desc
 limit 1000
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, c_salutation, c_preferred_cust_flag,
+|  ss_ticket_number, cnt)]
 |
 10:TOP-N [LIMIT=1000]
 |  order by: cnt DESC
@@ -3826,7 +3901,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=12.60MB
    runtime filters: RF000 -> c_customer_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, c_salutation, c_preferred_cust_flag,
+|  ss_ticket_number, cnt)]
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: cnt DESC
@@ -3891,7 +3967,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=12.60MB
    runtime filters: RF000 -> c_customer_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, c_salutation, c_preferred_cust_flag,
+|  ss_ticket_number, cnt)]
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: cnt DESC
@@ -3927,7 +4004,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: store.s_store_sk
+|  |  |  build expressions:
+|  |  |  store.s_store_sk
 |  |  |
 |  |  14:EXCHANGE [BROADCAST]
 |  |  |
@@ -3941,7 +4019,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=02 plan-id=03 cohort-id=02
-|  |  |  build expressions: date_dim.d_date_sk
+|  |  |  build expressions:
+|  |  |  date_dim.d_date_sk
 |  |  |
 |  |  13:EXCHANGE [HASH(date_dim.d_date_sk)]
 |  |  |
@@ -3956,7 +4035,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=03 plan-id=04 cohort-id=02
-|  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  build expressions:
+|  |  |  household_demographics.hd_demo_sk
 |  |  |
 |  |  11:EXCHANGE [BROADCAST]
 |  |  |
@@ -4016,7 +4096,8 @@ order by
   profit
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, substr(s_city, 1, 30), ss_ticket_number,
+|  amt, profit)]
 |
 10:TOP-N [LIMIT=100]
 |  order by: c_last_name ASC, c_first_name ASC, substr(s_city, 1, 30) ASC, profit ASC
@@ -4061,7 +4142,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=12.60MB
    runtime filters: RF000 -> c_customer_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, substr(s_city, 1, 30), ss_ticket_number,
+|  amt, profit)]
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, c_first_name ASC, substr(s_city, 1, 30) ASC, profit ASC
@@ -4126,7 +4208,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=12.60MB
    runtime filters: RF000 -> c_customer_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_last_name, c_first_name, substr(s_city, 1, 30), ss_ticket_number,
+|  amt, profit)]
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, c_first_name ASC, substr(s_city, 1, 30) ASC, profit ASC
@@ -4161,7 +4244,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: date_dim.d_date_sk
+|  |  |  build expressions:
+|  |  |  date_dim.d_date_sk
 |  |  |
 |  |  14:EXCHANGE [HASH(date_dim.d_date_sk)]
 |  |  |
@@ -4177,7 +4261,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=02 plan-id=03 cohort-id=02
-|  |  |  build expressions: store.s_store_sk
+|  |  |  build expressions:
+|  |  |  store.s_store_sk
 |  |  |
 |  |  12:EXCHANGE [BROADCAST]
 |  |  |
@@ -4191,7 +4276,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=03 plan-id=04 cohort-id=02
-|  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  build expressions:
+|  |  |  household_demographics.hd_demo_sk
 |  |  |
 |  |  11:EXCHANGE [BROADCAST]
 |  |  |
@@ -4237,7 +4323,8 @@ where case when (avg_monthly_sales <> 0) then (abs(sum_sales - avg_monthly_sales
 order by sum_sales - avg_monthly_sales, s_store_name
 limit 100) tmp2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_category, i_class, i_brand, s_store_name, s_company_name, d_moy,
+|  sum_sales, avg_monthly_sales)]
 |
 11:TOP-N [LIMIT=100]
 |  order by: sum_sales - avg_monthly_sales ASC, s_store_name ASC
@@ -4283,7 +4370,8 @@ PLAN-ROOT SINK
    partitions=24/120 files=24 size=4.16MB
    runtime filters: RF000 -> ss_store_sk, RF001 -> ss_sold_date_sk, RF002 -> ss_item_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_category, i_class, i_brand, s_store_name, s_company_name, d_moy,
+|  sum_sales, avg_monthly_sales)]
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum_sales - avg_monthly_sales ASC, s_store_name ASC
@@ -4345,7 +4433,8 @@ PLAN-ROOT SINK
    partitions=24/120 files=24 size=4.16MB
    runtime filters: RF000 -> ss_store_sk, RF001 -> ss_sold_date_sk, RF002 -> ss_item_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_category, i_class, i_brand, s_store_name, s_company_name, d_moy,
+|  sum_sales, avg_monthly_sales)]
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum_sales - avg_monthly_sales ASC, s_store_name ASC
@@ -4435,7 +4524,7 @@ WHERE
   AND hd.hd_dep_count = 5
   AND s.s_store_name = 'ese'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 07:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -4468,7 +4557,7 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss.ss_store_sk, RF001 -> ss.ss_hdemo_sk, RF002 -> ss.ss_sold_time_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 12:AGGREGATE [FINALIZE]
 |  output: count:merge(*)
@@ -4512,7 +4601,7 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss.ss_store_sk, RF001 -> ss.ss_hdemo_sk, RF002 -> ss.ss_sold_time_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 12:AGGREGATE [FINALIZE]
 |  output: count:merge(*)
@@ -4600,7 +4689,8 @@ order by
   revenueratio
 limit 1000
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_item_desc, i_category, i_class, i_current_price,
+|  sum(ss_ext_sales_price), sum(ss_ext_sales_price) * 100 / sum(sum(ss_ext_sales_price)))]
 |
 08:TOP-N [LIMIT=1000]
 |  order by: i_category ASC, i_class ASC, i_item_id ASC, i_item_desc ASC, sum(ss_ext_sales_price) * 100 / sum(sum(ss_ext_sales_price)) ASC
@@ -4637,7 +4727,8 @@ PLAN-ROOT SINK
    predicates: tpcds.date_dim.d_date_sk >= 2451911, tpcds.date_dim.d_date_sk <= 2451941, d_date >= '2001-01-01', d_date <= '2001-01-31'
    runtime filters: RF000 -> d_date_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_item_desc, i_category, i_class, i_current_price,
+|  sum(ss_ext_sales_price), sum(ss_ext_sales_price) * 100 / sum(sum(ss_ext_sales_price)))]
 |
 13:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: i_category ASC, i_class ASC, i_item_id ASC, i_item_desc ASC, sum(ss_ext_sales_price) * 100 / sum(sum(ss_ext_sales_price)) ASC
@@ -4688,7 +4779,8 @@ PLAN-ROOT SINK
    predicates: tpcds.date_dim.d_date_sk >= 2451911, tpcds.date_dim.d_date_sk <= 2451941, d_date >= '2001-01-01', d_date <= '2001-01-31'
    runtime filters: RF000 -> d_date_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_item_desc, i_category, i_class, i_current_price,
+|  sum(ss_ext_sales_price), sum(ss_ext_sales_price) * 100 / sum(sum(ss_ext_sales_price)))]
 |
 13:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: i_category ASC, i_class ASC, i_item_id ASC, i_item_desc ASC, sum(ss_ext_sales_price) * 100 / sum(sum(ss_ext_sales_price)) ASC
@@ -4774,7 +4866,7 @@ select * from (
  having count(*) >= 10
  order by cnt limit 100) as t
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.ca_state, count(*))]
 |
 16:TOP-N [LIMIT=100]
 |  order by: count(*) ASC
@@ -4843,7 +4935,7 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF002 -> s.ss_item_sk, RF003 -> s.ss_sold_date_sk, RF005 -> s.ss_customer_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.ca_state, count(*))]
 |
 31:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: count(*) ASC
@@ -4950,7 +5042,7 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF002 -> s.ss_item_sk, RF003 -> s.ss_sold_date_sk, RF005 -> s.ss_customer_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.ca_state, count(*))]
 |
 31:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: count(*) ASC
@@ -5132,7 +5224,8 @@ with v1 as (
  limit 100
  ) as v3
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_category, i_brand, d_year, avg_monthly_sales, sum_sales, psum,
+|  nsum)]
 |
 35:TOP-N [LIMIT=100]
 |  order by: sum_sales - avg_monthly_sales ASC, d_year ASC
@@ -5270,7 +5363,8 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss_store_sk, RF001 -> ss_sold_date_sk, RF002 -> ss_item_sk
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_category, i_brand, d_year, avg_monthly_sales, sum_sales, psum,
+|  nsum)]
 |
 53:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum_sales - avg_monthly_sales ASC, d_year ASC
@@ -5452,7 +5546,8 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF000 -> ss_store_sk, RF001 -> ss_sold_date_sk, RF002 -> ss_item_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(i_category, i_brand, d_year, avg_monthly_sales, sum_sales, psum,
+|  nsum)]
 |
 53:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: sum_sales - avg_monthly_sales ASC, d_year ASC
@@ -5466,7 +5561,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
-|  |  build expressions: rank(), s_store_name, i_category, s_company_name, i_brand
+|  |  build expressions: rank(),
+|  |  s_store_name, i_category, s_company_name, i_brand
 |  |
 |  52:EXCHANGE [BROADCAST]
 |  |
@@ -5475,7 +5571,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: rank(), s_store_name, i_category, s_company_name, i_brand
+|  |  |  build expressions: rank(),
+|  |  |  s_store_name, i_category, s_company_name, i_brand
 |  |  |
 |  |  51:EXCHANGE [BROADCAST]
 |  |  |
@@ -5514,7 +5611,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=02 plan-id=03 cohort-id=03
-|  |  |  |  build expressions: s_store_sk
+|  |  |  |  build expressions:
+|  |  |  |  s_store_sk
 |  |  |  |
 |  |  |  48:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -5527,7 +5625,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=03 plan-id=04 cohort-id=03
-|  |  |  |  build expressions: d_date_sk
+|  |  |  |  build expressions:
+|  |  |  |  d_date_sk
 |  |  |  |
 |  |  |  47:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -5541,7 +5640,8 @@ PLAN-ROOT SINK
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=04 plan-id=05 cohort-id=03
-|  |  |  |  build expressions: i_item_sk
+|  |  |  |  build expressions:
+|  |  |  |  i_item_sk
 |  |  |  |
 |  |  |  46:EXCHANGE [BROADCAST]
 |  |  |  |
@@ -5720,7 +5820,8 @@ from
    and   d_moy  = 11) all_sales
 order by promotions, total
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(promotions, total, CAST(promotions AS DECIMAL(15,4)) / CAST(total AS
+|  DECIMAL(15,4)) * 100)]
 |
 27:SORT
 |  order by: promotions ASC, total ASC
@@ -5828,7 +5929,8 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF005 -> ss_item_sk, RF004 -> ss_promo_sk, RF003 -> ss_sold_date_sk, RF001 -> ss_customer_sk, RF002 -> ss_store_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(promotions, total, CAST(promotions AS DECIMAL(15,4)) / CAST(total AS
+|  DECIMAL(15,4)) * 100)]
 |
 27:SORT
 |  order by: promotions ASC, total ASC
@@ -5855,7 +5957,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
-|  |  |  build expressions: ca_address_sk
+|  |  |  build expressions:
+|  |  |  ca_address_sk
 |  |  |
 |  |  42:EXCHANGE [BROADCAST]
 |  |  |
@@ -5869,7 +5972,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=02 plan-id=03 cohort-id=02
-|  |  |  build expressions: c_customer_sk
+|  |  |  build expressions:
+|  |  |  c_customer_sk
 |  |  |
 |  |  41:EXCHANGE [HASH(c_customer_sk)]
 |  |  |
@@ -6114,7 +6218,8 @@ from
           (household_demographics.hd_dep_count = 2 and household_demographics.hd_vehicle_count<=2+2))
      and store.s_store_name = 'ese') s8
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*), count(*), count(*), count(*), count(*), count(*), count(*),
+|  count(*))]
 |
 70:NESTED LOOP JOIN [CROSS JOIN]
 |
@@ -6364,7 +6469,8 @@ PLAN-ROOT SINK
    partitions=120/120 files=120 size=21.31MB
    runtime filters: RF002 -> ss_sold_time_sk, RF001 -> ss_hdemo_sk
 ---- PARALLELPLANS
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*), count(*), count(*), count(*), count(*), count(*), count(*),
+|  count(*))]
 |
 70:NESTED LOOP JOIN [CROSS JOIN, BROADCAST]
 |  join table id: 00
@@ -6400,7 +6506,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=02 plan-id=03 cohort-id=02
-|  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  build expressions:
+|  |  |  household_demographics.hd_demo_sk
 |  |  |
 |  |  113:EXCHANGE [BROADCAST]
 |  |  |
@@ -6414,7 +6521,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=03 plan-id=04 cohort-id=02
-|  |  |  build expressions: time_dim.t_time_sk
+|  |  |  build expressions:
+|  |  |  time_dim.t_time_sk
 |  |  |
 |  |  112:EXCHANGE [BROADCAST]
 |  |  |
@@ -6460,7 +6568,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=06 plan-id=07 cohort-id=03
-|  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  build expressions:
+|  |  |  household_demographics.hd_demo_sk
 |  |  |
 |  |  107:EXCHANGE [BROADCAST]
 |  |  |
@@ -6474,7 +6583,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=07 plan-id=08 cohort-id=03
-|  |  |  build expressions: time_dim.t_time_sk
+|  |  |  build expressions:
+|  |  |  time_dim.t_time_sk
 |  |  |
 |  |  106:EXCHANGE [BROADCAST]
 |  |  |
@@ -6520,7 +6630,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=10 plan-id=11 cohort-id=04
-|  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  build expressions:
+|  |  |  household_demographics.hd_demo_sk
 |  |  |
 |  |  101:EXCHANGE [BROADCAST]
 |  |  |
@@ -6534,7 +6645,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=11 plan-id=12 cohort-id=04
-|  |  |  build expressions: time_dim.t_time_sk
+|  |  |  build expressions:
+|  |  |  time_dim.t_time_sk
 |  |  |
 |  |  100:EXCHANGE [BROADCAST]
 |  |  |
@@ -6580,7 +6692,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=14 plan-id=15 cohort-id=05
-|  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  build expressions:
+|  |  |  household_demographics.hd_demo_sk
 |  |  |
 |  |  95:EXCHANGE [BROADCAST]
 |  |  |
@@ -6594,7 +6707,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=15 plan-id=16 cohort-id=05
-|  |  |  build expressions: time_dim.t_time_sk
+|  |  |  build expressions:
+|  |  |  time_dim.t_time_sk
 |  |  |
 |  |  94:EXCHANGE [BROADCAST]
 |  |  |
@@ -6640,7 +6754,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=18 plan-id=19 cohort-id=06
-|  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  build expressions:
+|  |  |  household_demographics.hd_demo_sk
 |  |  |
 |  |  89:EXCHANGE [BROADCAST]
 |  |  |
@@ -6654,7 +6769,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=19 plan-id=20 cohort-id=06
-|  |  |  build expressions: time_dim.t_time_sk
+|  |  |  build expressions:
+|  |  |  time_dim.t_time_sk
 |  |  |
 |  |  88:EXCHANGE [BROADCAST]
 |  |  |
@@ -6700,7 +6816,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=22 plan-id=23 cohort-id=07
-|  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  build expressions:
+|  |  |  household_demographics.hd_demo_sk
 |  |  |
 |  |  83:EXCHANGE [BROADCAST]
 |  |  |
@@ -6714,7 +6831,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=23 plan-id=24 cohort-id=07
-|  |  |  build expressions: time_dim.t_time_sk
+|  |  |  build expressions:
+|  |  |  time_dim.t_time_sk
 |  |  |
 |  |  82:EXCHANGE [BROADCAST]
 |  |  |
@@ -6761,7 +6879,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=26 plan-id=27 cohort-id=08
-|  |  |  build expressions: household_demographics.hd_demo_sk
+|  |  |  build expressions:
+|  |  |  household_demographics.hd_demo_sk
 |  |  |
 |  |  77:EXCHANGE [BROADCAST]
 |  |  |
@@ -6775,7 +6894,8 @@ PLAN-ROOT SINK
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=27 plan-id=28 cohort-id=08
-|  |  |  build expressions: time_dim.t_time_sk
+|  |  |  build expressions:
+|  |  |  time_dim.t_time_sk
 |  |  |
 |  |  76:EXCHANGE [BROADCAST]
 |  |  |
@@ -6814,7 +6934,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=29 plan-id=30 cohort-id=01
-|  |  build expressions: household_demographics.hd_demo_sk
+|  |  build expressions:
+|  |  household_demographics.hd_demo_sk
 |  |
 |  72:EXCHANGE [BROADCAST]
 |  |
@@ -6828,7 +6949,8 @@ PLAN-ROOT SINK
 |
 |--JOIN BUILD
 |  |  join-table-id=30 plan-id=31 cohort-id=01
-|  |  build expressions: time_dim.t_time_sk
+|  |  build expressions:
+|  |  time_dim.t_time_sk
 |  |
 |  71:EXCHANGE [BROADCAST]
 |  |

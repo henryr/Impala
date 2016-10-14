@@ -23,7 +23,8 @@ order by
   o_orderdate
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_orderkey, round(sum(l_extendedprice * (1 - l_discount)), 5),
+|  o_orderdate, o_shippriority)]
 |
 06:TOP-N [LIMIT=10]
 |  order by: round(sum(l_extendedprice * (1 - l_discount)), 5) DESC, o_orderdate ASC
@@ -54,7 +55,8 @@ PLAN-ROOT SINK
    predicates: l_shipdate > '1995-03-15'
    runtime filters: RF001 -> l.l_orderkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_orderkey, round(sum(l_extendedprice * (1 - l_discount)), 5),
+|  o_orderdate, o_shippriority)]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: round(sum(l_extendedprice * (1 - l_discount)), 5) DESC, o_orderdate ASC
@@ -124,7 +126,8 @@ order by
   o_orderdate
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_orderkey, round(sum(l_extendedprice * (1 - l_discount)), 5),
+|  o_orderdate, o_shippriority)]
 |
 06:TOP-N [LIMIT=10]
 |  order by: round(sum(l_extendedprice * (1 - l_discount)), 5) DESC, o_orderdate ASC
@@ -155,7 +158,8 @@ PLAN-ROOT SINK
    predicates: c.c_mktsegment = 'BUILDING'
    runtime filters: RF001 -> c.c_custkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_orderkey, round(sum(l_extendedprice * (1 - l_discount)), 5),
+|  o_orderdate, o_shippriority)]
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: round(sum(l_extendedprice * (1 - l_discount)), 5) DESC, o_orderdate ASC
@@ -227,7 +231,7 @@ order by
   revenue desc
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(n_name, round(sum(l_extendedprice * (1 - l_discount)), 5))]
 |
 12:TOP-N [LIMIT=100]
 |  order by: round(sum(l_extendedprice * (1 - l_discount)), 5) DESC
@@ -281,7 +285,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=718.94MB
    runtime filters: RF002 -> l_suppkey, RF005 -> l_orderkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(n_name, round(sum(l_extendedprice * (1 - l_discount)), 5))]
 |
 20:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: round(sum(l_extendedprice * (1 - l_discount)), 5) DESC
@@ -381,7 +385,8 @@ where
   and s.s_nationkey = n.n_nationkey
   and n.n_regionkey = r.r_regionkey
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s.s_acctbal, s.s_name, n.n_name, p.p_partkey, ps.ps_supplycost,
+|  p.p_mfgr, s.s_address, s.s_phone, s.s_comment)]
 |
 08:HASH JOIN [INNER JOIN]
 |  hash predicates: n.n_regionkey = r.r_regionkey
@@ -419,7 +424,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=1.33MB
    runtime filters: RF001 -> s.s_nationkey, RF002 -> s.s_suppkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s.s_acctbal, s.s_name, n.n_name, p.p_partkey, ps.ps_supplycost,
+|  p.p_mfgr, s.s_address, s.s_phone, s.s_comment)]
 |
 13:EXCHANGE [UNPARTITIONED]
 |
@@ -485,7 +491,7 @@ order by
   o_orderpriority
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_orderpriority, count(*))]
 |
 04:TOP-N [LIMIT=10]
 |  order by: o_orderpriority ASC
@@ -507,7 +513,7 @@ PLAN-ROOT SINK
    predicates: l_commitdate < l_receiptdate
    runtime filters: RF000 -> l_orderkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_orderpriority, count(*))]
 |
 09:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: o_orderpriority ASC
@@ -551,7 +557,7 @@ from tpch.orders
 group by o_orderpriority
 order by o_orderpriority limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_orderpriority, count(*))]
 |
 04:TOP-N [LIMIT=10]
 |  order by: o_orderpriority ASC
@@ -569,7 +575,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [tpch.orders]
    partitions=1/1 files=1 size=162.56MB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_orderpriority, count(*))]
 |
 09:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: o_orderpriority ASC
@@ -609,7 +615,7 @@ from tpch.orders
 group by o_orderpriority
 order by o_orderpriority limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_orderpriority, count(*))]
 |
 04:TOP-N [LIMIT=10]
 |  order by: o_orderpriority ASC
@@ -629,7 +635,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=162.56MB
    runtime filters: RF000 -> o_orderkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_orderpriority, count(*))]
 |
 09:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: o_orderpriority ASC
@@ -671,7 +677,7 @@ from tpch.customer
   join tpch.nation on (c_nationkey = n_nationkey)
 where n_name = 'x'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 05:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -696,7 +702,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=162.56MB
    runtime filters: RF001 -> o_custkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 10:AGGREGATE [FINALIZE]
 |  output: count:merge(*)
@@ -740,7 +746,7 @@ from tpch.customer
   join tpch.nation on (c_nationkey = n_nationkey)
 where n_name = 'x'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 05:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -762,7 +768,7 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=23.08MB
    runtime filters: RF000 -> c_nationkey
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 09:AGGREGATE [FINALIZE]
 |  output: count:merge(*)
@@ -801,7 +807,7 @@ select c.int_col from functional.alltypestiny a
 cross join functional.alltypestiny b
 cross join functional.alltypes c
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c.int_col)]
 |
 04:NESTED LOOP JOIN [CROSS JOIN]
 |
@@ -826,7 +832,7 @@ right join functional.alltypesagg t4 on (t3.id = t4.id)
 inner join functional.alltypes t5 on (t4.id = t5.id)
 inner join functional.alltypestiny t6 on (t5.id = t6.id)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 11:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -883,7 +889,7 @@ left semi join functional.alltypesagg t4 on (t3.id = t4.id)
 inner join functional.alltypes t5 on (t3.id = t5.id)
 right join functional.alltypestiny t6 on (t5.id = t6.id)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 13:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -939,7 +945,7 @@ inner join functional.alltypessmall t4 on (t3.id = t4.id)
 left semi join functional.alltypes t5 on (t4.id = t5.id)
 inner join functional.alltypestiny t6 on (t3.id = t6.id)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 13:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -996,7 +1002,7 @@ inner join functional.alltypessmall t4 on (t3.id = t4.id)
 left anti join functional.alltypes t5 on (t4.id = t5.id)
 inner join functional.alltypestiny t6 on (t3.id = t6.id)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 13:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -1058,7 +1064,7 @@ on (t2.id = t3.id)
 inner join functional.alltypestiny t4
 on (t3.id = t4.id)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 12:HASH JOIN [INNER JOIN]
 |  hash predicates: t3.id = t4.id
@@ -1123,7 +1129,7 @@ on (t2.id = t3.id)
 inner join functional.alltypestiny t4
 on (t3.id = t4.id)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 12:HASH JOIN [INNER JOIN]
 |  hash predicates: t3.id = t4.id
@@ -1187,7 +1193,7 @@ inner join functional.alltypestiny t4
 on (t2.id = t4.id)
 where t2.month = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 12:HASH JOIN [INNER JOIN]
 |  hash predicates: b.id = t4.id
@@ -1253,7 +1259,7 @@ inner join functional.alltypestiny t4
 on (t2.id = t4.id)
 where t2.month = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 12:HASH JOIN [INNER JOIN]
 |  hash predicates: b.id = t4.id
@@ -1318,7 +1324,7 @@ LEFT SEMI JOIN
 ON t4.bigint_col = `$a$3`.`$c$1`
 WHERE `$a$2`.`$c$1` > t4.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(t4.tinyint_col))]
 |
 10:AGGREGATE [FINALIZE]
 |  output: sum(t4.tinyint_col)
@@ -1366,7 +1372,7 @@ left outer join functional.alltypessmall b
 # both predicates should appear in the 'other predicates'
 where a.int_col = b.int_col and b.bigint_col < a.tinyint_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 02:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: b.id = a.id
@@ -1391,7 +1397,7 @@ right outer join functional.alltypes c
 where a.int_col = b.int_col and b.bigint_col < a.tinyint_col
   and b.tinyint_col = c.tinyint_col and b.bool_col != c.bool_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 04:HASH JOIN [LEFT OUTER JOIN]
 |  hash predicates: c.id = b.id
@@ -1423,7 +1429,7 @@ right outer join functional.alltypes c
 # all predicates should appear in the 'other predicates'
 where b.tinyint_col = c.tinyint_col and b.bool_col != c.bool_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 04:HASH JOIN [LEFT OUTER JOIN]
 |  hash predicates: c.id = b.id
@@ -1455,7 +1461,7 @@ select count(1) from
 left outer join functional.alltypestiny t3
 on (t3.string_col = t1.string_col_1 and t3.date_string_col = t1.string_col_2)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(1))]
 |
 05:AGGREGATE [FINALIZE]
 |  output: count(1)
@@ -1491,7 +1497,9 @@ where timestamp_col = now()) b
 on (a.id = b.id)
 and a.date_string_col = ''
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 02:HASH JOIN [LEFT SEMI JOIN]
 |  hash predicates: a.id = functional.alltypes.id
@@ -1513,7 +1521,9 @@ where date_string_col = '') b
 on (a.id = b.id)
 and a.timestamp_col = now()
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 02:HASH JOIN [RIGHT SEMI JOIN]
 |  hash predicates: functional.alltypes.id = a.id
@@ -1536,7 +1546,9 @@ where timestamp_col <=> now()) b
 on (a.id = b.id)
 and a.date_string_col <=> ''
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 02:HASH JOIN [LEFT SEMI JOIN]
 |  hash predicates: a.id = functional.alltypes.id
@@ -1558,7 +1570,9 @@ where date_string_col <=> '') b
 on (a.id = b.id)
 and a.timestamp_col <=> now()
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 02:HASH JOIN [RIGHT SEMI JOIN]
 |  hash predicates: functional.alltypes.id = a.id

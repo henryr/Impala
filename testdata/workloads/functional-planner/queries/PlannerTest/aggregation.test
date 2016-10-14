@@ -3,7 +3,8 @@ select count(*), count(tinyint_col), min(tinyint_col), max(tinyint_col), sum(tin
 avg(tinyint_col)
 from functional.alltypesagg
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*), count(tinyint_col), min(tinyint_col), max(tinyint_col),
+|  sum(tinyint_col), avg(tinyint_col))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*), count(tinyint_col), min(tinyint_col), max(tinyint_col), sum(tinyint_col), avg(tinyint_col)
@@ -11,7 +12,8 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*), count(tinyint_col), min(tinyint_col), max(tinyint_col),
+|  sum(tinyint_col), avg(tinyint_col))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: count:merge(*), count:merge(tinyint_col), min:merge(tinyint_col), max:merge(tinyint_col), sum:merge(tinyint_col), avg:merge(tinyint_col)
@@ -30,7 +32,8 @@ avg(tinyint_col)
 from functional.alltypesagg
 group by 2, 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(tinyint_col, bigint_col, count(*), min(tinyint_col), max(tinyint_col),
+|  sum(tinyint_col), avg(tinyint_col))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*), min(tinyint_col), max(tinyint_col), sum(tinyint_col), avg(tinyint_col)
@@ -39,7 +42,8 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(tinyint_col, bigint_col, count(*), min(tinyint_col), max(tinyint_col),
+|  sum(tinyint_col), avg(tinyint_col))]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -62,7 +66,7 @@ from functional.testtbl
 having count(id) > 0
 order by avg(zip) limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(avg(id))]
 |
 02:TOP-N [LIMIT=10]
 |  order by: avg(zip) ASC
@@ -74,7 +78,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.testtbl]
    partitions=1/1 files=0 size=0B
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(avg(id))]
 |
 02:TOP-N [LIMIT=10]
 |  order by: avg(zip) ASC
@@ -97,7 +101,7 @@ from functional.alltypesagg
 group by int_col + int_col, int_col * int_col, int_col + int_col
 having (int_col * int_col) < 0 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col + int_col, int_col * int_col)]
 |
 01:AGGREGATE [FINALIZE]
 |  group by: int_col + int_col, int_col * int_col
@@ -107,7 +111,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col + int_col, int_col * int_col)]
 |
 04:EXCHANGE [UNPARTITIONED]
 |  limit: 10
@@ -132,7 +136,7 @@ functional.alltypes t1 inner join functional.alltypestiny t2
 group by t1.tinyint_col, t2.smallint_col
 having count(t2.int_col) = count(t1.bigint_col)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: count(*), count(t2.int_col), count(t1.bigint_col)
@@ -159,7 +163,7 @@ select 1 from
    group by int_col) t
 where t.x > 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 01:AGGREGATE [FINALIZE]
 |  output: avg(bigint_col)
@@ -177,7 +181,7 @@ select count(*) from
    select * from functional.alltypessmall) t
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -191,7 +195,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 05:AGGREGATE [FINALIZE]
 |  output: count:merge(*)
@@ -218,7 +222,7 @@ select count(*) from
 group by t.bigint_col
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -233,7 +237,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 06:EXCHANGE [UNPARTITIONED]
 |  limit: 10
@@ -265,7 +269,7 @@ from
    select * from functional.alltypessmall) t
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(int_col))]
 |
 04:AGGREGATE [FINALIZE]
 |  output: count(int_col)
@@ -282,7 +286,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(int_col))]
 |
 08:AGGREGATE [FINALIZE]
 |  output: count:merge(int_col)
@@ -318,7 +322,7 @@ from
 group by t.bigint_col
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(int_col))]
 |
 04:AGGREGATE [FINALIZE]
 |  output: count(int_col)
@@ -336,7 +340,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(int_col))]
 |
 07:EXCHANGE [UNPARTITIONED]
 |  limit: 10
@@ -370,7 +374,7 @@ from
    select * from functional.alltypessmall) t
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(zeroifnull(count(smallint_col)), count(int_col))]
 |
 04:AGGREGATE [FINALIZE]
 |  output: count(int_col), count:merge(smallint_col)
@@ -388,7 +392,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(zeroifnull(count(smallint_col)), count(int_col))]
 |
 08:AGGREGATE [FINALIZE]
 |  output: count:merge(int_col), count:merge(smallint_col)
@@ -426,7 +430,7 @@ from
 group by t.bigint_col
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(smallint_col), count(int_col))]
 |
 04:AGGREGATE [FINALIZE]
 |  output: count(int_col), count:merge(smallint_col)
@@ -445,7 +449,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(smallint_col), count(int_col))]
 |
 07:EXCHANGE [UNPARTITIONED]
 |  limit: 10
@@ -482,7 +486,7 @@ from
 group by t.bigint_col
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(smallint_col), count(int_col))]
 |
 05:AGGREGATE [FINALIZE]
 |  output: count(int_col), count:merge(smallint_col)
@@ -504,7 +508,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(smallint_col), count(int_col))]
 |
 10:EXCHANGE [UNPARTITIONED]
 |  limit: 10
@@ -543,7 +547,7 @@ PLAN-ROOT SINK
 # test that aggregations are not placed below an unpartitioned exchange with a limit
 select count(*) from (select * from functional.alltypes limit 10) t
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -552,7 +556,7 @@ PLAN-ROOT SINK
    partitions=24/24 files=24 size=478.45KB
    limit: 10
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -570,7 +574,7 @@ select count(*) from
    union all
    (select * from functional.alltypessmall) limit 10) t
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -584,7 +588,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -611,7 +615,7 @@ select * from (
   limit 2) v
 limit 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(cnt))]
 |
 06:AGGREGATE [FINALIZE]
 |  output: count(cnt)
@@ -638,7 +642,7 @@ PLAN-ROOT SINK
    partitions=11/11 files=11 size=814.73KB
    runtime filters: RF000 -> t1.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(cnt))]
 |
 06:AGGREGATE [FINALIZE]
 |  output: count(cnt)
@@ -689,7 +693,8 @@ select * from
    group by 1, 2, 3, 4) v
 where v.a = v.b and v.b = v.c and v.c = v.d and v.a = v.c and v.a = v.d
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(tinyint_col, smallint_col, int_col + int_col, coalesce(bigint_col,
+|  year))]
 |
 01:AGGREGATE [FINALIZE]
 |  group by: tinyint_col, smallint_col, int_col + int_col, coalesce(bigint_col, year)
@@ -705,7 +710,7 @@ select cnt from
    from functional.alltypestiny
    group by bool_col, x) v
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -720,7 +725,7 @@ select cnt from
    from functional.alltypestiny
    group by bool_col, x) v
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(int_col))]
 |
 02:AGGREGATE [FINALIZE]
 |  output: count(int_col)
@@ -735,7 +740,7 @@ PLAN-ROOT SINK
 # test simple group_concat with distinct
 select group_concat(distinct string_col) from functional.alltypesagg
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(group_concat(string_col))]
 |
 02:AGGREGATE [FINALIZE]
 |  output: group_concat(string_col)
@@ -746,7 +751,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(group_concat(string_col))]
 |
 06:AGGREGATE [FINALIZE]
 |  output: group_concat:merge(string_col)
@@ -772,7 +777,7 @@ select day, group_concat(distinct string_col)
 from (select * from functional.alltypesagg where id % 100 = day order by id limit 99999) a
 group by day
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(day, group_concat(string_col))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: group_concat(string_col)
@@ -788,7 +793,7 @@ PLAN-ROOT SINK
    partitions=11/11 files=11 size=814.73KB
    predicates: id % 100 = day
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(day, group_concat(string_col))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: group_concat(string_col)
@@ -813,7 +818,8 @@ select count(distinct cast(timestamp_col as string)),
 group_concat(distinct cast(timestamp_col as string))
 from functional.alltypesagg group by year
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(CAST(timestamp_col AS STRING)), group_concat(CAST(timestamp_col
+|  AS STRING)))]
 |
 02:AGGREGATE [FINALIZE]
 |  output: count(CAST(timestamp_col AS STRING)), group_concat(CAST(timestamp_col AS STRING))
@@ -825,7 +831,8 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(CAST(timestamp_col AS STRING)), group_concat(CAST(timestamp_col
+|  AS STRING)))]
 |
 05:EXCHANGE [UNPARTITIONED]
 |
@@ -847,7 +854,7 @@ PLAN-ROOT SINK
 # test group_concat distinct with other non-distinct aggregate functions
  select group_concat(distinct string_col), count(*) from functional.alltypesagg
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(group_concat(string_col), zeroifnull(count(*)))]
 |
 02:AGGREGATE [FINALIZE]
 |  output: group_concat(string_col), count:merge(*)
@@ -859,7 +866,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(group_concat(string_col), zeroifnull(count(*)))]
 |
 06:AGGREGATE [FINALIZE]
 |  output: group_concat:merge(string_col), count:merge(*)
@@ -886,7 +893,7 @@ PLAN-ROOT SINK
 select group_concat(distinct string_col, '-'), sum(int_col), count(distinct string_col)
 from functional.alltypesagg
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(group_concat(string_col, '-'), sum(int_col), count(string_col))]
 |
 02:AGGREGATE [FINALIZE]
 |  output: group_concat(string_col, '-'), count(string_col), sum:merge(int_col)
@@ -898,7 +905,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(group_concat(string_col, '-'), sum(int_col), count(string_col))]
 |
 06:AGGREGATE [FINALIZE]
 |  output: group_concat:merge(string_col, '-'), count:merge(string_col), sum:merge(int_col)
@@ -927,7 +934,8 @@ select month, year, count(*), count(distinct date_string_col),
 group_concat(distinct date_string_col, '-') from functional.alltypesagg
 group by month, year
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(month, year, count(*), count(date_string_col),
+|  group_concat(date_string_col, '-'))]
 |
 02:AGGREGATE [FINALIZE]
 |  output: count(date_string_col), group_concat(date_string_col, '-'), count:merge(*)
@@ -940,7 +948,8 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(month, year, count(*), count(date_string_col),
+|  group_concat(date_string_col, '-'))]
 |
 05:EXCHANGE [UNPARTITIONED]
 |
@@ -965,7 +974,8 @@ PLAN-ROOT SINK
 select group_concat(distinct string_col), group_concat(distinct string_col, '-'),
 group_concat(distinct string_col, '---')  from functional.alltypesagg
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(group_concat(string_col), group_concat(string_col, '-'),
+|  group_concat(string_col, '---'))]
 |
 02:AGGREGATE [FINALIZE]
 |  output: group_concat(string_col), group_concat(string_col, '-'), group_concat(string_col, '---')
@@ -976,7 +986,8 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(group_concat(string_col), group_concat(string_col, '-'),
+|  group_concat(string_col, '---'))]
 |
 06:AGGREGATE [FINALIZE]
 |  output: group_concat:merge(string_col), group_concat:merge(string_col, '-'), group_concat:merge(string_col, '---')
@@ -1000,7 +1011,7 @@ PLAN-ROOT SINK
 # IMPALA-852: Aggregation only in the HAVING clause.
 select 1 from functional.alltypestiny having count(*) > 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -1019,7 +1030,7 @@ group by 1
 having count(*) < 150000
 limit 1000000
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_custkey, count(*))]
 |
 06:EXCHANGE [UNPARTITIONED]
 |  limit: 1000000
@@ -1055,7 +1066,7 @@ select col from (
 where col > 50
 limit 50
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(c_custkey))]
 |
 08:AGGREGATE [FINALIZE]
 |  output: count:merge(c_custkey)
@@ -1092,7 +1103,7 @@ select straight_join c_custkey, count(distinct c_custkey)
 from tpch_parquet.orders inner join [shuffle] tpch_parquet.customer on c_custkey = o_custkey
 group by 1
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_custkey, count(c_custkey))]
 |
 07:EXCHANGE [UNPARTITIONED]
 |
@@ -1131,7 +1142,7 @@ group by 1, 2
 having count(*) > 10
 limit 10
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_orderkey, l_returnflag, count(*))]
 |
 09:EXCHANGE [UNPARTITIONED]
 |  limit: 10

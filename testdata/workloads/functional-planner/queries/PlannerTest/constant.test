@@ -1,11 +1,11 @@
 select 1 + 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1 + 1)]
 |
 00:UNION
    constant-operands=1
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1 + 1)]
 |
 00:UNION
    constant-operands=1

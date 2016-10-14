@@ -4,7 +4,9 @@ from functional.alltypes a
 where a.int_col = a.tinyint_col and
       a.bool_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -16,7 +18,9 @@ from functional.alltypes a
 where a.string_col LIKE '%a%' and
       a.int_col = a.tinyint_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -28,7 +32,9 @@ from functional.alltypes a
 where (a.int_col = a.tinyint_col or a.int_col = a.smallint_col) and
       a.int_col = a.bigint_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -39,7 +45,9 @@ select *
 from functional.alltypes a
 where a.int_col + 5 = a.bigint_col - 10 and a.int_col = a.tinyint_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -51,7 +59,9 @@ from functional.alltypes a
 where a.int_col = a.tinyint_col and
       (case a.int_col when 0 then true when 1 then true when 2 then true else false end)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -63,7 +73,9 @@ select *
 from functional.alltypes a
 where a.date_string_col LIKE 'a%a' and a.date_string_col LIKE '%a%'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -74,7 +86,9 @@ select *
 from functional.alltypes a
 where a.int_col IN (1, 2, 3, 4, 5, 6, 7, 8, 9) and a.int_col = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -85,7 +99,9 @@ select *
 from functional.alltypes a
 where a.timestamp_col > '2000-01-01' and a.int_col = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -98,7 +114,9 @@ where a.string_col = "looooooooooooooooong string" and
       a.string_col = "medium string" and
       a.string_col = "a"
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -110,7 +128,9 @@ from functional.alltypes a
 where a.timestamp_col - interval 1 day > '2000-01-01' and
       a.timestamp_col < '2020-01-01'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -121,7 +141,9 @@ select *
 from functional.alltypes a
 where ceil(a.double_col) > 0 and a.double_col > 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -132,7 +154,9 @@ select *
 from functional.alltypes a
 where cast(a.int_col as double) > 0 and a.int_col > 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -143,7 +167,9 @@ select *
 from functional.alltypes a
 where a.string_col = "string" and a.int_col is null
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -157,7 +183,9 @@ where a.string_col LIKE '%a%' and
       (a.int_col = a.tinyint_col or a.int_col = a.smallint_col) and
       a.int_col = a.bigint_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
@@ -169,7 +197,9 @@ select *
 from functional.alltypes a
 where a.int_col = 0 and a.id = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB

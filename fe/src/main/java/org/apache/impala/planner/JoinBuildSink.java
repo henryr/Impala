@@ -82,7 +82,7 @@ public class JoinBuildSink extends DataSink {
   protected String getExplainStringImpl(String prefix, String detailPrefix,
       TExplainLevel detailLevel) {
     StringBuilder output = new StringBuilder();
-    output.append(String.format("%s%s\n", prefix, "JOIN BUILD"));
+    output.append("JOIN BUILD\n");
     if (detailLevel.ordinal() > TExplainLevel.MINIMAL.ordinal()) {
       output.append(
           detailPrefix + "join-table-id=" + joinTableId_.toString()

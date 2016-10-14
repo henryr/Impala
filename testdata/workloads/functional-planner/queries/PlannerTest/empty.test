@@ -5,14 +5,20 @@ left outer join functional.alltypes t2
 on t1.id = t2.id
 where false
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t2.id)]
 |
 00:EMPTYSET
 ====
 # HBase scan turns into empty-set node due to a constant conjunct.
 select * from functional_hbase.alltypessmall where false
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional_hbase.alltypessmall.id,
+|  functional_hbase.alltypessmall.bigint_col, functional_hbase.alltypessmall.bool_col,
+|  functional_hbase.alltypessmall.date_string_col, functional_hbase.alltypessmall.double_col,
+|  functional_hbase.alltypessmall.float_col, functional_hbase.alltypessmall.int_col,
+|  functional_hbase.alltypessmall.month, functional_hbase.alltypessmall.smallint_col,
+|  functional_hbase.alltypessmall.string_col, functional_hbase.alltypessmall.timestamp_col,
+|  functional_hbase.alltypessmall.tinyint_col, functional_hbase.alltypessmall.year)]
 |
 00:EMPTYSET
 ====
@@ -23,7 +29,11 @@ inner join functional.alltypestiny b
 on a.id = b.id
 where length("a") > 7
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.timestamp_col, a.string_col, a.dec_col1, a.dec_col2,
+|  a.dec_col3, a.dec_col4, a.dec_col5, b.id, b.bool_col, b.tinyint_col, b.smallint_col, b.int_col,
+|  b.bigint_col, b.float_col, b.double_col, b.date_string_col, b.string_col, b.timestamp_col, b.year,
+|  b.month)]
 |
 00:EMPTYSET
 ====
@@ -33,7 +43,11 @@ from functional.alltypestiny t1
 inner join functional.alltypes t2
 on (t1.id = t2.id and (false or false))
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t1.bool_col, t1.tinyint_col, t1.smallint_col, t1.int_col,
+|  t1.bigint_col, t1.float_col, t1.double_col, t1.date_string_col, t1.string_col, t1.timestamp_col,
+|  t1.year, t1.month, t2.id, t2.bool_col, t2.tinyint_col, t2.smallint_col, t2.int_col, t2.bigint_col,
+|  t2.float_col, t2.double_col, t2.date_string_col, t2.string_col, t2.timestamp_col, t2.year,
+|  t2.month)]
 |
 00:EMPTYSET
 ====
@@ -43,7 +57,7 @@ select count(int_col), avg(double_col), count(*)
 from functional.alltypes
 where null
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(int_col), avg(double_col), count(*))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(int_col), avg(double_col), count(*)
@@ -57,7 +71,7 @@ from functional.alltypestiny t1
 inner join functional.alltypes t2
 on (t1.id = t2.id and (false or false))
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -73,7 +87,7 @@ on t1.id = t2.id
 group by t1.int_col
 having ifnull(null, false)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.int_col, count(*))]
 |
 00:EMPTYSET
 ====
@@ -88,7 +102,7 @@ inner join
    where 1 + 3 > 10) e
 on e.id = f.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, f.id)]
 |
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: f.id = t1.id
@@ -107,7 +121,8 @@ select * from functional.alltypes where "abc" = "cde"
 union all
 select * from functional.alltypestiny
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -128,7 +143,10 @@ full outer join
    where null) t2
 on a.id = t2.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month, id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col,
+|  date_string_col, string_col, timestamp_col, year, month)]
 |
 02:HASH JOIN [FULL OUTER JOIN]
 |  hash predicates: a.id = id
@@ -145,7 +163,10 @@ from functional.alltypessmall a
 left outer join functional.alltypestiny b
 on (a.id = b.id and 1 + 1 > 10)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month, b.id, b.bool_col, b.tinyint_col, b.smallint_col, b.int_col, b.bigint_col, b.float_col,
+|  b.double_col, b.date_string_col, b.string_col, b.timestamp_col, b.year, b.month)]
 |
 02:HASH JOIN [LEFT OUTER JOIN]
 |  hash predicates: a.id = b.id
@@ -164,7 +185,10 @@ from functional.alltypessmall a
 right outer join functional.alltypestiny b
 on (a.id = b.id and !true)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month, b.id, b.bool_col, b.tinyint_col, b.smallint_col, b.int_col, b.bigint_col, b.float_col,
+|  b.double_col, b.date_string_col, b.string_col, b.timestamp_col, b.year, b.month)]
 |
 02:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: a.id = b.id
@@ -185,7 +209,10 @@ from functional.alltypessmall a
 full outer join functional.alltypestiny b
 on (a.id = b.id and null = "abc")
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month, b.id, b.bool_col, b.tinyint_col, b.smallint_col, b.int_col, b.bigint_col, b.float_col,
+|  b.double_col, b.date_string_col, b.string_col, b.timestamp_col, b.year, b.month)]
 |
 02:HASH JOIN [FULL OUTER JOIN]
 |  hash predicates: a.id = b.id
@@ -204,7 +231,7 @@ left outer join functional.alltypes t2
 on t1.id = t2.id
 limit 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, t2.id)]
 |
 00:EMPTYSET
 ====
@@ -213,7 +240,7 @@ select count(int_col), avg(double_col), count(*)
 from functional.alltypes
 limit 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(int_col), avg(double_col), count(*))]
 |
 00:EMPTYSET
 ====
@@ -228,7 +255,7 @@ inner join
    limit 0) e
 on e.id = f.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t1.id, f.id)]
 |
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: f.id = t1.id
@@ -247,7 +274,8 @@ select * from functional.alltypes limit 0
 union all
 select * from functional.alltypestiny
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -265,7 +293,8 @@ union all
 (select * from functional.alltypestiny)
 limit 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:EMPTYSET
 ====
@@ -277,7 +306,7 @@ w1 where w1.c1 is null
 union all
 select int_col from functional.alltypesagg
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(w1.c1))]
 |
 00:UNION
 |
@@ -292,7 +321,7 @@ PLAN-ROOT SINK
 # IMPALA-1234: Analytic with constant empty result set failed precondition check in FE
 select MIN(int_col) OVER () FROM functional.alltypes limit 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(min(int_col))]
 |
 00:EMPTYSET
 ====
@@ -300,7 +329,13 @@ PLAN-ROOT SINK
 insert into functional.alltypes partition(year, month)
 select * from functional.alltypes where 1 = 0
 ---- PLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false,
+|  PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month),
+|  OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col, functional.alltypes.tinyint_col,
+|  functional.alltypes.smallint_col, functional.alltypes.int_col, functional.alltypes.bigint_col,
+|  functional.alltypes.float_col, functional.alltypes.double_col, functional.alltypes.date_string_col,
+|  functional.alltypes.string_col, functional.alltypes.timestamp_col, functional.alltypes.year,
+|  functional.alltypes.month)]
 |  partitions=24
 |
 00:EMPTYSET
@@ -310,7 +345,13 @@ with t as (select * from functional.alltypes where coalesce(NULL) > 10)
 insert into functional.alltypes partition(year, month)
 select * from t
 ---- PLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false,
+|  PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month),
+|  OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col, functional.alltypes.tinyint_col,
+|  functional.alltypes.smallint_col, functional.alltypes.int_col, functional.alltypes.bigint_col,
+|  functional.alltypes.float_col, functional.alltypes.double_col, functional.alltypes.date_string_col,
+|  functional.alltypes.string_col, functional.alltypes.timestamp_col, functional.alltypes.year,
+|  functional.alltypes.month)]
 |  partitions=24
 |
 00:EMPTYSET
@@ -319,7 +360,7 @@ WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(functional.
 create table test_1860 as
 select * from (select 1 from functional.alltypes limit 0) v
 ---- PLAN
-WRITE TO HDFS [default.test_1860, OVERWRITE=false]
+WRITE TO HDFS [default.test_1860, OVERWRITE=false, OUTPUT-EXPRS=(1)]
 |  partitions=1
 |
 00:EMPTYSET
@@ -331,7 +372,7 @@ from
   (select id, int_col, bigint_col from functional.alltypestiny) T
 where false
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(T.id), count(T.int_col))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: sum(id), count(int_col)
@@ -346,7 +387,7 @@ from
   (select id, int_col from functional.alltypestiny) T2 on (T1.id = T2.id)
 where T1.bigint_col < 10 and 1 > 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(T1.id + T2.int_col))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: sum(id + int_col)
@@ -361,7 +402,7 @@ from
   functional.alltypessmall T2 on T1.id = T2.id
 where T2.bigint_col < 10 and false
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(T1.int_col))]
 |
 02:AGGREGATE [FINALIZE]
 |  output: count(T1.int_col)
@@ -384,7 +425,7 @@ union all
 select coalesce(10.4, int_col)
 from functional.alltypes where false
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(lead(-496, 81, NULL) OVER(...))]
 |
 02:UNION
 |
@@ -407,7 +448,7 @@ select 1
 union all select bigint_col
 from functional.alltypestiny
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(lead(-496, 81, NULL) OVER(...))]
 |
 02:UNION
 |  constant-operands=1
@@ -425,7 +466,7 @@ PLAN-ROOT SINK
 select * from (select 10 as i, 2 as j, '2013' as s) as t
 where t.i < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(10, 2, '2013')]
 |
 00:EMPTYSET
 ====
@@ -435,7 +476,8 @@ insert into functional.alltypes (id) partition(year,month)
 select * from (select 10 as i, 2 as j, 2013 as s) as t
 where t.i < 10
 ---- PLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2,2013)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2,2013), OUTPUT-EXPRS=(10,
+|  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 2013)]
 |  partitions=1
 |
 00:EMPTYSET
@@ -458,7 +500,7 @@ left outer join
       where null) nv) v4
 where c_custkey < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_custkey, count(*), o_orderkey, l_linenumber, count(*))]
 |
 01:SUBPLAN
 |
@@ -511,7 +553,7 @@ from tpch_nested_parquet.customer c,
  ) v1
 where c_custkey = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_custkey, o_orderkey)]
 |
 01:SUBPLAN
 |
@@ -535,7 +577,7 @@ PLAN-ROOT SINK
 # IMPALA-2215: Having clause without aggregation.
 select 1 from (select 1) v having 1 > 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 00:EMPTYSET
 ====

@@ -22,7 +22,9 @@ order by
   l_returnflag,
   l_linestatus
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_returnflag, l_linestatus, sum(l_quantity), sum(l_extendedprice),
+|  sum(l_extendedprice * (1 - l_discount)), sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)),
+|  avg(l_quantity), avg(l_extendedprice), avg(l_discount), count(*))]
 |
 02:SORT
 |  order by: l_returnflag ASC, l_linestatus ASC
@@ -82,7 +84,8 @@ order by
   p_partkey
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone,
+|  s_comment)]
 |
 18:TOP-N [LIMIT=100]
 |  order by: s_acctbal DESC, n_name ASC, s_name ASC, p_partkey ASC
@@ -185,7 +188,8 @@ order by
   o_orderdate
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_orderkey, sum(l_extendedprice * (1 - l_discount)), o_orderdate,
+|  o_shippriority)]
 |
 06:TOP-N [LIMIT=10]
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC, o_orderdate ASC
@@ -240,7 +244,7 @@ group by
 order by
   o_orderpriority
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_orderpriority, count(*))]
 |
 04:SORT
 |  order by: o_orderpriority ASC
@@ -289,7 +293,7 @@ group by
 order by
   revenue desc
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(n_name, sum(l_extendedprice * (1 - l_discount)))]
 |
 12:SORT
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC
@@ -355,7 +359,7 @@ where
   and l_discount between 0.05 and 0.07
   and l_quantity < 24
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice * l_discount))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: sum(tpch.lineitem.l_extendedprice * tpch.lineitem.l_discount)
@@ -405,7 +409,7 @@ order by
   cust_nation,
   l_year
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(supp_nation, cust_nation, l_year, sum(volume))]
 |
 12:SORT
 |  order by: supp_nation ASC, cust_nation ASC, l_year ASC
@@ -498,7 +502,8 @@ group by
 order by
   o_year
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(o_year, sum(CASE WHEN nation = 'BRAZIL' THEN volume ELSE 0 END) /
+|  sum(volume))]
 |
 16:SORT
 |  order by: o_year ASC
@@ -601,7 +606,7 @@ order by
   nation,
   o_year desc
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(nation, o_year, sum(amount))]
 |
 12:SORT
 |  order by: nation ASC, o_year DESC
@@ -688,7 +693,8 @@ order by
   revenue desc
 limit 20
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_custkey, c_name, sum(l_extendedprice * (1 - l_discount)), c_acctbal,
+|  n_name, c_address, c_phone, c_comment)]
 |
 08:TOP-N [LIMIT=20]
 |  order by: sum(l_extendedprice * (1 - l_discount)) DESC
@@ -761,7 +767,7 @@ where
 order by
   value desc
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(ps_partkey, value)]
 |
 13:SORT
 |  order by: value DESC
@@ -847,7 +853,9 @@ group by
 order by
   l_shipmode
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_shipmode, sum(CASE WHEN o_orderpriority = '1-URGENT' OR
+|  o_orderpriority = '2-HIGH' THEN 1 ELSE 0 END), sum(CASE WHEN o_orderpriority != '1-URGENT' AND
+|  o_orderpriority != '2-HIGH' THEN 1 ELSE 0 END))]
 |
 04:SORT
 |  order by: l_shipmode ASC
@@ -891,7 +899,7 @@ order by
   custdist desc,
   c_count desc
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_count, count(*))]
 |
 05:SORT
 |  order by: count(*) DESC, c_count DESC
@@ -932,7 +940,8 @@ where
   and l_shipdate >= '1995-09-01'
   and l_shipdate < '1995-10-01'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(100.00 * sum(CASE WHEN p_type LIKE 'PROMO%' THEN l_extendedprice * (1
+|  - l_discount) ELSE 0.0 END) / sum(l_extendedprice * (1 - l_discount)))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: sum(CASE WHEN tpch.part.p_type LIKE 'PROMO%' THEN tpch.lineitem.l_extendedprice * (1 - tpch.lineitem.l_discount) ELSE 0.0 END), sum(tpch.lineitem.l_extendedprice * (1 - tpch.lineitem.l_discount))
@@ -982,7 +991,7 @@ where
 order by
   s_suppkey
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_suppkey, s_name, s_address, s_phone, total_revenue)]
 |
 08:SORT
 |  order by: s_suppkey ASC
@@ -1050,7 +1059,7 @@ order by
   p_type,
   p_size
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(p_brand, p_type, p_size, count(ps_suppkey))]
 |
 07:SORT
 |  order by: count(ps_suppkey) DESC, p_brand ASC, p_type ASC, p_size ASC
@@ -1101,7 +1110,7 @@ where
       l_partkey = p_partkey
   )
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice) / 7.0)]
 |
 06:AGGREGATE [FINALIZE]
 |  output: sum(tpch.lineitem.l_extendedprice)
@@ -1168,7 +1177,8 @@ order by
   o_orderdate
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice,
+|  sum(l_quantity))]
 |
 09:TOP-N [LIMIT=100]
 |  order by: o_totalprice DESC, o_orderdate ASC
@@ -1246,7 +1256,7 @@ where
     )
   )
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(sum(l_extendedprice * (1 - l_discount)))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: sum(tpch.lineitem.l_extendedprice * (1 - tpch.lineitem.l_discount))
@@ -1303,7 +1313,7 @@ where
 order by
   s_name
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_name, s_address)]
 |
 10:SORT
 |  order by: s_name ASC
@@ -1393,7 +1403,7 @@ order by
   s_name
 limit 100
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(s_name, count(*))]
 |
 12:TOP-N [LIMIT=100]
 |  order by: count(*) DESC, s_name ASC
@@ -1485,7 +1495,7 @@ group by
 order by
   cntrycode
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(cntrycode, count(*), sum(c_acctbal))]
 |
 07:SORT
 |  order by: cntrycode ASC

@@ -6,7 +6,12 @@ right outer join functional.alltypesagg c
   on a.smallint_col >= c.smallint_col
 where a.id < 10 and c.bigint_col = 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month, b.id, b.bool_col, b.tinyint_col, b.smallint_col, b.int_col, b.bigint_col, b.float_col,
+|  b.double_col, b.date_string_col, b.string_col, b.timestamp_col, b.year, b.month, c.id, c.bool_col,
+|  c.tinyint_col, c.smallint_col, c.int_col, c.bigint_col, c.float_col, c.double_col,
+|  c.date_string_col, c.string_col, c.timestamp_col, c.year, c.month, c.day)]
 |
 04:NESTED LOOP JOIN [RIGHT OUTER JOIN]
 |  join predicates: a.smallint_col >= c.smallint_col
@@ -36,7 +41,9 @@ right semi join functional.alltypesagg d
   on c.tinyint_col < d.bigint_col
 where d.bigint_col < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(d.id, d.bool_col, d.tinyint_col, d.smallint_col, d.int_col,
+|  d.bigint_col, d.float_col, d.double_col, d.date_string_col, d.string_col, d.timestamp_col, d.year,
+|  d.month, d.day)]
 |
 04:NESTED LOOP JOIN [RIGHT SEMI JOIN]
 |  join predicates: c.tinyint_col < d.bigint_col
@@ -66,7 +73,14 @@ full outer join functional.alltypes d
   on c.int_col > d.int_col
 where a.bigint_col != c.bigint_col and a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month, b.id, b.bool_col, b.tinyint_col, b.smallint_col, b.int_col, b.bigint_col, b.float_col,
+|  b.double_col, b.date_string_col, b.string_col, b.timestamp_col, b.year, b.month, c.id, c.bool_col,
+|  c.tinyint_col, c.smallint_col, c.int_col, c.bigint_col, c.float_col, c.double_col,
+|  c.date_string_col, c.string_col, c.timestamp_col, c.year, c.month, c.day, d.id, d.bool_col,
+|  d.tinyint_col, d.smallint_col, d.int_col, d.bigint_col, d.float_col, d.double_col,
+|  d.date_string_col, d.string_col, d.timestamp_col, d.year, d.month)]
 |
 06:NESTED LOOP JOIN [FULL OUTER JOIN]
 |  join predicates: c.int_col > d.int_col
@@ -99,7 +113,7 @@ from functional.alltypestiny a right anti join functional.alltypessmall b
   on a.id < b.id
 where b.int_col = 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -124,7 +138,7 @@ right semi join functional.alltypes d on c.tinyint_col < d.tinyint_col
 right anti join functional.alltypesnopart e on d.tinyint_col > e.tinyint_col
 where e.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 09:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -168,7 +182,7 @@ right semi join functional.alltypes d on c.tinyint_col < d.tinyint_col
 right anti join functional.alltypesnopart e on d.tinyint_col > e.tinyint_col
 where e.id < 10
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 15:AGGREGATE [FINALIZE]
 |  output: count:merge(*)

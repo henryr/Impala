@@ -8,7 +8,9 @@ select * from
   on (a.month = b.month)
 where b.month = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(year, month, b.id, b.bool_col, b.tinyint_col, b.smallint_col,
+|  b.int_col, b.bigint_col, b.float_col, b.double_col, b.date_string_col, b.string_col,
+|  b.timestamp_col, b.year, b.month)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: month = b.month
@@ -27,7 +29,9 @@ PLAN-ROOT SINK
    partitions=2/24 files=2 size=40.32KB
    runtime filters: RF000 -> functional.alltypes.month
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(year, month, b.id, b.bool_col, b.tinyint_col, b.smallint_col,
+|  b.int_col, b.bigint_col, b.float_col, b.double_col, b.date_string_col, b.string_col,
+|  b.timestamp_col, b.year, b.month)]
 |
 06:EXCHANGE [UNPARTITIONED]
 |
@@ -57,7 +61,8 @@ select * from functional.alltypestiny where year=2009 and month=1
 union all
 select * from functional.alltypestiny where year=2009 and month=2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -77,7 +82,8 @@ NODE 2:
 NODE 3:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -99,7 +105,8 @@ select * from functional.alltypestiny where year=2009 and month=1 order by int_c
 union all
 select * from functional.alltypestiny where year=2009 and month=2 limit 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -124,7 +131,8 @@ NODE 2:
 NODE 4:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -159,7 +167,8 @@ select * from functional.alltypestiny where year=2009 and month=1
 union distinct
 select * from functional.alltypestiny where year=2009 and month=2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 04:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -182,7 +191,8 @@ NODE 2:
 NODE 3:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 07:EXCHANGE [UNPARTITIONED]
 |
@@ -214,7 +224,8 @@ select * from functional.alltypestiny where year=2009 and month=1
 union all
 select 1,false,1,1,1,10,1.1,10.1,'01/01/09','1',cast('2009-01-01 00:01:00' as timestamp),2009,1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |  constant-operands=2
@@ -230,7 +241,8 @@ NODE 1:
 NODE 2:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=1/090101.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 03:EXCHANGE [UNPARTITIONED]
 |
@@ -252,7 +264,8 @@ select * from functional.alltypestiny where year=2009 and month=1
 union distinct
 select 1,false,1,1,1,10,1.1,10.1,'01/01/09','1',cast('2009-01-01 00:01:00' as timestamp),2009,1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 03:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -271,7 +284,8 @@ NODE 1:
 NODE 2:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=1/090101.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 06:EXCHANGE [UNPARTITIONED]
 |
@@ -303,7 +317,8 @@ union distinct
 (select * from functional.alltypestiny where year=2009 and month=2)
 order by 3 limit 3
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 06:TOP-N [LIMIT=3]
 |  order by: tinyint_col ASC
@@ -334,7 +349,8 @@ NODE 3:
 NODE 4:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 09:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: tinyint_col ASC
@@ -375,7 +391,8 @@ union all
 (select * from functional.alltypestiny where year=2009 and month=2)
 order by 3,4 limit 3
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 07:TOP-N [LIMIT=3]
 |  order by: tinyint_col ASC, smallint_col ASC
@@ -408,7 +425,8 @@ NODE 5:
 NODE 6:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 10:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: tinyint_col ASC, smallint_col ASC
@@ -451,7 +469,8 @@ union all
 (select * from functional.alltypestiny where year=2009 and month=2)
 order by 3,4 limit 4
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 07:TOP-N [LIMIT=4]
 |  order by: tinyint_col ASC, smallint_col ASC
@@ -484,7 +503,8 @@ NODE 3:
 NODE 6:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 10:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: tinyint_col ASC, smallint_col ASC
@@ -524,7 +544,8 @@ PLAN-ROOT SINK
 union all
 select * from functional.alltypestiny where year=2009 and month=1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -544,7 +565,8 @@ NODE 2:
 NODE 3:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=1/090101.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -566,7 +588,8 @@ union all
    union all
    select * from functional.alltypestiny where year=2009 and month=2)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -586,7 +609,8 @@ NODE 2:
 NODE 3:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 04:EXCHANGE [UNPARTITIONED]
 |
@@ -608,7 +632,8 @@ PLAN-ROOT SINK
 union distinct
 select * from functional.alltypestiny where year=2009 and month=1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 04:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -631,7 +656,8 @@ NODE 2:
 NODE 3:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=1/090101.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 07:EXCHANGE [UNPARTITIONED]
 |
@@ -661,7 +687,8 @@ union distinct
    union distinct
    select * from functional.alltypestiny where year=2009 and month=2)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 04:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -684,7 +711,8 @@ NODE 2:
 NODE 3:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 07:EXCHANGE [UNPARTITIONED]
 |
@@ -715,7 +743,8 @@ PLAN-ROOT SINK
 union all
 select * from functional.alltypestiny where year=2009 and month=1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -740,7 +769,8 @@ NODE 3:
 NODE 5:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=1/090101.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -773,7 +803,8 @@ union all
    union distinct
    select * from functional.alltypestiny where year=2009 and month=2)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -798,7 +829,8 @@ NODE 3:
 NODE 4:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -833,7 +865,8 @@ PLAN-ROOT SINK
 union all
 select * from functional.alltypestiny where year=2009 and month=1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -863,7 +896,8 @@ NODE 4:
 NODE 6:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=1/090101.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 09:EXCHANGE [UNPARTITIONED]
 |
@@ -901,7 +935,8 @@ union all
    union all
    select * from functional.alltypestiny where year=2009 and month=2)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -931,7 +966,8 @@ NODE 4:
 NODE 5:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 09:EXCHANGE [UNPARTITIONED]
 |
@@ -970,7 +1006,8 @@ union all
    (select * from functional.alltypestiny where year=2009 and month=2)
    limit 10)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -1003,7 +1040,8 @@ NODE 4:
 NODE 7:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 12:EXCHANGE [UNPARTITIONED]
 |
@@ -1048,7 +1086,8 @@ PLAN-ROOT SINK
 union all
 select * from functional.alltypestiny where year=2009 and month=1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -1073,7 +1112,8 @@ NODE 3:
 NODE 5:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=1/090101.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -1108,7 +1148,8 @@ union all
    (select * from functional.alltypestiny where year=2009 and month=2)
    order by 3 limit 3)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -1133,7 +1174,8 @@ NODE 3:
 NODE 4:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -1167,7 +1209,8 @@ PLAN-ROOT SINK
 union distinct
 select * from functional.alltypestiny where year=2009 and month=1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 04:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -1190,7 +1233,8 @@ NODE 2:
 NODE 3:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=1/090101.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 07:EXCHANGE [UNPARTITIONED]
 |
@@ -1221,7 +1265,8 @@ union distinct
    union all
    select * from functional.alltypestiny where year=2009 and month=2)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 04:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -1244,7 +1289,8 @@ NODE 2:
 NODE 3:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 07:EXCHANGE [UNPARTITIONED]
 |
@@ -1277,7 +1323,8 @@ PLAN-ROOT SINK
 union distinct
 select * from functional.alltypestiny where year=2009 and month=1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 05:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -1305,7 +1352,8 @@ NODE 3:
 NODE 4:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=1/090101.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -1341,7 +1389,8 @@ union distinct
    union all
    select * from functional.alltypestiny where year=2009 and month=2)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 05:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -1369,7 +1418,8 @@ NODE 3:
 NODE 4:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -1404,7 +1454,8 @@ PLAN-ROOT SINK
 union distinct
 select * from functional.alltypestiny where year=2009 and month=1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 06:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -1432,7 +1483,8 @@ NODE 3:
 NODE 5:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=1/090101.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 11:EXCHANGE [UNPARTITIONED]
 |
@@ -1475,7 +1527,8 @@ union distinct
    (select * from functional.alltypestiny where year=2009 and month=2)
    order by 3 limit 3)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 06:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -1503,7 +1556,8 @@ NODE 3:
 NODE 4:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 11:EXCHANGE [UNPARTITIONED]
 |
@@ -1548,7 +1602,8 @@ union all
          union all
          select * from functional.alltypestiny where year=2009 and month=3)))
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -1578,7 +1633,8 @@ NODE 4:
 NODE 5:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=3/090301.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 06:EXCHANGE [UNPARTITIONED]
 |
@@ -1610,7 +1666,8 @@ union distinct
          union distinct
          select * from functional.alltypestiny where year=2009 and month=3)))
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 06:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -1643,7 +1700,8 @@ NODE 4:
 NODE 5:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=3/090301.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 09:EXCHANGE [UNPARTITIONED]
 |
@@ -1684,7 +1742,8 @@ union all
          (select * from functional.alltypestiny where year=2009 and month=3)
          order by 3 limit 3)))
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -1727,7 +1786,8 @@ NODE 6:
 NODE 7:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=3/090301.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 17:EXCHANGE [UNPARTITIONED]
 |
@@ -1789,7 +1849,8 @@ union distinct
          (select * from functional.alltypestiny where year=2009 and month=3)
          order by 3 limit 3)))
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 09:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month
@@ -1830,7 +1891,8 @@ NODE 5:
 NODE 6:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=3/090301.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 16:EXCHANGE [UNPARTITIONED]
 |
@@ -1899,7 +1961,8 @@ union all
    (select * from functional.alltypestiny where year=2009 and month=5)
    order by 3 limit 3)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 09:UNION
 |
@@ -1963,7 +2026,8 @@ NODE 13:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=4/090401.txt 0:115
 NODE 14:
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 22:EXCHANGE [UNPARTITIONED]
 |
@@ -2037,7 +2101,8 @@ union all
 (select * from functional.alltypestiny where year=2009 and month=2)
 order by 3 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 05:TOP-N [LIMIT=5]
 |  order by: tinyint_col ASC
@@ -2062,7 +2127,8 @@ NODE 3:
 NODE 4:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 06:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: tinyint_col ASC
@@ -2093,7 +2159,8 @@ union distinct
 (select * from functional.alltypestiny where year=2009 and month=2)
 order by 3 limit 3
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 07:TOP-N [LIMIT=3]
 |  order by: tinyint_col ASC
@@ -2124,7 +2191,8 @@ NODE 3:
 NODE 5:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=2/090201.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 12:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: tinyint_col ASC
@@ -2171,7 +2239,7 @@ select x.* from
    from functional.alltypestiny where year=2009 and month=1 group by 1, 2) x
 where x.int_col < 5 and x.bool_col = false
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bool_col, count_col)]
 |
 00:UNION
 |
@@ -2196,7 +2264,7 @@ NODE 1:
 NODE 3:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypestiny/year=2009/month=1/090101.txt 0:115
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bool_col, count_col)]
 |
 09:EXCHANGE [UNPARTITIONED]
 |
@@ -2237,12 +2305,12 @@ select 2, 'b', NULL, 20.f
 union all
 select 3, 'c', NULL, 30.f
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 00:UNION
    constant-operands=3
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 00:UNION
    constant-operands=3
@@ -2254,7 +2322,7 @@ select 2, 'b', NULL, 20.0f
 union distinct
 select 3, 'c', NULL, 30.0f
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 01:AGGREGATE [FINALIZE]
 |  group by: 1, 'a', null, f
@@ -2262,7 +2330,7 @@ PLAN-ROOT SINK
 00:UNION
    constant-operands=3
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 01:AGGREGATE [FINALIZE]
 |  group by: 1, 'a', null, f
@@ -2279,7 +2347,7 @@ select 3, 'c', NULL, 30.f
 union all
 select int_col, string_col, bool_col, float_col from functional.alltypestiny
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 03:UNION
 |
@@ -2295,7 +2363,7 @@ PLAN-ROOT SINK
 04:SCAN HDFS [functional.alltypestiny]
    partitions=4/4 files=4 size=460B
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 07:EXCHANGE [UNPARTITIONED]
 |
@@ -2331,7 +2399,7 @@ select int_col from functional.alltypestiny where year=2009 and month=1
 union all
 select 503
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(500)]
 |
 05:UNION
 |  constant-operands=1
@@ -2351,7 +2419,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypestiny]
    partitions=1/4 files=1 size=115B
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(500)]
 |
 10:EXCHANGE [UNPARTITIONED]
 |
@@ -2391,12 +2459,12 @@ values(2, 'b', NULL, 20.f)
 union all
 values(3, 'c', NULL, 30.f)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 00:UNION
    constant-operands=3
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 00:UNION
    constant-operands=3
@@ -2408,7 +2476,7 @@ values(2, 'b', NULL, 20.f)
 union distinct
 values(3, 'c', NULL, 30.f)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 01:AGGREGATE [FINALIZE]
 |  group by: 1, 'a', null, f
@@ -2416,7 +2484,7 @@ PLAN-ROOT SINK
 00:UNION
    constant-operands=3
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 01:AGGREGATE [FINALIZE]
 |  group by: 1, 'a', null, f
@@ -2433,7 +2501,7 @@ values(3, 'c', NULL, 30.f)
 union all
 select int_col, string_col, bool_col, float_col from functional.alltypessmall
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 03:UNION
 |
@@ -2449,7 +2517,7 @@ PLAN-ROOT SINK
 04:SCAN HDFS [functional.alltypessmall]
    partitions=4/4 files=4 size=6.32KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1, 'a', null, f)]
 |
 07:EXCHANGE [UNPARTITIONED]
 |
@@ -2493,7 +2561,7 @@ select count(*) from (
       cast('2009-01-01 00:02:00.10' as timestamp),2009,1
 ) x
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 04:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -2510,7 +2578,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 08:AGGREGATE [FINALIZE]
 |  output: count:merge(*)
@@ -2545,7 +2613,7 @@ select x.int_col, x.bool_col, x.month from
    select * from functional.alltypestiny where year=2009) x
 where x.int_col < 5 and x.bool_col = false and x.month = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bool_col, month)]
 |
 00:UNION
 |
@@ -2557,7 +2625,7 @@ PLAN-ROOT SINK
    partitions=1/4 files=1 size=115B
    predicates: functional.alltypestiny.int_col < 5, functional.alltypestiny.bool_col = FALSE
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bool_col, month)]
 |
 03:EXCHANGE [UNPARTITIONED]
 |
@@ -2581,7 +2649,7 @@ select 1 from
    select 1, tinyint_col, 3, bigint_col from functional.alltypessmall) t
 where a + b < 100 and c > 20 and d > 50
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 00:UNION
 |
@@ -2602,11 +2670,11 @@ select * from
    select 10, 20) t
 where a > b
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a, b)]
 |
 00:UNION
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a, b)]
 |
 00:UNION
 ====
@@ -2623,7 +2691,7 @@ select a.id, a.bigint_col
 union all
 select 1000, 2000
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bigint_col)]
 |
 00:UNION
 |  constant-operands=1
@@ -2649,7 +2717,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypestiny]
    partitions=4/4 files=4 size=460B
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bigint_col)]
 |
 11:EXCHANGE [UNPARTITIONED]
 |
@@ -2694,7 +2762,7 @@ select id, bigint_col from functional.alltypessmall order by id limit 10
 union all
 select 1000, 2000
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(id), sum(bigint_col))]
 |
 00:UNION
 |  constant-operands=1
@@ -2711,7 +2779,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(id), sum(bigint_col))]
 |
 00:UNION
 |  constant-operands=1
@@ -2754,7 +2822,7 @@ select a.id, a.bigint_col
 union all
 select 1000, 2000
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(id), sum(bigint_col))]
 |
 00:UNION
 |  constant-operands=1
@@ -2792,7 +2860,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(id), sum(bigint_col))]
 |
 20:EXCHANGE [UNPARTITIONED]
 |
@@ -2860,7 +2928,9 @@ PLAN-ROOT SINK
 # have explain_level=1
 select * from tpch.lineitem UNION ALL (select * from tpch.lineitem) LIMIT 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity,
+|  l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate,
+|  l_receiptdate, l_shipinstruct, l_shipmode, l_comment)]
 |
 00:UNION
 |  limit: 1
@@ -2873,7 +2943,7 @@ PLAN-ROOT SINK
 ====
 select l_orderkey from tpch.lineitem UNION DISTINCT (select l_orderkey from tpch.lineitem) LIMIT 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(l_orderkey)]
 |
 03:AGGREGATE [FINALIZE]
 |  group by: l_orderkey
@@ -2899,7 +2969,8 @@ select * from
    (select * from functional.alltypestiny order by id limit 20 offset 10)) v
 where v.id < 10 and v.int_col > 20
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 00:UNION
 |
@@ -2940,7 +3011,8 @@ select * from
    (select * from functional.alltypestiny order by id limit 20 offset 10)) v
 where v.id < 10 and v.int_col > 20
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 09:AGGREGATE [FINALIZE]
 |  group by: id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, year, month

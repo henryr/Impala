@@ -1,12 +1,12 @@
 # Basic test with a single with-clause view.
 with t as (select int_col x, bigint_col y from functional.alltypes) select x, y from t
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col)]
 |
 00:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -17,12 +17,12 @@ PLAN-ROOT SINK
 with t as (select int_col x, bigint_col y from functional.alltypes_view)
 select x, y from t
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypes.int_col, functional.alltypes.bigint_col)]
 |
 00:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypes.int_col, functional.alltypes.bigint_col)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -34,12 +34,12 @@ with t1 as (select int_col x, bigint_col y from functional.alltypes),
 t2 as (select 1 x , 10 y), t3 as (values(2 x , 20 y), (3, 30))
 select x, y from t2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x, y)]
 |
 00:UNION
    constant-operands=1
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x, y)]
 |
 00:UNION
    constant-operands=1
@@ -49,7 +49,7 @@ with t1 as (select int_col x, bigint_col y from functional.alltypes),
 t2 as (select 1 x , 10 y), t3 as (values(2 x , 20 y), (3, 30))
 select * from t1 union all select * from t2 union all select * from t3
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x, y)]
 |
 00:UNION
 |
@@ -62,7 +62,7 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(x, y)]
 |
 06:EXCHANGE [UNPARTITIONED]
 |
@@ -87,7 +87,7 @@ t2 as (select int_col x, bigint_col y from functional.alltypestiny),
 t3 as (select int_col x, bigint_col y from functional.alltypessmall)
 select * from t1, t2, t3 where t1.x = t2.x and t2.x = t3.x
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col, int_col, bigint_col, int_col, bigint_col)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: int_col = int_col
@@ -108,7 +108,7 @@ PLAN-ROOT SINK
    partitions=24/24 files=24 size=478.45KB
    runtime filters: RF000 -> functional.alltypes.int_col, RF001 -> int_col
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col, int_col, bigint_col, int_col, bigint_col)]
 |
 07:EXCHANGE [UNPARTITIONED]
 |
@@ -154,7 +154,7 @@ where c1 > 0
 order by c3, c1 desc
 limit 3
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c1, c3, m2)]
 |
 05:TOP-N [LIMIT=3]
 |  order by: c3 ASC, c1 DESC
@@ -177,7 +177,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypessmall]
    partitions=4/4 files=4 size=6.32KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c1, c3, m2)]
 |
 05:TOP-N [LIMIT=3]
 |  order by: c3 ASC, c1 DESC
@@ -215,7 +215,7 @@ PLAN-ROOT SINK
 with t as (select int_col x, bigint_col y from functional.alltypestiny)
 select * from t t1 inner join t t2 on (t1.x = t2.x) inner join t t3 on (t2.x = t3.x)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col, int_col, bigint_col, int_col, bigint_col)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: int_col = int_col
@@ -236,7 +236,7 @@ PLAN-ROOT SINK
    partitions=4/4 files=4 size=460B
    runtime filters: RF000 -> functional.alltypestiny.int_col, RF001 -> int_col
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col, int_col, bigint_col, int_col, bigint_col)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -270,7 +270,7 @@ PLAN-ROOT SINK
 with t as (select int_col x, bigint_col y from functional.alltypestiny)
 select * from t t1 inner join t t2 using(x) inner join t t3 using(x)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col, int_col, bigint_col, int_col, bigint_col)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: int_col = int_col
@@ -291,7 +291,7 @@ PLAN-ROOT SINK
    partitions=4/4 files=4 size=460B
    runtime filters: RF000 -> functional.alltypestiny.int_col, RF001 -> int_col
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col, int_col, bigint_col, int_col, bigint_col)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -325,7 +325,7 @@ PLAN-ROOT SINK
 with t as (select int_col x, bigint_col y from functional.alltypestiny)
 select * from t t1 left outer join t t2 using(x) full outer join t t3 using(x)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col, int_col, bigint_col, int_col, bigint_col)]
 |
 04:HASH JOIN [FULL OUTER JOIN]
 |  hash predicates: int_col = int_col
@@ -342,7 +342,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypestiny]
    partitions=4/4 files=4 size=460B
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col, int_col, bigint_col, int_col, bigint_col)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -374,7 +374,7 @@ PLAN-ROOT SINK
 with t as (select int_col x, bigint_col y from functional.alltypestiny)
 select * from t t1 inner join [broadcast] t t2 using(x) inner join [shuffle] t t3 using(x)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col, int_col, bigint_col, int_col, bigint_col)]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: int_col = int_col
@@ -395,7 +395,7 @@ PLAN-ROOT SINK
    partitions=4/4 files=4 size=460B
    runtime filters: RF000 -> functional.alltypestiny.int_col, RF001 -> int_col
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_col, bigint_col, int_col, bigint_col, int_col, bigint_col)]
 |
 08:EXCHANGE [UNPARTITIONED]
 |
@@ -429,7 +429,7 @@ with t1 as (values('a', 'b'))
 (with t2 as (values('c', 'd')) select * from t2) union all
 (with t3 as (values('e', 'f')) select * from t3) order by 1 limit 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=('c', 'd')]
 |
 03:TOP-N [LIMIT=1]
 |  order by: 'c' ASC
@@ -442,7 +442,7 @@ PLAN-ROOT SINK
 01:UNION
    constant-operands=1
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=('c', 'd')]
 |
 03:TOP-N [LIMIT=1]
 |  order by: 'c' ASC
@@ -460,7 +460,7 @@ with t1 as (values('a', 'b'))
 (with t2 as (values('c', 'd')) select * from t2) union all
 (with t3 as (values('e', 'f')) select * from t3) order by 1 limit 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=('c', 'd')]
 |
 03:TOP-N [LIMIT=1]
 |  order by: 'c' ASC
@@ -473,7 +473,7 @@ PLAN-ROOT SINK
 01:UNION
    constant-operands=1
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=('c', 'd')]
 |
 03:TOP-N [LIMIT=1]
 |  order by: 'c' ASC
@@ -490,13 +490,29 @@ PLAN-ROOT SINK
 with t1 as (select * from functional.alltypestiny)
 insert into functional.alltypesinsert partition(year, month) select * from t1
 ---- PLAN
-WRITE TO HDFS [functional.alltypesinsert, OVERWRITE=false, PARTITION-KEYS=(functional.alltypestiny.year,functional.alltypestiny.month)]
+WRITE TO HDFS [functional.alltypesinsert, OVERWRITE=false,
+|  PARTITION-KEYS=(functional.alltypestiny.year,functional.alltypestiny.month),
+|  OUTPUT-EXPRS=(functional.alltypestiny.id, functional.alltypestiny.bool_col,
+|  functional.alltypestiny.tinyint_col, functional.alltypestiny.smallint_col,
+|  functional.alltypestiny.int_col, functional.alltypestiny.bigint_col,
+|  functional.alltypestiny.float_col, functional.alltypestiny.double_col,
+|  functional.alltypestiny.date_string_col, functional.alltypestiny.string_col,
+|  functional.alltypestiny.timestamp_col, functional.alltypestiny.year,
+|  functional.alltypestiny.month)]
 |  partitions=4
 |
 00:SCAN HDFS [functional.alltypestiny]
    partitions=4/4 files=4 size=460B
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypesinsert, OVERWRITE=false, PARTITION-KEYS=(functional.alltypestiny.year,functional.alltypestiny.month)]
+WRITE TO HDFS [functional.alltypesinsert, OVERWRITE=false,
+|  PARTITION-KEYS=(functional.alltypestiny.year,functional.alltypestiny.month),
+|  OUTPUT-EXPRS=(functional.alltypestiny.id, functional.alltypestiny.bool_col,
+|  functional.alltypestiny.tinyint_col, functional.alltypestiny.smallint_col,
+|  functional.alltypestiny.int_col, functional.alltypestiny.bigint_col,
+|  functional.alltypestiny.float_col, functional.alltypestiny.double_col,
+|  functional.alltypestiny.date_string_col, functional.alltypestiny.string_col,
+|  functional.alltypestiny.timestamp_col, functional.alltypestiny.year,
+|  functional.alltypestiny.month)]
 |  partitions=4
 |
 01:EXCHANGE [HASH(functional.alltypestiny.year,functional.alltypestiny.month)]
@@ -510,7 +526,9 @@ insert into functional.alltypesinsert partition(year, month)
 with t2 as (select * from functional.alltypestiny)
 select * from t1 union all select * from t2
 ---- PLAN
-WRITE TO HDFS [functional.alltypesinsert, OVERWRITE=false, PARTITION-KEYS=(year,month)]
+WRITE TO HDFS [functional.alltypesinsert, OVERWRITE=false, PARTITION-KEYS=(year,month),
+|  OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col,
+|  date_string_col, string_col, timestamp_col, year, month)]
 |  partitions=16
 |
 00:UNION
@@ -521,7 +539,9 @@ WRITE TO HDFS [functional.alltypesinsert, OVERWRITE=false, PARTITION-KEYS=(year,
 01:SCAN HDFS [functional.alltypestiny]
    partitions=4/4 files=4 size=460B
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypesinsert, OVERWRITE=false, PARTITION-KEYS=(year,month)]
+WRITE TO HDFS [functional.alltypesinsert, OVERWRITE=false, PARTITION-KEYS=(year,month),
+|  OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col,
+|  date_string_col, string_col, timestamp_col, year, month)]
 |  partitions=16
 |
 03:EXCHANGE [HASH(year,month)]
@@ -541,7 +561,7 @@ with t1 as (
   from functional.alltypestiny)
 select * from t1 where bigint_col = bigint_col2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(tinyint_col, tinyint_col, bigint_col, bigint_col)]
 |
 00:SCAN HDFS [functional.alltypestiny]
    partitions=4/4 files=4 size=460B
@@ -553,7 +573,7 @@ select pos from functional.allcomplextypes t inner join
    select pos from w) v
 on v.pos = t.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(pos)]
 |
 01:SUBPLAN
 |
@@ -572,7 +592,7 @@ select pos from functional.allcomplextypes t inner join
   (with w1 as (with w2 as (select pos from t.int_array_col) select * from w2)
    select pos from w1) v
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(pos)]
 |
 01:SUBPLAN
 |
@@ -590,7 +610,7 @@ with w1 as (select pos from functional.allcomplextypes t,
   (with w2 as (select pos from t.int_array_col) select * from w2) v)
 select * from w1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(pos)]
 |
 01:SUBPLAN
 |
@@ -609,7 +629,7 @@ select pos from functional.allcomplextypes t inner join
    w2 as (select key, value from t.map_map_col.value)
    select a1.*, m2.* from w1 a1, w1 a2, w2 m1, w2 m2) v on v.value = t.id
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(pos)]
 |
 01:SUBPLAN
 |

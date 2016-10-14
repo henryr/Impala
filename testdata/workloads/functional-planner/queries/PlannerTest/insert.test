@@ -5,7 +5,9 @@ float_col, double_col, date_string_col, string_col, timestamp_col
 from functional.alltypes
 where year=2009 and month=05
 ---- PLAN
-WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false]
+WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false, OUTPUT-EXPRS=(id, bool_col, tinyint_col,
+|  smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col,
+|  timestamp_col)]
 |  partitions=1
 |
 00:SCAN HDFS [functional.alltypes]
@@ -14,7 +16,9 @@ WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false]
 NODE 0:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=5/090501.txt 0:20853
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false]
+WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false, OUTPUT-EXPRS=(id, bool_col, tinyint_col,
+|  smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col,
+|  timestamp_col)]
 |  partitions=1
 |
 00:SCAN HDFS [functional.alltypes]
@@ -28,7 +32,9 @@ float_col, double_col, date_string_col, string_col, timestamp_col
 from functional.alltypes
 where year=2009 and month=05
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,4), OUTPUT-EXPRS=(id,
+|  bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col,
+|  string_col, timestamp_col)]
 |  partitions=1
 |
 00:SCAN HDFS [functional.alltypes]
@@ -37,7 +43,9 @@ WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,4
 NODE 0:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=5/090501.txt 0:20853
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,4), OUTPUT-EXPRS=(id,
+|  bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col,
+|  string_col, timestamp_col)]
 |  partitions=1
 |
 00:SCAN HDFS [functional.alltypes]
@@ -51,7 +59,9 @@ float_col, double_col, date_string_col, string_col, timestamp_col
 from functional.alltypes
 where year=2009 and month=05
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=true, PARTITION-KEYS=(2009,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=true, PARTITION-KEYS=(2009,4), OUTPUT-EXPRS=(id,
+|  bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col,
+|  string_col, timestamp_col)]
 |  partitions=1
 |
 00:SCAN HDFS [functional.alltypes]
@@ -60,7 +70,9 @@ WRITE TO HDFS [functional.alltypessmall, OVERWRITE=true, PARTITION-KEYS=(2009,4)
 NODE 0:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=5/090501.txt 0:20853
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=true, PARTITION-KEYS=(2009,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=true, PARTITION-KEYS=(2009,4), OUTPUT-EXPRS=(id,
+|  bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col,
+|  string_col, timestamp_col)]
 |  partitions=1
 |
 00:SCAN HDFS [functional.alltypes]
@@ -74,7 +86,9 @@ float_col, double_col, date_string_col, string_col, timestamp_col, year, month
 from functional.alltypes
 where year=2009 and month>10
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,month)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,month),
+|  OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col,
+|  date_string_col, string_col, timestamp_col, year, month)]
 |  partitions=24
 |
 00:SCAN HDFS [functional.alltypes]
@@ -84,7 +98,9 @@ NODE 0:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=11/091101.txt 0:20179
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=12/091201.txt 0:20853
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,month)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,month),
+|  OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col,
+|  date_string_col, string_col, timestamp_col, year, month)]
 |  partitions=24
 |
 01:EXCHANGE [HASH(year,month)]
@@ -101,14 +117,18 @@ float_col, double_col, date_string_col, string_col, timestamp_col, int_col, int_
 from functional_seq_snap.alltypes
 where year=2009 and month>10
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(int_col,int_col)]
-|  partitions=unavailable
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(int_col,int_col),
+|  OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col,
+|  date_string_col, string_col, timestamp_col, int_col, int_col)]
+|  partitions=100
 |
 00:SCAN HDFS [functional_seq_snap.alltypes]
    partitions=2/24 files=2 size=11.34KB
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(int_col,int_col)]
-|  partitions=unavailable
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(int_col,int_col),
+|  OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col,
+|  date_string_col, string_col, timestamp_col, int_col, int_col)]
+|  partitions=100
 |
 01:EXCHANGE [HASH(int_col,int_col)]
 |
@@ -126,7 +146,10 @@ from functional.alltypes
 where year=2009 and month>10
 group by year, month
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,month)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,month),
+|  OUTPUT-EXPRS=(min(id), min(bool_col), min(tinyint_col), min(smallint_col), min(int_col),
+|  min(bigint_col), min(float_col), min(double_col), min(date_string_col), min(string_col),
+|  min(timestamp_col), year, month)]
 |  partitions=24
 |
 01:AGGREGATE [FINALIZE]
@@ -140,7 +163,10 @@ NODE 0:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=11/091101.txt 0:20179
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=12/091201.txt 0:20853
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,month)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,month),
+|  OUTPUT-EXPRS=(min(id), min(bool_col), min(tinyint_col), min(smallint_col), min(int_col),
+|  min(bigint_col), min(float_col), min(double_col), min(date_string_col), min(string_col),
+|  min(timestamp_col), year, month)]
 |  partitions=24
 |
 03:AGGREGATE [FINALIZE]
@@ -164,7 +190,9 @@ float_col, double_col, date_string_col, string_col, timestamp_col, month
 from functional.alltypes
 where year=2009 and month>10
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,month)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,month),
+|  OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col,
+|  date_string_col, string_col, timestamp_col, month)]
 |  partitions=12
 |
 00:SCAN HDFS [functional.alltypes]
@@ -174,7 +202,9 @@ NODE 0:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=11/091101.txt 0:20179
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=12/091201.txt 0:20853
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,month)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,month),
+|  OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col,
+|  date_string_col, string_col, timestamp_col, month)]
 |  partitions=12
 |
 01:EXCHANGE [HASH(month)]
@@ -193,7 +223,10 @@ from functional.alltypes
 where year=2009 and month>10
 group by month
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,month)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,month),
+|  OUTPUT-EXPRS=(min(id), min(bool_col), min(tinyint_col), min(smallint_col), min(int_col),
+|  min(bigint_col), min(float_col), min(double_col), min(date_string_col), min(string_col),
+|  min(timestamp_col), month)]
 |  partitions=12
 |
 01:AGGREGATE [FINALIZE]
@@ -207,7 +240,10 @@ NODE 0:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=11/091101.txt 0:20179
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=12/091201.txt 0:20853
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,month)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2009,month),
+|  OUTPUT-EXPRS=(min(id), min(bool_col), min(tinyint_col), min(smallint_col), min(int_col),
+|  min(bigint_col), min(float_col), min(double_col), min(date_string_col), min(string_col),
+|  min(timestamp_col), month)]
 |  partitions=12
 |
 03:AGGREGATE [FINALIZE]
@@ -231,7 +267,9 @@ float_col, double_col, date_string_col, string_col, timestamp_col, year
 from functional.alltypes
 where year>2009 and month=4
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,4), OUTPUT-EXPRS=(id,
+|  bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col,
+|  string_col, timestamp_col, year)]
 |  partitions=2
 |
 00:SCAN HDFS [functional.alltypes]
@@ -240,7 +278,9 @@ WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,4
 NODE 0:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2010/month=4/100401.txt 0:20179
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(year,4), OUTPUT-EXPRS=(id,
+|  bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col,
+|  string_col, timestamp_col, year)]
 |  partitions=2
 |
 00:SCAN HDFS [functional.alltypes]
@@ -252,7 +292,9 @@ select id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
 float_col, double_col, date_string_col, string_col, timestamp_col
 from functional.alltypes where year=2009 and month=1 limit 10
 ---- PLAN
-WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false]
+WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false, OUTPUT-EXPRS=(id, bool_col, tinyint_col,
+|  smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col,
+|  timestamp_col)]
 |  partitions=1
 |
 00:SCAN HDFS [functional.alltypes]
@@ -262,7 +304,9 @@ WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false]
 NODE 0:
   HDFS SPLIT hdfs://localhost:20500/test-warehouse/alltypes/year=2009/month=1/090101.txt 0:20433
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false]
+WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false, OUTPUT-EXPRS=(id, bool_col, tinyint_col,
+|  smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col,
+|  timestamp_col)]
 |  partitions=1
 |
 01:EXCHANGE [UNPARTITIONED]
@@ -278,13 +322,17 @@ partition (year=2010, month=4)
 select 100, false, 1, 1, 1, 10,
 10.0, 10.0, "02/01/09", "1", cast("2009-02-01 00:01:00" as timestamp)
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4),
+|  OUTPUT-EXPRS=(100, FALSE, 1, 1, 1, 10, 10.0, 10.0, '02/01/09', '1', CAST('2009-02-01 00:01:00' AS
+|  TIMESTAMP))]
 |  partitions=1
 |
 00:UNION
    constant-operands=1
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4),
+|  OUTPUT-EXPRS=(100, FALSE, 1, 1, 1, 10, 10.0, 10.0, '02/01/09', '1', CAST('2009-02-01 00:01:00' AS
+|  TIMESTAMP))]
 |  partitions=1
 |
 00:UNION
@@ -296,13 +344,17 @@ partition (year, month)
 select 100, false, 1, 1, 1, 10,
 10.0, 10.0, "02/01/09", "1", cast("2009-02-01 00:01:00" as timestamp), 2010, 4
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4),
+|  OUTPUT-EXPRS=(100, FALSE, 1, 1, 1, 10, 10.0, 10.0, '02/01/09', '1', CAST('2009-02-01 00:01:00' AS
+|  TIMESTAMP), 2010, 4)]
 |  partitions=1
 |
 00:UNION
    constant-operands=1
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4),
+|  OUTPUT-EXPRS=(100, FALSE, 1, 1, 1, 10, 10.0, 10.0, '02/01/09', '1', CAST('2009-02-01 00:01:00' AS
+|  TIMESTAMP), 2010, 4)]
 |  partitions=1
 |
 00:UNION
@@ -315,13 +367,17 @@ partition (year=2010, month=4) values
 (200, true, 2, 2, 2, 20, 20.0, 20.0, "02/02/09", "2", cast("2009-02-02 00:01:00" as timestamp)),
 (300, false, 3, 3, 3, 30, 30.0, 30.0, "02/03/09", "3", cast("2009-02-03 00:01:00" as timestamp))
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4),
+|  OUTPUT-EXPRS=(100, false, 1, 1, 1, 10, 10.0, 10.0, '02/01/09', '1', cast('2009-02-01 00:01:00' as
+|  timestamp))]
 |  partitions=1
 |
 00:UNION
    constant-operands=3
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4),
+|  OUTPUT-EXPRS=(100, false, 1, 1, 1, 10, 10.0, 10.0, '02/01/09', '1', cast('2009-02-01 00:01:00' as
+|  timestamp))]
 |  partitions=1
 |
 00:UNION
@@ -334,13 +390,17 @@ partition (year, month) values
 (200, true, 2, 2, 2, 20, 20.0, 20.0, "02/02/09", "2", cast("2009-02-02 00:01:00" as timestamp), 2010, 5),
 (300, false, 3, 3, 3, 30, 30.0, 30.0, "02/03/09", "3", cast("2009-02-03 00:01:00" as timestamp), 2010, 6)
 ---- PLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4),
+|  OUTPUT-EXPRS=(100, false, 1, 1, 1, 10, 10.0, 10.0, '02/01/09', '1', cast('2009-02-01 00:01:00' as
+|  timestamp), 2010, 4)]
 |  partitions=9
 |
 00:UNION
    constant-operands=3
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4)]
+WRITE TO HDFS [functional.alltypessmall, OVERWRITE=false, PARTITION-KEYS=(2010,4),
+|  OUTPUT-EXPRS=(100, false, 1, 1, 1, 10, 10.0, 10.0, '02/01/09', '1', cast('2009-02-01 00:01:00' as
+|  timestamp), 2010, 4)]
 |  partitions=9
 |
 00:UNION
@@ -353,7 +413,8 @@ insert into functional.alltypes(bigint_col, string_col) partition (year=2010, mo
 select count(int_col), string_col from functional.alltypes
 group by string_col
 ---- PLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2010,10)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2010,10), OUTPUT-EXPRS=(NULL,
+|  NULL, NULL, NULL, NULL, count(int_col), NULL, NULL, NULL, string_col, NULL)]
 |  partitions=1
 |
 01:AGGREGATE [FINALIZE]
@@ -363,7 +424,8 @@ WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2010,10)]
 00:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2010,10)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2010,10), OUTPUT-EXPRS=(NULL,
+|  NULL, NULL, NULL, NULL, count(int_col), NULL, NULL, NULL, string_col, NULL)]
 |  partitions=1
 |
 03:AGGREGATE [FINALIZE]
@@ -386,7 +448,8 @@ insert into functional.alltypes(bigint_col, string_col) partition (year=2010, mo
 select count(distinct int_col), string_col from functional.alltypes
 group by string_col
 ---- PLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2010,10)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2010,10), OUTPUT-EXPRS=(NULL,
+|  NULL, NULL, NULL, NULL, count(int_col), NULL, NULL, NULL, string_col, NULL)]
 |  partitions=1
 |
 02:AGGREGATE [FINALIZE]
@@ -399,7 +462,8 @@ WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2010,10)]
 00:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2010,10)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2010,10), OUTPUT-EXPRS=(NULL,
+|  NULL, NULL, NULL, NULL, count(int_col), NULL, NULL, NULL, string_col, NULL)]
 |  partitions=1
 |
 02:AGGREGATE [FINALIZE]
@@ -423,7 +487,13 @@ WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2010,10)]
 insert into table functional.alltypes partition(year, month)
 select * from functional.alltypes
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false,
+|  PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month),
+|  OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col, functional.alltypes.tinyint_col,
+|  functional.alltypes.smallint_col, functional.alltypes.int_col, functional.alltypes.bigint_col,
+|  functional.alltypes.float_col, functional.alltypes.double_col, functional.alltypes.date_string_col,
+|  functional.alltypes.string_col, functional.alltypes.timestamp_col, functional.alltypes.year,
+|  functional.alltypes.month)]
 |  partitions=24
 |
 01:EXCHANGE [HASH(functional.alltypes.year,functional.alltypes.month)]
@@ -435,7 +505,13 @@ WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(functional.
 insert into table functional.alltypes partition(year, month) [noshuffle]
 select * from functional.alltypes
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false,
+|  PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month),
+|  OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col, functional.alltypes.tinyint_col,
+|  functional.alltypes.smallint_col, functional.alltypes.int_col, functional.alltypes.bigint_col,
+|  functional.alltypes.float_col, functional.alltypes.double_col, functional.alltypes.date_string_col,
+|  functional.alltypes.string_col, functional.alltypes.timestamp_col, functional.alltypes.year,
+|  functional.alltypes.month)]
 |  partitions=24
 |
 00:SCAN HDFS [functional.alltypes]
@@ -445,7 +521,13 @@ WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(functional.
 insert into table functional.alltypes partition(year, month) /* +noshuffle */
 select * from functional.alltypes
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false,
+|  PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month),
+|  OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col, functional.alltypes.tinyint_col,
+|  functional.alltypes.smallint_col, functional.alltypes.int_col, functional.alltypes.bigint_col,
+|  functional.alltypes.float_col, functional.alltypes.double_col, functional.alltypes.date_string_col,
+|  functional.alltypes.string_col, functional.alltypes.timestamp_col, functional.alltypes.year,
+|  functional.alltypes.month)]
 |  partitions=24
 |
 00:SCAN HDFS [functional.alltypes]
@@ -456,7 +538,13 @@ insert into table functional.alltypes partition(year, month)
 -- +noshuffle
 select * from functional.alltypes
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false,
+|  PARTITION-KEYS=(functional.alltypes.year,functional.alltypes.month),
+|  OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col, functional.alltypes.tinyint_col,
+|  functional.alltypes.smallint_col, functional.alltypes.int_col, functional.alltypes.bigint_col,
+|  functional.alltypes.float_col, functional.alltypes.double_col, functional.alltypes.date_string_col,
+|  functional.alltypes.string_col, functional.alltypes.timestamp_col, functional.alltypes.year,
+|  functional.alltypes.month)]
 |  partitions=24
 |
 00:SCAN HDFS [functional.alltypes]
@@ -470,7 +558,9 @@ select id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
 float_col, double_col, date_string_col, string_col, timestamp_col, year
 from functional.alltypes
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(year,1)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(year,1), OUTPUT-EXPRS=(id,
+|  bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col,
+|  string_col, timestamp_col, year)]
 |  partitions=2
 |
 00:SCAN HDFS [functional.alltypes]
@@ -482,7 +572,9 @@ select id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
 float_col, double_col, date_string_col, string_col, timestamp_col, year
 from functional.alltypes
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(year,1)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(year,1), OUTPUT-EXPRS=(id,
+|  bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col,
+|  string_col, timestamp_col, year)]
 |  partitions=2
 |
 01:EXCHANGE [HASH(year)]
@@ -497,7 +589,9 @@ select id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
   lag(timestamp_col, 1) over (partition by id order by id) as timestamp_col
 from functional.alltypestiny
 ---- PLAN
-WRITE TO HDFS [functional.alltypestiny, OVERWRITE=false, PARTITION-KEYS=(2009,1)]
+WRITE TO HDFS [functional.alltypestiny, OVERWRITE=false, PARTITION-KEYS=(2009,1), OUTPUT-EXPRS=(id,
+|  bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col,
+|  string_col, lag(timestamp_col, 1, NULL))]
 |  partitions=1
 |
 02:ANALYTIC
@@ -519,7 +613,9 @@ select id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
 float_col, double_col, date_string_col, string_col, timestamp_col
 from functional.alltypes
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2009,1)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2009,1), OUTPUT-EXPRS=(id,
+|  bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col,
+|  string_col, timestamp_col)]
 |  partitions=1
 |
 01:EXCHANGE [UNPARTITIONED]
@@ -533,7 +629,9 @@ select id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
 float_col, double_col, date_string_col, string_col, timestamp_col, 2009, 1
 from functional.alltypes
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2009,1)]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(2009,1), OUTPUT-EXPRS=(id,
+|  bool_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, date_string_col,
+|  string_col, timestamp_col, 2009, 1)]
 |  partitions=1
 |
 01:EXCHANGE [UNPARTITIONED]
@@ -548,7 +646,10 @@ select id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
 float_col, double_col, date_string_col, string_col, timestamp_col, cast(concat("2", "010") as smallint) - 1
 from functional.alltypes
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(CAST(concat('2', '010') AS SMALLINT) - 1,CAST(10 / 2 AS INT))]
+WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(CAST(concat('2', '010') AS
+|  SMALLINT) - 1,CAST(10 / 2 AS INT)), OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col,
+|  bigint_col, float_col, double_col, date_string_col, string_col, timestamp_col, CAST(concat('2',
+|  '010') AS SMALLINT) - 1)]
 |  partitions=1
 |
 01:EXCHANGE [UNPARTITIONED]
@@ -562,7 +663,9 @@ select id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
 float_col, double_col, date_string_col, string_col, timestamp_col
 from functional.alltypes
 ---- DISTRIBUTEDPLAN
-WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false]
+WRITE TO HDFS [functional.alltypesnopart, OVERWRITE=false, OUTPUT-EXPRS=(id, bool_col, tinyint_col,
+|  smallint_col, int_col, bigint_col, float_col, double_col, date_string_col, string_col,
+|  timestamp_col)]
 |  partitions=1
 |
 01:EXCHANGE [UNPARTITIONED]

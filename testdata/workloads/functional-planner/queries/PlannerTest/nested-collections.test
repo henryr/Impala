@@ -2,7 +2,7 @@
 select * from functional.allcomplextypes.int_array_col
 where item > 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_array_col.item)]
 |
 00:SCAN HDFS [functional.allcomplextypes.int_array_col]
    partitions=0/0 files=0 size=0B
@@ -12,7 +12,7 @@ PLAN-ROOT SINK
 select * from functional.allcomplextypes.int_map_col
 where key = 'test' and value < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(int_map_col.key, int_map_col.value)]
 |
 00:SCAN HDFS [functional.allcomplextypes.int_map_col]
    partitions=0/0 files=0 size=0B
@@ -22,7 +22,7 @@ PLAN-ROOT SINK
 select count(f21) from functional.allcomplextypes.complex_nested_struct_col.f2.f12
 where key = 'test'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(f21))]
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(f21)
@@ -38,7 +38,7 @@ inner join functional.allcomplextypes.struct_map_col b
 on (a.f1 = b.f1)
 where a.f2 = 'test_a' and b.f2 = 'test_b'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 03:AGGREGATE [FINALIZE]
 |  output: count(*)
@@ -66,7 +66,7 @@ select 1 from
 where c_nationkey = n_nationkey and s_nationkey = n_nationkey
   and c_comment = s_comment and n_comment = s_comment
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 08:HASH JOIN [INNER JOIN]
 |  hash predicates: c_nationkey = n_nationkey, s_comment = n_comment
@@ -100,7 +100,7 @@ PLAN-ROOT SINK
 select a.id, b.item from functional.allcomplextypes a cross join a.int_array_col b
 where a.id < 10 and b.item % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, b.item)]
 |
 01:SUBPLAN
 |
@@ -119,7 +119,7 @@ PLAN-ROOT SINK
 select a.id from functional.allcomplextypes a left semi join a.int_array_col b
 where a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -137,7 +137,7 @@ PLAN-ROOT SINK
 select b.item from functional.allcomplextypes a right semi join a.int_array_col b
 where b.item % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(b.item)]
 |
 01:SUBPLAN
 |
@@ -156,7 +156,7 @@ PLAN-ROOT SINK
 select a.id from functional.allcomplextypes a left anti join a.int_array_col b
 where a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -175,7 +175,7 @@ select a.id from functional.allcomplextypes a
 left anti join (select * from a.int_array_col) v
 where a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -193,7 +193,7 @@ PLAN-ROOT SINK
 select b.item from functional.allcomplextypes a right anti join a.int_array_col b
 where b.item % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(b.item)]
 |
 01:SUBPLAN
 |
@@ -211,7 +211,7 @@ PLAN-ROOT SINK
 select a.id, b.item from functional.allcomplextypes a left outer join a.int_array_col b
 where a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, b.item)]
 |
 01:SUBPLAN
 |
@@ -230,7 +230,7 @@ select a.id, v.item from functional.allcomplextypes a
 left outer join (select * from a.int_array_col) v
 where a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, int_array_col.item)]
 |
 01:SUBPLAN
 |
@@ -248,7 +248,7 @@ PLAN-ROOT SINK
 select a.id, b.item from functional.allcomplextypes a right outer join a.int_array_col b
 where b.item % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, b.item)]
 |
 01:SUBPLAN
 |
@@ -266,7 +266,7 @@ PLAN-ROOT SINK
 select a.id, b.item from functional.allcomplextypes a full outer join a.int_array_col b
 where b.item % 2 = 0 and a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, b.item)]
 |
 01:SUBPLAN
 |
@@ -286,7 +286,7 @@ PLAN-ROOT SINK
 select a.id, b.item from functional.allcomplextypes a, a.int_array_col b
 where a.id < 10 and b.item % 2 = 0 and a.id < b.item
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, b.item)]
 |
 01:SUBPLAN
 |
@@ -307,7 +307,7 @@ select a.id from functional.allcomplextypes a
   left semi join a.int_array_col b on (a.id < b.item and b.item % 2 = 0)
 where a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -328,7 +328,7 @@ select b.item from functional.allcomplextypes a
   right semi join a.int_array_col b on (a.id < b.item and a.id < 10)
 where b.item % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(b.item)]
 |
 01:SUBPLAN
 |
@@ -349,7 +349,7 @@ select a.id from functional.allcomplextypes a
   left anti join a.int_array_col b on (a.id < b.item and b.item % 2 = 0)
 where a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -370,7 +370,7 @@ select b.item from functional.allcomplextypes a
   right anti join a.int_array_col b on (a.id < b.item and a.id < 10)
 where b.item % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(b.item)]
 |
 01:SUBPLAN
 |
@@ -391,7 +391,7 @@ select a.id, b.item from functional.allcomplextypes a
   left outer join a.int_array_col b on (a.id < b.item and b.item % 2 = 0)
 where a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, b.item)]
 |
 01:SUBPLAN
 |
@@ -412,7 +412,7 @@ select a.id, b.item from functional.allcomplextypes a
   right outer join a.int_array_col b on (a.id < b.item and a.id < 10)
 where b.item % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, b.item)]
 |
 01:SUBPLAN
 |
@@ -433,7 +433,7 @@ select a.id, b.item from functional.allcomplextypes a
   full outer join a.int_array_col b on (a.id < b.item and a.id < 10)
 where b.item % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, b.item)]
 |
 01:SUBPLAN
 |
@@ -454,7 +454,7 @@ select a.id, b.f1, b.f2 from functional.allcomplextypes a
   inner join a.struct_array_col b
 where a.id < 10 and b.f1 % 2 = 0 and b.f1 = a.id and b.f1 < a.year
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, b.f1, b.f2)]
 |
 01:SUBPLAN
 |
@@ -477,7 +477,7 @@ select a.id from functional.allcomplextypes a
     on (b.f1 % 2 = 0 and b.f1 = a.id and b.f1 < a.year)
 where a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -499,7 +499,7 @@ select b.f1, b.f2 from functional.allcomplextypes a
     on (a.id < 10 and b.f1 = a.id and b.f1 < a.year)
 where b.f1 % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(b.f1, b.f2)]
 |
 01:SUBPLAN
 |
@@ -521,7 +521,7 @@ select a.id from functional.allcomplextypes a
     on (b.f1 % 2 = 0 and b.f1 = a.id and b.f1 < a.year)
 where a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -543,7 +543,7 @@ select b.f1, b.f2 from functional.allcomplextypes a
     on (a.id < 10 and b.f1 = a.id and b.f1 < a.year)
 where b.f1 % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(b.f1, b.f2)]
 |
 01:SUBPLAN
 |
@@ -565,7 +565,7 @@ select a.id from functional.allcomplextypes a
     on (b.f1 % 2 = 0 and b.f1 = a.id and b.f1 < a.year)
 where a.id < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -587,7 +587,7 @@ select b.f1, b.f2 from functional.allcomplextypes a
     on (a.id < 10 and b.f1 = a.id and b.f1 < a.year)
 where b.f1 % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(b.f1, b.f2)]
 |
 01:SUBPLAN
 |
@@ -609,7 +609,7 @@ select b.f1, b.f2 from functional.allcomplextypes a
     on (b.f1 = a.id and b.f1 < a.year)
 where a.id < 10 and b.f1 % 2 = 0
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(b.f1, b.f2)]
 |
 01:SUBPLAN
 |
@@ -634,7 +634,7 @@ select 1 from functional.allcomplextypes a
   left outer join a.struct_array_col d on (a.month < 4 or d.f1 > 5)
   inner join a.struct_map_col e on (e.f1 = a.id and e.f2 = 'test')
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 01:SUBPLAN
 |
@@ -676,7 +676,7 @@ inner join functional.alltypes d on (b.id = d.id)
 inner join a.struct_array_col e
 where e.f1 < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 11:HASH JOIN [INNER JOIN]
 |  hash predicates: d.id = b.id
@@ -722,7 +722,7 @@ inner join a.struct_array_col e
 right anti join functional.alltypessmall c on (b.int_col = c.int_col and e.f1 < 10)
 inner join functional.alltypes d on (b.id = d.id)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 11:HASH JOIN [INNER JOIN]
 |  hash predicates: d.id = b.id
@@ -765,7 +765,9 @@ inner join a.int_map_col d
 left semi join functional.alltypes e on (d.value = e.id)
 where b.item < 10 and c.int_col > 30
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.year, a.month, b.item, c.id, c.bool_col, c.tinyint_col,
+|  c.smallint_col, c.int_col, c.bigint_col, c.float_col, c.double_col, c.date_string_col, c.string_col,
+|  c.timestamp_col, c.year, c.month, d.key, d.value)]
 |
 12:HASH JOIN [RIGHT SEMI JOIN]
 |  hash predicates: e.id = d.value
@@ -815,7 +817,11 @@ inner join a.int_map_col d
 right anti join functional.alltypestiny e on (d.value = e.id)
 where b.item < 10 and c.int_col > 30
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.year, a.month, b.item, c.id, c.bool_col, c.tinyint_col,
+|  c.smallint_col, c.int_col, c.bigint_col, c.float_col, c.double_col, c.date_string_col, c.string_col,
+|  c.timestamp_col, c.year, c.month, e.id, e.bool_col, e.tinyint_col, e.smallint_col, e.int_col,
+|  e.bigint_col, e.float_col, e.double_col, e.date_string_col, e.string_col, e.timestamp_col, e.year,
+|  e.month)]
 |
 12:HASH JOIN [RIGHT ANTI JOIN]
 |  hash predicates: d.value = e.id
@@ -857,7 +863,7 @@ from functional.allcomplextypes a,
   (select count(*) cnt from a.int_array_col) v
 where v.cnt < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, count(*))]
 |
 01:SUBPLAN
 |
@@ -880,7 +886,7 @@ from functional.allcomplextypes a,
   (select f1, count(*) cnt from a.struct_array_col group by f1) v
 where v.cnt < 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, f1, count(*))]
 |
 01:SUBPLAN
 |
@@ -904,7 +910,7 @@ from functional.allcomplextypes a,
   (select * from a.struct_array_col order by f1 limit 10) v
 where v.f2 = 'test'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, item.f1, item.f2)]
 |
 01:SUBPLAN
 |
@@ -929,7 +935,7 @@ from functional.allcomplextypes a,
   (select key, row_number() over (order by key) rnum from a.int_map_col) v
 where v.key != 'bad'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, key, row_number())]
 |
 01:SUBPLAN
 |
@@ -957,7 +963,7 @@ PLAN-ROOT SINK
 select a.id from functional.allcomplextypes a
 where id < (select avg(item) from a.int_array_col)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -978,7 +984,7 @@ PLAN-ROOT SINK
 select a.id from functional.allcomplextypes a
 where exists (select item from a.int_array_col where item > 100)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -996,7 +1002,7 @@ PLAN-ROOT SINK
 select a.id from functional.allcomplextypes a
 where not exists (select item from a.int_array_col)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -1014,7 +1020,7 @@ PLAN-ROOT SINK
 select a.id from functional.allcomplextypes a
 where exists (select m.key from a.struct_map_col m where a.id < m.f1)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -1033,7 +1039,7 @@ PLAN-ROOT SINK
 select a.id from functional.allcomplextypes a
 where not exists (select c.f2 from a.struct_array_col c where a.id < c.f1)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -1054,7 +1060,7 @@ select a.id
 from functional.allcomplextypes a
 where id in (select b.item from a.int_array_col b where a.year < b.item)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -1076,7 +1082,7 @@ select a.id
 from functional.allcomplextypes a
 where id not in (select b.item from a.int_array_col b)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -1098,7 +1104,7 @@ select a.id
 from functional.allcomplextypes a
 where id not in (select b.item from a.int_array_col b where a.year < b.item)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id)]
 |
 01:SUBPLAN
 |
@@ -1124,7 +1130,7 @@ cross join
    from a.struct_array_col x inner join b.struct_map_col y
    on x.f1 = y.f1) v
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, c.item, d.key, d.value, count(*))]
 |
 17:SUBPLAN
 |
@@ -1183,7 +1189,7 @@ cross join
    on x.f1 = y.f1) v
 where b.id = d.value
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, c.item, d.key, d.value, count(*))]
 |
 17:SUBPLAN
 |
@@ -1245,7 +1251,7 @@ cross join
    from a.struct_array_col x inner join b.struct_map_col y
    on x.f1 = y.f1) v
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, c.item, d.key, d.value, count(*))]
 |
 15:SUBPLAN
 |
@@ -1294,7 +1300,7 @@ from tpch_nested_parquet.customer c, c.c_orders o, o.o_lineitems
 where c_custkey < 10 and o_orderkey < 5 and l_linenumber < 3
 limit 10
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 01:SUBPLAN
 |  limit: 10
@@ -1326,7 +1332,7 @@ cross join
   (select m1.key from a.map_map_col m1,
    (select m2.key from m1.value m2) v1) v2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 01:SUBPLAN
 |
@@ -1355,7 +1361,7 @@ inner join functional.allcomplextypes b on (a.id = b.id)
 cross join (select count(*) c from a.int_map_col) v1
 cross join (select avg(item) a from b.int_array_col) v2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, count(*), avg(item))]
 |
 10:SUBPLAN
 |
@@ -1396,7 +1402,7 @@ where c.c_custkey = o.o_orderkey and c.c_custkey = o.o_shippriority
 # redundant predicates
   and o.o_orderkey = l.l_partkey and o.o_shippriority = l.l_suppkey
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 01:SUBPLAN
 |
@@ -1437,7 +1443,8 @@ where a.item between 10 and 20
   and v2.key = 'test2'
   and v2.x = 'test3'
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(t.id, t.year, t.month, a.item, m.key, m.value, c.item.f11, key, f21,
+|  coalesce(key, CAST(f21 AS STRING)))]
 |
 01:SUBPLAN
 |
@@ -1488,7 +1495,7 @@ where s.s_suppkey not in
  inner join s.s_partsupps ps3
    on ps2.ps_comment = ps3.ps_comment)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 01:SUBPLAN
 |
@@ -1518,7 +1525,7 @@ left outer join functional.allcomplextypes t2 ON (t1.id = t2.id)
 # The subplan for this table ref must come after the outer join of t1 and t2.
 inner join t2.int_array_col
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 06:SUBPLAN
 |
@@ -1542,7 +1549,7 @@ select a from functional.allcomplextypes t,
   (select count(*) over(partition by key) a
    from t.int_map_col group by key) v
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(count(*))]
 |
 01:SUBPLAN
 |
@@ -1572,7 +1579,7 @@ left outer join functional.allcomplextypes t2 on (t1.id = t2.id)
 inner join t1.map_map_col m1
 inner join m1.value m2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 10:SUBPLAN
 |
@@ -1614,7 +1621,7 @@ where c.c_custkey in
  left outer join c.c_orders o3 on o3.pos = o2.pos
  where c.c_custkey = o2.pos)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 01:SUBPLAN
 |
@@ -1660,7 +1667,7 @@ where c.c_custkey in
  inner join c.c_orders o3 on o3.pos = o2.pos
  where c.c_custkey = o2.pos)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 01:SUBPLAN
 |
@@ -1704,7 +1711,7 @@ where c.c_custkey in
  left outer join o2.o_lineitems l
  where c.c_custkey = o2.pos)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 01:SUBPLAN
 |
@@ -1742,7 +1749,7 @@ PLAN-ROOT SINK
 select straight_join id from functional.allcomplextypes t1 left outer join t1.int_array_col t2
 where t1.id = t2.pos and t1.int_struct_col.f1 = 10 and t2.item = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id)]
 |
 01:SUBPLAN
 |
@@ -1765,7 +1772,7 @@ PLAN-ROOT SINK
 select straight_join id from functional.allcomplextypes t1 right outer join t1.int_array_col t2
 where t1.id = t2.pos and t1.int_struct_col.f1 = 10 and t2.item = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id)]
 |
 01:SUBPLAN
 |
@@ -1788,7 +1795,7 @@ PLAN-ROOT SINK
 select id from functional.allcomplextypes t1 full outer join t1.int_array_col t2
 where t1.id = t2.pos and t1.int_struct_col.f1 = 10 and t2.item = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id)]
 |
 01:SUBPLAN
 |
@@ -1811,7 +1818,7 @@ select id from functional.allcomplextypes t1 left outer join
   (select pos, item from t1.int_array_col t2) v
  where t1.id > v.pos and v.item = 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id)]
 |
 01:SUBPLAN
 |
@@ -1832,7 +1839,7 @@ left outer join c.c_orders o
 # Has an ordering dependency on c and o
 inner join o.o_lineitems
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 01:SUBPLAN
 |
@@ -1860,7 +1867,7 @@ inner join c1.c_orders
 right outer join tpch_nested_parquet.customer c2
   on c1.c_custkey = c2.c_custkey
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 06:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: c1.c_custkey = c2.c_custkey
@@ -1889,7 +1896,7 @@ full outer join tpch_nested_parquet.customer c2
 inner join c1.c_orders o1
 left semi join c2.c_orders o2
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 08:SUBPLAN
 |
@@ -1918,7 +1925,10 @@ select * from tpch_nested_parquet.customer c
 left outer join c.c_orders o
 where o.o_orderkey is null and o.o_orderstatus <=> o_orderpriority
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(c.c_custkey, c.c_name, c.c_address, c.c_nationkey, c.c_phone,
+|  c.c_acctbal, c.c_mktsegment, c.c_comment, o.item.o_orderkey, o.item.o_orderstatus,
+|  o.item.o_totalprice, o.item.o_orderdate, o.item.o_orderpriority, o.item.o_clerk,
+|  o.item.o_shippriority, o.item.o_comment)]
 |
 01:SUBPLAN
 |
@@ -1941,7 +1951,7 @@ left join t2.c_orders t4
 inner join tpch_nested_parquet.region t5 on t5.r_regionkey = t2.c_custkey
 left join t4.item.o_lineitems t6 on t6.item.l_returnflag = t4.item.o_orderpriority
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(1)]
 |
 14:SUBPLAN
 |

@@ -1,13 +1,25 @@
 # predicate pushdown
 select * from (select * from functional.alltypessmall) a where id < 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypessmall.id, functional.alltypessmall.bool_col,
+|  functional.alltypessmall.tinyint_col, functional.alltypessmall.smallint_col,
+|  functional.alltypessmall.int_col, functional.alltypessmall.bigint_col,
+|  functional.alltypessmall.float_col, functional.alltypessmall.double_col,
+|  functional.alltypessmall.date_string_col, functional.alltypessmall.string_col,
+|  functional.alltypessmall.timestamp_col, functional.alltypessmall.year,
+|  functional.alltypessmall.month)]
 |
 00:SCAN HDFS [functional.alltypessmall]
    partitions=4/4 files=4 size=6.32KB
    predicates: functional.alltypessmall.id < 5
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypessmall.id, functional.alltypessmall.bool_col,
+|  functional.alltypessmall.tinyint_col, functional.alltypessmall.smallint_col,
+|  functional.alltypessmall.int_col, functional.alltypessmall.bigint_col,
+|  functional.alltypessmall.float_col, functional.alltypessmall.double_col,
+|  functional.alltypessmall.date_string_col, functional.alltypessmall.string_col,
+|  functional.alltypessmall.timestamp_col, functional.alltypessmall.year,
+|  functional.alltypessmall.month)]
 |
 01:EXCHANGE [UNPARTITIONED]
 |
@@ -18,7 +30,13 @@ PLAN-ROOT SINK
 # predicate pushdown is prevented in presence of limit clause
 select * from (select * from functional.alltypessmall limit 10) a where id < 5 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypessmall.id, functional.alltypessmall.bool_col,
+|  functional.alltypessmall.tinyint_col, functional.alltypessmall.smallint_col,
+|  functional.alltypessmall.int_col, functional.alltypessmall.bigint_col,
+|  functional.alltypessmall.float_col, functional.alltypessmall.double_col,
+|  functional.alltypessmall.date_string_col, functional.alltypessmall.string_col,
+|  functional.alltypessmall.timestamp_col, functional.alltypessmall.year,
+|  functional.alltypessmall.month)]
 |
 01:SELECT
 |  predicates: functional.alltypessmall.id < 5
@@ -28,7 +46,13 @@ PLAN-ROOT SINK
    partitions=4/4 files=4 size=6.32KB
    limit: 10
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypessmall.id, functional.alltypessmall.bool_col,
+|  functional.alltypessmall.tinyint_col, functional.alltypessmall.smallint_col,
+|  functional.alltypessmall.int_col, functional.alltypessmall.bigint_col,
+|  functional.alltypessmall.float_col, functional.alltypessmall.double_col,
+|  functional.alltypessmall.date_string_col, functional.alltypessmall.string_col,
+|  functional.alltypessmall.timestamp_col, functional.alltypessmall.year,
+|  functional.alltypessmall.month)]
 |
 01:SELECT
 |  predicates: functional.alltypessmall.id < 5
@@ -47,7 +71,8 @@ select *
 from (select * from functional.alltypessmall order by id limit 10) a
 where id < 5 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 02:SELECT
 |  predicates: id < 5
@@ -59,7 +84,8 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypessmall]
    partitions=4/4 files=4 size=6.32KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 02:SELECT
 |  predicates: id < 5
@@ -84,7 +110,12 @@ from functional.alltypes
     group by 1 order by 2 limit 5) a using (id)
 where a.id < 5 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col,
+|  functional.alltypes.tinyint_col, functional.alltypes.smallint_col, functional.alltypes.int_col,
+|  functional.alltypes.bigint_col, functional.alltypes.float_col, functional.alltypes.double_col,
+|  functional.alltypes.date_string_col, functional.alltypes.string_col,
+|  functional.alltypes.timestamp_col, functional.alltypes.year, functional.alltypes.month, id,
+|  count(*))]
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: functional.alltypes.id = id
@@ -106,7 +137,12 @@ PLAN-ROOT SINK
    predicates: functional.alltypes.id < 5
    runtime filters: RF000 -> functional.alltypes.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col,
+|  functional.alltypes.tinyint_col, functional.alltypes.smallint_col, functional.alltypes.int_col,
+|  functional.alltypes.bigint_col, functional.alltypes.float_col, functional.alltypes.double_col,
+|  functional.alltypes.date_string_col, functional.alltypes.string_col,
+|  functional.alltypes.timestamp_col, functional.alltypes.year, functional.alltypes.month, id,
+|  count(*))]
 |
 09:EXCHANGE [UNPARTITIONED]
 |  limit: 5
@@ -151,7 +187,9 @@ from (
   limit 10) a
 where id < 5 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 03:SELECT
 |  predicates: a.id < 5
@@ -169,7 +207,9 @@ PLAN-ROOT SINK
    partitions=4/4 files=4 size=6.32KB
    runtime filters: RF000 -> a.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(a.id, a.bool_col, a.tinyint_col, a.smallint_col, a.int_col,
+|  a.bigint_col, a.float_col, a.double_col, a.date_string_col, a.string_col, a.timestamp_col, a.year,
+|  a.month)]
 |
 03:SELECT
 |  predicates: a.id < 5
@@ -199,7 +239,8 @@ where id < 5
 order by id
 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 02:TOP-N [LIMIT=5]
 |  order by: id ASC
@@ -211,7 +252,8 @@ PLAN-ROOT SINK
    partitions=4/4 files=4 size=6.32KB
    limit: 10
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 02:TOP-N [LIMIT=5]
 |  order by: id ASC
@@ -237,7 +279,8 @@ where id < 5
 order by id
 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 04:TOP-N [LIMIT=5]
 |  order by: id ASC
@@ -257,7 +300,8 @@ PLAN-ROOT SINK
    partitions=4/4 files=4 size=6.32KB
    runtime filters: RF000 -> a.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month)]
 |
 04:TOP-N [LIMIT=5]
 |  order by: id ASC
@@ -287,7 +331,11 @@ select *
 from functional.alltypes
   join (select id from functional.alltypessmall limit 10) a using (id)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col,
+|  functional.alltypes.tinyint_col, functional.alltypes.smallint_col, functional.alltypes.int_col,
+|  functional.alltypes.bigint_col, functional.alltypes.float_col, functional.alltypes.double_col,
+|  functional.alltypes.date_string_col, functional.alltypes.string_col,
+|  functional.alltypes.timestamp_col, functional.alltypes.year, functional.alltypes.month, id)]
 |
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: functional.alltypes.id = id
@@ -301,7 +349,11 @@ PLAN-ROOT SINK
    partitions=24/24 files=24 size=478.45KB
    runtime filters: RF000 -> functional.alltypes.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col,
+|  functional.alltypes.tinyint_col, functional.alltypes.smallint_col, functional.alltypes.int_col,
+|  functional.alltypes.bigint_col, functional.alltypes.float_col, functional.alltypes.double_col,
+|  functional.alltypes.date_string_col, functional.alltypes.string_col,
+|  functional.alltypes.timestamp_col, functional.alltypes.year, functional.alltypes.month, id)]
 |
 05:EXCHANGE [UNPARTITIONED]
 |
@@ -328,7 +380,11 @@ select *
 from functional.alltypes
   join (select id from functional.alltypessmall order by id limit 10) a using (id)
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col,
+|  functional.alltypes.tinyint_col, functional.alltypes.smallint_col, functional.alltypes.int_col,
+|  functional.alltypes.bigint_col, functional.alltypes.float_col, functional.alltypes.double_col,
+|  functional.alltypes.date_string_col, functional.alltypes.string_col,
+|  functional.alltypes.timestamp_col, functional.alltypes.year, functional.alltypes.month, id)]
 |
 03:HASH JOIN [INNER JOIN]
 |  hash predicates: functional.alltypes.id = id
@@ -344,7 +400,11 @@ PLAN-ROOT SINK
    partitions=24/24 files=24 size=478.45KB
    runtime filters: RF000 -> functional.alltypes.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col,
+|  functional.alltypes.tinyint_col, functional.alltypes.smallint_col, functional.alltypes.int_col,
+|  functional.alltypes.bigint_col, functional.alltypes.float_col, functional.alltypes.double_col,
+|  functional.alltypes.date_string_col, functional.alltypes.string_col,
+|  functional.alltypes.timestamp_col, functional.alltypes.year, functional.alltypes.month, id)]
 |
 06:EXCHANGE [UNPARTITIONED]
 |
@@ -380,7 +440,8 @@ where a.id < 5
 order by a.id
 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month, id)]
 |
 05:TOP-N [LIMIT=5]
 |  order by: id ASC
@@ -406,7 +467,8 @@ PLAN-ROOT SINK
    predicates: functional.alltypes.id < 5
    runtime filters: RF000 -> functional.alltypes.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month, id)]
 |
 09:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: id ASC
@@ -456,7 +518,8 @@ where a.id < 5
 order by a.id
 limit 5
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month, id)]
 |
 06:TOP-N [LIMIT=5]
 |  order by: id ASC
@@ -484,7 +547,8 @@ PLAN-ROOT SINK
    predicates: functional.alltypes.id < 5
    runtime filters: RF000 -> functional.alltypes.id
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, bool_col, tinyint_col, smallint_col, int_col, bigint_col,
+|  float_col, double_col, date_string_col, string_col, timestamp_col, year, month, id)]
 |
 10:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: id ASC
@@ -530,7 +594,7 @@ select x.id from (
 order by x.id
 limit 100 offset 4
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id)]
 |
 02:TOP-N [LIMIT=100 OFFSET=4]
 |  order by: id ASC
@@ -541,7 +605,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
 ---- DISTRIBUTEDPLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id)]
 |
 02:TOP-N [LIMIT=100 OFFSET=4]
 |  order by: id ASC
@@ -567,7 +631,7 @@ left outer join
 on (a.id = b.id)
 where a.id > 10 and b.id > 20
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, id)]
 |
 02:HASH JOIN [LEFT OUTER JOIN]
 |  hash predicates: id = id
@@ -592,7 +656,7 @@ left outer join
 on (a.id = b.id)
 where a.id > 10 and b.id > 20
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, id)]
 |
 03:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: id = id
@@ -622,7 +686,7 @@ right outer join
 on (a.id = b.id)
 where a.id > 10 and b.id > 20
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, id)]
 |
 02:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: id = id
@@ -649,7 +713,7 @@ right outer join
 on (a.id = b.id)
 where a.id > 10 and b.id > 20
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(id, id)]
 |
 03:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: id = id
@@ -674,7 +738,11 @@ PLAN-ROOT SINK
 # have explain_level=1
 select * from (select * from functional.alltypes limit 100) v where id < 10 limit 1
 ---- PLAN
-PLAN-ROOT SINK
+PLAN-ROOT SINK [OUTPUT-EXPRS=(functional.alltypes.id, functional.alltypes.bool_col,
+|  functional.alltypes.tinyint_col, functional.alltypes.smallint_col, functional.alltypes.int_col,
+|  functional.alltypes.bigint_col, functional.alltypes.float_col, functional.alltypes.double_col,
+|  functional.alltypes.date_string_col, functional.alltypes.string_col,
+|  functional.alltypes.timestamp_col, functional.alltypes.year, functional.alltypes.month)]
 |
 01:SELECT
 |  predicates: functional.alltypes.id < 10
