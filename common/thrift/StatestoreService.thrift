@@ -61,6 +61,9 @@ struct TBackendDescriptor {
 
   // True if the debug webserver is secured (for correctly generating links)
   4: optional bool secure_webserver;
+
+  5: bool is_coordinator;
+  6: bool is_executor;
 }
 
 // Description of a single entry in a topic

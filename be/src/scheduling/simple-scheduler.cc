@@ -55,6 +55,8 @@ using namespace strings;
 
 DECLARE_int32(be_port);
 DECLARE_string(hostname);
+DECLARE_bool(coordinator);
+DECLARE_bool(executor);
 
 DEFINE_bool(disable_admission_control, false, "Disables admission control.");
 
@@ -129,6 +131,8 @@ Status SimpleScheduler::Init() {
   }
 
   local_backend_descriptor_.ip_address = ip;
+  local_backend_descriptor_.is_executor = FLAGS_executor;
+  local_backend_descriptor_.is_coordinator = FLAGS_coordinator;
   LOG(INFO) << "Simple-scheduler using " << ip << " as IP address";
 
   coord_only_backend_config_.AddBackend(local_backend_descriptor_);
@@ -186,8 +190,13 @@ void SimpleScheduler::BackendsUrlCallback(const Webserver::ArgumentMap& args,
   backend_config->GetAllBackends(&backends);
   Value backends_list(kArrayType);
   for (const TBackendDescriptor& backend: backends) {
+    Value backend_obj(kObjectType);
     Value str(TNetworkAddressToString(backend.address).c_str(), document->GetAllocator());
-    backends_list.PushBack(str, document->GetAllocator());
+    backend_obj.AddMember("address", str, document->GetAllocator());
+    backend_obj.AddMember("is_executor", backend.is_executor, document->GetAllocator());
+    backend_obj.AddMember(
+        "is_coordinator", backend.is_coordinator, document->GetAllocator());
+    backends_list.PushBack(backend_obj, document->GetAllocator());
   }
 
   document->AddMember("backends", backends_list, document->GetAllocator());
@@ -252,7 +261,7 @@ void SimpleScheduler::UpdateMembership(
                                << be_desc.address;
       continue;
     }
-    new_backend_config->AddBackend(be_desc);
+    if (be_desc.is_executor) new_backend_config->AddBackend(be_desc);
     current_membership_.insert(make_pair(item.key, be_desc));
   }
 

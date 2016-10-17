@@ -956,10 +956,9 @@ class ImpalaServer : public ImpalaServiceIf, public ImpalaHiveServer2ServiceIf,
 /// deleted automatically.
 /// Returns OK unless there was some error creating the servers, in
 /// which case none of the output parameters can be assumed to be valid.
-Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port,
-    int be_port, ThriftServer** beeswax_server, ThriftServer** hs2_server,
-    ThriftServer** be_server, ImpalaServer** impala_server);
-
+Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port, int be_port,
+    ThriftServer** beeswax_server, ThriftServer** hs2_server, ThriftServer** be_server,
+    boost::shared_ptr<ImpalaServer>* impala_server);
 }
 
 #endif

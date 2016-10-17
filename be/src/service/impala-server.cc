@@ -177,6 +177,9 @@ DEFINE_int32(idle_query_timeout, 0, "The time, in seconds, that a query may be i
     "QUERY_TIMEOUT_S overrides this setting, but, if set, --idle_query_timeout represents"
     " the maximum allowable timeout.");
 
+DEFINE_bool(coordinator, true, "If true, can coordinate queries");
+DEFINE_bool(executor, true, "If true, can execute queries");
+
 // TODO: Remove for Impala 3.0.
 DEFINE_string(local_nodemanager_url, "", "Deprecated");
 
@@ -333,10 +336,12 @@ ImpalaServer::ImpalaServer(ExecEnv* exec_env)
         bind<void>(mem_fn(&ImpalaServer::MembershipCallback), this, _1, _2);
     exec_env->subscriber()->AddTopic(SimpleScheduler::IMPALA_MEMBERSHIP_TOPIC, true, cb);
 
-    StatestoreSubscriber::UpdateCallback catalog_cb =
-        bind<void>(mem_fn(&ImpalaServer::CatalogUpdateCallback), this, _1, _2);
-    exec_env->subscriber()->AddTopic(
-        CatalogServer::IMPALA_CATALOG_TOPIC, true, catalog_cb);
+    if (FLAGS_coordinator) {
+      StatestoreSubscriber::UpdateCallback catalog_cb =
+          bind<void>(mem_fn(&ImpalaServer::CatalogUpdateCallback), this, _1, _2);
+      exec_env->subscriber()->AddTopic(
+          CatalogServer::IMPALA_CATALOG_TOPIC, true, catalog_cb);
+    }
   }
 
   ABORT_IF_ERROR(UpdateCatalogMetrics());
@@ -1830,17 +1835,18 @@ void ImpalaServer::RegisterSessionTimeout(int32_t session_timeout) {
 
 Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port, int be_port,
     ThriftServer** beeswax_server, ThriftServer** hs2_server, ThriftServer** be_server,
-    ImpalaServer** impala_server) {
+    boost::shared_ptr<ImpalaServer>* impala_server) {
   DCHECK((beeswax_port == 0) == (beeswax_server == NULL));
   DCHECK((hs2_port == 0) == (hs2_server == NULL));
   DCHECK((be_port == 0) == (be_server == NULL));
 
-  boost::shared_ptr<ImpalaServer> handler(new ImpalaServer(exec_env));
+  impala_server->reset(new ImpalaServer(exec_env));
 
-  if (beeswax_port != 0 && beeswax_server != NULL) {
+  if (beeswax_port != 0 && beeswax_server != NULL && FLAGS_coordinator) {
     // Beeswax FE must be a TThreadPoolServer because ODBC and Hue only support
     // TThreadPoolServer.
-    boost::shared_ptr<TProcessor> beeswax_processor(new ImpalaServiceProcessor(handler));
+    boost::shared_ptr<TProcessor> beeswax_processor(
+        new ImpalaServiceProcessor(*impala_server));
     boost::shared_ptr<TProcessorEventHandler> event_handler(
         new RpcEventHandler("beeswax", exec_env->metrics()));
     beeswax_processor->setEventHandler(event_handler);
@@ -1848,7 +1854,7 @@ Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port, int
         beeswax_port, AuthManager::GetInstance()->GetExternalAuthProvider(),
         exec_env->metrics(), FLAGS_fe_service_threads, ThriftServer::ThreadPool);
 
-    (*beeswax_server)->SetConnectionHandler(handler.get());
+    (*beeswax_server)->SetConnectionHandler(impala_server->get());
     if (!FLAGS_ssl_server_certificate.empty()) {
       LOG(INFO) << "Enabling SSL for Beeswax";
       RETURN_IF_ERROR((*beeswax_server)->EnableSsl(FLAGS_ssl_server_certificate,
@@ -1858,10 +1864,10 @@ Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port, int
     LOG(INFO) << "Impala Beeswax Service listening on " << beeswax_port;
   }
 
-  if (hs2_port != 0 && hs2_server != NULL) {
+  if (hs2_port != 0 && hs2_server != NULL && FLAGS_coordinator) {
     // HiveServer2 JDBC driver does not support non-blocking server.
     boost::shared_ptr<TProcessor> hs2_fe_processor(
-        new ImpalaHiveServer2ServiceProcessor(handler));
+        new ImpalaHiveServer2ServiceProcessor(*impala_server));
     boost::shared_ptr<TProcessorEventHandler> event_handler(
         new RpcEventHandler("hs2", exec_env->metrics()));
     hs2_fe_processor->setEventHandler(event_handler);
@@ -1870,7 +1876,7 @@ Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port, int
         AuthManager::GetInstance()->GetExternalAuthProvider(), exec_env->metrics(),
         FLAGS_fe_service_threads, ThriftServer::ThreadPool);
 
-    (*hs2_server)->SetConnectionHandler(handler.get());
+    (*hs2_server)->SetConnectionHandler(impala_server->get());
     if (!FLAGS_ssl_server_certificate.empty()) {
       LOG(INFO) << "Enabling SSL for HiveServer2";
       RETURN_IF_ERROR((*hs2_server)->EnableSsl(FLAGS_ssl_server_certificate,
@@ -1898,8 +1904,6 @@ Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port, int
 
     LOG(INFO) << "ImpalaInternalService listening on " << be_port;
   }
-  if (impala_server != NULL) *impala_server = handler.get();
-
   return Status::OK();
 }
 
