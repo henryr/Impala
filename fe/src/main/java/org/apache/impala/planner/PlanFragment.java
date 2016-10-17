@@ -259,6 +259,7 @@ public class PlanFragment extends TreeNode<PlanFragment> {
     return getExplainString("", "", detailLevel);
   }
 
+
   /**
    * The root of the output tree will be prefixed by rootPrefix and the remaining plan
    * output will be prefixed by prefix.

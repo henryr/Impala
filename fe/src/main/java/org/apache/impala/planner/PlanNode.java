@@ -342,6 +342,88 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
     return expBuilder.toString();
   }
 
+  protected final String buildExplainString(ExplainStringBuilder builder) {
+    String detailPrefix = prefix;
+    String filler;
+    boolean printFiller = (detailLevel.ordinal() >= TExplainLevel.STANDARD.ordinal());
+
+    // Do not traverse into the children of an Exchange node to avoid crossing
+    // fragment boundaries.
+    boolean traverseChildren = !children_.isEmpty() &&
+        !(this instanceof ExchangeNode && detailLevel == TExplainLevel.VERBOSE);
+
+    // ADD to builder: if node has no children, set its prefix differently.
+    // if (traverseChildren) {
+    //   detailPrefix += "|  ";
+    //   filler = prefix + "|";
+    // } else {
+    //   detailPrefix += "   ";
+    //   filler = prefix;
+    // }
+
+    builder.startNewPlanNode();
+
+    buildNodeExplainString(builder);
+    if (detailLevel.ordinal() >= TExplainLevel.STANDARD.ordinal() &&
+        !(this instanceof SortNode)) {
+      if (limit_ != -1) {
+        builder.addNodeDetail("limit: " + limit_);
+      }
+      builder.addNodeDetail(getOffsetExplainString());
+    }
+
+    // Output cardinality, cost estimates and tuple Ids only when explain plan level
+    // is extended or above.
+    if (detailLevel.ordinal() >= TExplainLevel.EXTENDED.ordinal()) {
+      // Print estimated output cardinality and memory cost.
+      builder.addNodeDetail(String.format("%s%s", PrintUtils.printHosts("", numNodes_),
+              PrintUtils.printMemCost(" ", perHostMemCost_)));
+
+      StringBuilder details = new StringBuilder();
+      // Print tuple ids and row size.
+      details.append("tuple-ids=");
+      for (int i = 0; i < tupleIds_.size(); ++i) {
+        TupleId tupleId = tupleIds_.get(i);
+        String nullIndicator = nullableTupleIds_.contains(tupleId) ? "N" : "";
+        details.append(tupleId.asInt() + nullIndicator);
+        if (i + 1 != tupleIds_.size()) expBuilder.append(",");
+      }
+      details.append(" row-size=" + PrintUtils.printBytes(Math.round(avgRowSize_)));
+      details.append(" " + PrintUtils.printCardinality("", cardinality_));
+      builder.addNodeDetail(details.toString());
+    }
+
+    // Print the children. Do not traverse into the children of an Exchange node to
+    // avoid crossing fragment boundaries.
+    if (traverseChildren) {
+      builder.startPlanNodeChildren();
+
+      // if (printFiller) expBuilder.append(filler + "\n");
+      // String childHeadlinePrefix = prefix + "|--";
+      // String childDetailPrefix = prefix + "|  ";
+      for (int i = children_.size() - 1; i >= 1; --i) {
+        PlanNode child = getChild(i);
+        if (fragment_ != child.fragment_) {
+          // we're crossing a fragment boundary
+          child.fragment_.buildExplainString(builder);
+        } else {
+          child.buildExplainString(builder);
+        }
+        //        if (printFiller) expBuilder.append(filler + "\n");
+      }
+      builder.endPlanNodeChildren();
+
+      children_.get(0).buildExplainString(builder);
+      expBuilder.append(children_.get(0).getExplainString(prefix, prefix, detailLevel));
+
+      builder.endPlanNodeChildren();
+    }
+
+    builder.endPlanNode();
+    return builder.toString();
+  }
+
+
   /**
    * Return the node-specific details.
    * Subclass should override this function.

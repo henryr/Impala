@@ -98,6 +98,27 @@ public class HdfsTableSink extends TableSink {
     return 0;
   }
 
+  protected void buildExplainString(ExplainStringBuilder builder) {
+    builder.addSinkTitle(String.format("WRITE TO HDFS [%s%s%s, %s]",
+            targetTable_.getFullName(), overwriteStr, partitionKeyStr,
+            getOutputExprsString()));
+
+    if (explainLevel.ordinal() > TExplainLevel.MINIMAL.ordinal()) {
+      long totalNumPartitions = Expr.getNumDistinctValues(partitionKeyExprs_);
+      String partitions = "partitions=unavailable";
+      if (totalNumPartitions != -1) {
+        partitions = "partitions=" + (totalNumPartitions == 0 ? 1 : totalNumPartitions);
+      }
+      builder.addSinkDetail(partitions);
+      if (explainLevel.ordinal() >= TExplainLevel.EXTENDED.ordinal()) {
+        String details = String.format("%s%s" %
+            PrintUtils.printHosts("", fragment_.getNumNodes()),
+            PrintUtils.printMemCost(" ", perHostMemCost_));
+        builder.addSinkDetail(details);
+      }
+    }
+  }
+
   @Override
   protected String getExplainStringImpl(String prefix, String detailPrefix,
       TExplainLevel explainLevel) {
