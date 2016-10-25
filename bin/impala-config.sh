@@ -57,7 +57,7 @@ fi
 # moving to a different build of the toolchain, e.g. when a version is bumped or a
 # compile option is changed. The build id can be found in the output of the toolchain
 # build jobs, it is constructed from the build number and toolchain git hash prefix.
-: ${IMPALA_TOOLCHAIN_BUILD_ID=308-96a4cc516e}
+: ${IMPALA_TOOLCHAIN_BUILD_ID=318-41bb87384b}
 
 # This flag is used in $IMPALA_HOME/cmake_modules/toolchain.cmake.
 # If it's 0, Impala will be built with the compiler in the toolchain directory.
@@ -265,6 +265,7 @@ export IMPALA_LLVM_DEBUG_VERSION=3.8.0-asserts-p1
 export IMPALA_LZ4_VERSION=svn
 export IMPALA_OPENLDAP_VERSION=2.4.25
 export IMPALA_OPENSSL_VERSION=0.9.8zf
+export IMPALA_PROTOBUF_VERSION=2.6.1
 export IMPALA_POSTGRES_JDBC_DRIVER_VERSION=9.0-801
 export IMPALA_RAPIDJSON_VERSION=0.11
 export IMPALA_RE2_VERSION=20130115-p1
