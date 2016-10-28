@@ -39,6 +39,8 @@ template <bool>
 struct CompileAssert {
 };
 
+#ifndef COMPILE_ASSERT
+
 #define COMPILE_ASSERT(expr, msg) \
   typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1] ATTRIBUTE_UNUSED
 
@@ -82,6 +84,7 @@ struct CompileAssert {
 //
 //   This is to avoid running into a bug in MS VC 7.1, which
 //   causes ((0.0) ? 1 : -1) to incorrectly evaluate to 1.
+#endif // COMPILE_ASSERT
 
 
 // A macro to disallow the copy constructor and operator= functions
