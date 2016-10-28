@@ -21,8 +21,8 @@
 
 #include <sys/time.h>
 
-#include <glog/logging.h>
 #include <string>
+#include <common/logging.h>
 using std::string;
 
 #if defined(__APPLE__)

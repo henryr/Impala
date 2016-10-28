@@ -6,9 +6,10 @@
 
 #include <algorithm>
 #include <climits>
-#include <glog/logging.h>
 #include <string.h>
 #include <string>
+#include <string>
+#include <common/logging.h>
 
 #include "gutil/hash/hash.h"
 #include "gutil/logging-inl.h"
