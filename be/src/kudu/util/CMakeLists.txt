@@ -244,40 +244,40 @@ ADD_EXPORTABLE_LIBRARY(kudu_util
 # kudu_test_util
 #######################################
 
-add_library(kudu_test_util
-  test_util.cc
-  curl_util.cc)
-target_link_libraries(kudu_test_util
-  ${CURL_LIBRARIES}
-  gflags
-  glog
-  gmock
-  kudu_util)
+# add_library(kudu_test_util
+#   test_util.cc
+#   curl_util.cc)
+# target_link_libraries(kudu_test_util
+#   ${CURL_LIBRARIES}
+#   gflags
+#   glog
+#   gmock
+#   kudu_util)
 
-if(NOT APPLE)
-target_link_libraries(kudu_test_util
-  vmem)
-endif()
+# if(NOT APPLE)
+# target_link_libraries(kudu_test_util
+#   vmem)
+# endif()
 
 #######################################
 # kudu_test_main
 #######################################
 
-add_library(kudu_test_main
-  test_main.cc)
-target_link_libraries(kudu_test_main
-  ${KRB5_REALM_OVERRIDE}
-  gflags
-  glog
-  gmock
-  kudu_util
-  kudu_test_util)
+# add_library(kudu_test_main
+#   test_main.cc)
+# target_link_libraries(kudu_test_main
+#   ${KRB5_REALM_OVERRIDE}
+#   gflags
+#   glog
+#   gmock
+#   kudu_util
+#   kudu_test_util)
 
-if(NOT APPLE)
-  target_link_libraries(kudu_test_main
-    dl
-    rt)
-endif()
+# if(NOT APPLE)
+#   target_link_libraries(kudu_test_main
+#     dl
+#     rt)
+# endif()
 
 #######################################
 # protoc-gen-insertions
@@ -381,10 +381,10 @@ target_link_libraries(jsonwriter_test_proto
 #######################################
 
 ADD_KUDU_TEST(jsonwriter-test)
-if(NOT "${NO_TESTS}")
-  target_link_libraries(jsonwriter-test
-    jsonwriter_test_proto)
-endif()
+# if(NOT "${NO_TESTS}")
+#   target_link_libraries(jsonwriter-test
+#     jsonwriter_test_proto)
+# endif()
 
 #######################################
 # proto_container_test_proto
@@ -409,7 +409,7 @@ target_link_libraries(proto_container_test_proto
 #######################################
 
 ADD_KUDU_TEST(pb_util-test)
-if(NOT "${NO_TESTS}")
-  target_link_libraries(pb_util-test
-    proto_container_test_proto)
-endif()
+# if(NOT "${NO_TESTS}")
+#   target_link_libraries(pb_util-test
+#     proto_container_test_proto)
+# endif()

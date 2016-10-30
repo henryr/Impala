@@ -120,9 +120,9 @@ set(LIBS ${LIBS} ${Boost_LIBRARIES})
 message(STATUS "Boost include dir: " ${Boost_INCLUDE_DIRS})
 message(STATUS "Boost libraries: " ${Boost_LIBRARIES})
 
-find_package(OpenSSL REQUIRED)
+find_package(OpenSSL 1.0.0 REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIR})
-set(OPENSSL_LIBS ${OPENSSL_SSL} ${OPENSSL_CRYPTO})
+set(OPENSSL_LIBS ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY})
 message(STATUS "OpenSSL: ${OPENSSL_LIBS}")
 
 find_package(Bzip2 REQUIRED)
@@ -285,6 +285,11 @@ ADD_THIRDPARTY_LIB(zlib
   SHARED_LIB ${ZLIB_LIBRARIES})
 ADD_THIRDPARTY_LIB(cyrus_sasl
   SHARED_LIB ${SASL_SHARED_LIB})
+
+ADD_THIRDPARTY_LIB(openssl_ssl
+  SHARED_LIB "${OPENSSL_SSL_LIBRARY}")
+ADD_THIRDPARTY_LIB(openssl_crypto
+    SHARED_LIB "${OPENSSL_CRYPTO_LIBRARY}")
 
 if (NOT APPLE)
   find_library(RT_LIB_PATH rt)
