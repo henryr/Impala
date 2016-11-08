@@ -56,9 +56,10 @@ DEFINE_int32(log_async_buffer_bytes_per_level, 2 * 1024 * 1024,
              "level. Only relevant when --log_async is enabled.");
 TAG_FLAG(log_async_buffer_bytes_per_level, hidden);
 
-DEFINE_int32(max_log_files, 10,
-    "Maximum number of log files to retain per severity level. The most recent "
-    "log files are retained. If set to 0, all log files are retained.");
+DECLARE_int32(max_log_files);
+// DEFINE_int32(max_log_files, 10,
+//     "Maximum number of log files to retain per severity level. The most recent "
+//     "log files are retained. If set to 0, all log files are retained.");
 TAG_FLAG(max_log_files, runtime);
 TAG_FLAG(max_log_files, experimental);
 

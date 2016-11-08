@@ -30,6 +30,8 @@ using std::string;
 
 namespace kudu {
 
+using ::operator<<;
+
 namespace {
 
 static simple_spinlock g_intern_map_lock;

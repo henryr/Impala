@@ -30,6 +30,7 @@
 
 #include <functional>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -55,6 +56,8 @@ using strings::Substitute;
 using strings::SubstituteAndAppend;
 
 namespace kudu {
+
+using ::operator<<;
 
 namespace {
 
