@@ -119,9 +119,11 @@
 #define DCHECK_OK             KUDU_DCHECK_OK
 
 // These are standard glog macros.
+#ifndef KUDU_LOG
 #define KUDU_LOG              LOG
 #define KUDU_CHECK            CHECK
 #define KUDU_DCHECK           DCHECK
+#endif
 #endif
 
 namespace kudu {

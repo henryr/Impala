@@ -17,6 +17,9 @@
 
 cmake_minimum_required(VERSION 3.2.3)
 
+# Added on import to Impala
+set(NO_TESTS 1)
+
 # Explicitly define project() to allow modifying the compiler before the project is
 # initialized.
 project(Impala)
@@ -124,9 +127,9 @@ set(LIBS ${LIBS} ${Boost_LIBRARIES})
 message(STATUS "Boost include dir: " ${Boost_INCLUDE_DIRS})
 message(STATUS "Boost libraries: " ${Boost_LIBRARIES})
 
-find_package(OpenSSL REQUIRED)
+find_package(OpenSSL 1.0.0 REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIR})
-set(OPENSSL_LIBS ${OPENSSL_SSL} ${OPENSSL_CRYPTO})
+set(OPENSSL_LIBS ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY})
 message(STATUS "OpenSSL: ${OPENSSL_LIBS}")
 
 find_package(Bzip2 REQUIRED)
@@ -286,6 +289,9 @@ set(LIBS ${LIBS} ${AVRO_STATIC_LIB})
 message(STATUS "Avro include dir: " ${AVRO_INCLUDE_DIR})
 message(STATUS "Avro static library: " ${AVRO_STATIC_LIB})
 
+set(NO_KUDU_TESTS 1)
+set(NO_NVM_SUPPORT 1)
+
 ###################################################################
 # These dependencies use Kudu's CMake functions
 
@@ -297,6 +303,11 @@ ADD_THIRDPARTY_LIB(zlib
   STATIC_LIB ${ZLIB_STATIC_LIBRARIES})
 ADD_THIRDPARTY_LIB(cyrus_sasl
   SHARED_LIB ${SASL_SHARED_LIB})
+
+ADD_THIRDPARTY_LIB(openssl_ssl
+  SHARED_LIB "${OPENSSL_SSL_LIBRARY}")
+ADD_THIRDPARTY_LIB(openssl_crypto
+    SHARED_LIB "${OPENSSL_CRYPTO_LIBRARY}")
 
 if (NOT APPLE)
   find_library(RT_LIB_PATH rt)
@@ -367,6 +378,7 @@ include_directories(${BREAKPAD_INCLUDE_DIR})
 set(LIBS ${LIBS} ${BREAKPAD_LIBRARIES})
 message(STATUS "Breakpad include dir: " ${BREAKPAD_INCLUDE_DIR})
 message(STATUS "Breakpad library: " ${BREAKPAD_STATIC_LIB})
+ADD_THIRDPARTY_LIB(breakpad_client STATIC_LIB ${BREAKPAD_LIB_PATH})
 
 # compile these subdirs using their own CMakeLists.txt
 add_subdirectory(common/function-registry)
