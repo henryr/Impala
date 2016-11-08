@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# Added on import to Impala
+set(NO_TESTS 1)
+
 #######################################
 # histogram_proto
 #######################################
@@ -179,7 +182,7 @@ set(UTIL_SRCS
   trace_metrics.cc
   user.cc
   url-coding.cc
-  version_info.cc
+#  version_info.cc TODO(KRPC): Consider re-adding
   zlib.cc
 )
 
@@ -283,7 +286,7 @@ endif()
 #######################################
 
 add_executable(protoc-gen-insertions protoc-gen-insertions.cc)
-target_link_libraries(protoc-gen-insertions gutil protobuf protoc ${KUDU_BASE_LIBS})
+target_link_libraries(protoc-gen-insertions gutil glog gflags protobuf protoc ${KUDU_BASE_LIBS})
 
 #######################################
 # Unit tests
