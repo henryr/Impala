@@ -60,7 +60,9 @@
 #include <linux/falloc.h>
 #include <linux/fiemap.h>
 #include <linux/fs.h>
+#if defined HAVE_MAGIC_H
 #include <linux/magic.h>
+#endif
 #include <sys/ioctl.h>
 #include <sys/sysinfo.h>
 #include <sys/vfs.h>
@@ -1466,7 +1468,7 @@ class PosixEnv : public Env {
     TRACE_EVENT0("io", "PosixEnv::IsOnExtFilesystem");
     ThreadRestrictions::AssertIOAllowed();
 
-#ifdef __APPLE__
+#if defined __APPLE__ || !defined HAVE_MAGIC_H
     *result = false;
 #else
     struct statfs buf;
