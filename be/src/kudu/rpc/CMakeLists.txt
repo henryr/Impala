@@ -89,6 +89,9 @@ target_link_libraries(protoc-gen-krpc
     protoc
     protobuf
     gutil
+    glog
+    gflags
+    pb_util_proto # TODO(KRPC): Why is this needed?
     kudu_util)
 
 #### RPC test
@@ -122,4 +125,3 @@ ADD_KUDU_TEST(rpc-test)
 ADD_KUDU_TEST(rpc_stub-test)
 ADD_KUDU_TEST(sasl_rpc-test)
 ADD_KUDU_TEST(service_queue-test)
-

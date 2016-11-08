@@ -287,10 +287,15 @@ set (IMPALA_LINK_LIBS
   Exec
   Exprs
   GlobalFlags
+  histogram_proto
   ImpalaThrift
   kudu_util
+  krpc
   maintenance_manager_proto
   Rpc
+  rpc_header_proto
+  rpc_introspection_proto
+  pb_util_proto
   Runtime
   Scheduling
   security
@@ -338,10 +343,13 @@ set (IMPALA_DEPENDENCIES
   ${LBER_LIBRARY}
   ThriftSaslTransport
   ${OPENSSL_LIBS}
+  crcutil
   gutil
   glogstatic
   gflagsstatic
   pprofstatic
+  protobuf
+  libev
   breakpad
   ${HDFS_LIB}
   ${LIBZ}
@@ -447,6 +455,7 @@ add_subdirectory(src/common)
 add_subdirectory(src/exec)
 add_subdirectory(src/exprs)
 add_subdirectory(src/kudu/security)
+add_subdirectory(src/kudu/rpc)
 add_subdirectory(src/kudu/util)
 add_subdirectory(src/runtime)
 add_subdirectory(src/scheduling)
