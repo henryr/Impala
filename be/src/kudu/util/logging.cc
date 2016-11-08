@@ -40,12 +40,10 @@
 #include "kudu/util/env.h"
 #include "kudu/util/env_util.h"
 #include "kudu/util/flag_tags.h"
-#include "kudu/util/minidump.h"
+// #include "kudu/util/minidump.h"
 #include "kudu/util/status.h"
 
-DEFINE_string(log_filename, "",
-    "Prefix of log filename - "
-    "full path is <log_dir>/<log_filename>.[INFO|WARN|ERROR|FATAL]");
+DECLARE_string(log_filename);
 TAG_FLAG(log_filename, stable);
 
 DEFINE_bool(log_async, true,
@@ -58,9 +56,7 @@ DEFINE_int32(log_async_buffer_bytes_per_level, 2 * 1024 * 1024,
              "level. Only relevant when --log_async is enabled.");
 TAG_FLAG(log_async_buffer_bytes_per_level, hidden);
 
-DEFINE_int32(max_log_files, 10,
-    "Maximum number of log files to retain per severity level. The most recent "
-    "log files are retained. If set to 0, all log files are retained.");
+DECLARE_int32(max_log_files);
 TAG_FLAG(max_log_files, runtime);
 TAG_FLAG(max_log_files, experimental);
 
@@ -269,7 +265,7 @@ void InitGoogleLoggingSafe(const char* arg) {
   initial_stderr_severity = FLAGS_stderrthreshold;
 
   // For minidump support. Must be called before logging threads started.
-  CHECK_OK(BlockSigUSR1());
+  // CHECK_OK(BlockSigUSR1());
 
   if (FLAGS_log_async) {
     EnableAsyncLogging();
