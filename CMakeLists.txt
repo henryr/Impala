@@ -352,6 +352,9 @@ ADD_THIRDPARTY_LIB(krb5
 
 ###################################################################
 
+# Required for KRPC_GENERATE, which converts protobuf to stubs.
+find_package(KRPC REQUIRED)
+
 # KuduClient can use GLOG
 add_definitions(-DKUDU_HEADERS_USE_GLOG)
 if(NOT $ENV{KUDU_CLIENT_DIR} EQUAL "")
