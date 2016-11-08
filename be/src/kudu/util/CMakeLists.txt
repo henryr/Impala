@@ -156,7 +156,7 @@ set(UTIL_SRCS
   memory/overwrite.cc
   mem_tracker.cc
   metrics.cc
-  minidump.cc
+  # minidump.cc
   monotime.cc
   mutex.cc
   net/dns_resolver.cc
@@ -194,7 +194,7 @@ set(UTIL_SRCS
   trace_metrics.cc
   user.cc
   url-coding.cc
-  version_info.cc
+#  version_info.cc TODO(KRPC): Consider re-adding
   zlib.cc
 )
 
@@ -326,7 +326,7 @@ endif()
 #######################################
 
 add_executable(protoc-gen-insertions protoc-gen-insertions.cc)
-target_link_libraries(protoc-gen-insertions gutil protobuf protoc ${KUDU_BASE_LIBS})
+target_link_libraries(protoc-gen-insertions gutil glog gflags protobuf protoc ${KUDU_BASE_LIBS})
 
 #######################################
 # Unit tests

@@ -26,8 +26,8 @@
 #include <string>
 
 #if defined(__linux__)
-#include <breakpad/client/linux/handler/exception_handler.h>
-#include <breakpad/common/linux/linux_libc_support.h>
+#include <client/linux/handler/exception_handler.h>
+#include <common/linux/linux_libc_support.h>
 #endif // defined(__linux__)
 
 #include <gflags/gflags.h>
