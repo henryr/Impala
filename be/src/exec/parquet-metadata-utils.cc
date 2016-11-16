@@ -32,11 +32,22 @@
 
 #include "common/names.h"
 
+#include <thrift/protocol/TDebugProtocol.h>
+
 using boost::algorithm::is_any_of;
 using boost::algorithm::split;
 using boost::algorithm::token_compress_on;
 
 namespace impala {
+
+namespace {
+bool ParquetLogicalTypeCompatible(PrimitiveType impala_type, parquet::Type::type physical_type) {
+  auto physical_types = IMPALA_TO_PARQUET_SCALAR_TYPES.find(impala_type);
+  if (physical_types == IMPALA_TO_PARQUET_SCALAR_TYPES.end()) return false;
+  return (physical_types->second.find(physical_type) != physical_types->second.end());
+}
+
+}
 
 Status ParquetMetadataUtils::ValidateFileVersion(
     const parquet::FileMetaData& file_metadata, const char* filename) {
@@ -133,10 +144,9 @@ Status ParquetMetadataUtils::ValidateColumn(const parquet::FileMetaData& file_me
   // Validation after this point is only if col_reader is reading values.
   if (slot_desc == NULL) return Status::OK();
 
-  parquet::Type::type type = IMPALA_TO_PARQUET_TYPES[slot_desc->type().type];
-  if (UNLIKELY(type != file_data.meta_data.type)) {
-    return Status(Substitute("Unexpected Parquet type in file '$0' metadata expected $1 "
-        "actual $2: file may be corrupt", filename, type, file_data.meta_data.type));
+  if (UNLIKELY(!ParquetLogicalTypeCompatible(slot_desc->type().type, file_data.meta_data.type))) {
+    return Status(Substitute("Unexpected Parquet type in file '$0' metadata. Expected $1, "
+        "actual $2: file may be corrupt", filename, slot_desc->type().type, file_data.meta_data.type));
   }
 
   // Check the decimal scale in the file matches the metastore scale and precision.
@@ -147,27 +157,32 @@ Status ParquetMetadataUtils::ValidateColumn(const parquet::FileMetaData& file_me
       schema_element.converted_type == parquet::ConvertedType::DECIMAL;
   if (slot_desc->type().type == TYPE_DECIMAL) {
     // We require that the scale and byte length be set.
-    if (schema_element.type != parquet::Type::FIXED_LEN_BYTE_ARRAY) {
-      stringstream ss;
-      ss << "File '" << filename << "' column '" << schema_element.name
-         << "' should be a decimal column encoded using FIXED_LEN_BYTE_ARRAY.";
-      return Status(ss.str());
-    }
+    // if (schema_element.type != parquet::Type::FIXED_LEN_BYTE_ARRAY) {
+    //   stringstream ss;
+    //   ss << "File '" << filename << "' column '" << schema_element.name
+    //      << "' should be a decimal column encoded using FIXED_LEN_BYTE_ARRAY.";
+    //   return Status(ss.str());
+    // }
+    LOG(INFO) << apache::thrift::ThriftDebugString(schema_element);
 
-    if (!schema_element.__isset.type_length) {
-      stringstream ss;
-      ss << "File '" << filename << "' column '" << schema_element.name
-         << "' does not have type_length set.";
-      return Status(ss.str());
-    }
+    if (schema_element.type == parquet::Type::FIXED_LEN_BYTE_ARRAY) {
+      if (!schema_element.__isset.type_length) {
+        stringstream ss;
+        ss << "File '" << filename << "' column '" << schema_element.name
+           << "' does not have type_length set.";
+        return Status(ss.str());
+      }
 
-    int expected_len = ParquetPlainEncoder::DecimalSize(slot_desc->type());
-    if (schema_element.type_length != expected_len) {
-      stringstream ss;
-      ss << "File '" << filename << "' column '" << schema_element.name
-         << "' has an invalid type length. Expecting: " << expected_len
-         << " len in file: " << schema_element.type_length;
-      return Status(ss.str());
+      int expected_len = ParquetPlainEncoder::DecimalSize(slot_desc->type());
+      if (schema_element.type_length != expected_len) {
+        stringstream ss;
+        ss << "File '" << filename << "' column '" << schema_element.name
+           << "' has an invalid type length. Expecting: " << expected_len
+           << " len in file: " << schema_element.type_length;
+        return Status(ss.str());
+      }
+    } else {
+      // Validation checks for binary
     }
 
     if (!schema_element.__isset.scale) {
@@ -654,8 +669,9 @@ Status ParquetSchemaResolver::ValidateScalarNode(const SchemaNode& node,
         PrintSubPath(tbl_desc_, path, idx), col_type.DebugString(), node.DebugString());
     return Status::Expected(msg);
   }
-  parquet::Type::type type = IMPALA_TO_PARQUET_TYPES[col_type.type];
-  if (type != node.element->type) {
+  auto logical_types = IMPALA_TO_PARQUET_SCALAR_TYPES.find(col_type.type);
+  DCHECK(logical_types != IMPALA_TO_PARQUET_SCALAR_TYPES.end());
+  if (logical_types->second.find(node.element->type) == logical_types->second.end()) {
     ErrorMsg msg(TErrorCode::PARQUET_UNRECOGNIZED_SCHEMA, filename_,
         PrintSubPath(tbl_desc_, path, idx), col_type.DebugString(), node.DebugString());
     return Status::Expected(msg);

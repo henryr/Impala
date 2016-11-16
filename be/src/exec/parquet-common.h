@@ -27,6 +27,9 @@
 #include "util/bit-util.h"
 #include "util/decimal-util.h"
 
+#include <map>
+#include <set>
+
 /// This file contains common elements between the parquet Writer and Scanner.
 namespace impala {
 
@@ -34,6 +37,26 @@ class TimestampValue;
 
 const uint8_t PARQUET_VERSION_NUMBER[4] = {'P', 'A', 'R', '1'};
 const uint32_t PARQUET_CURRENT_VERSION = 1;
+
+const std::map<PrimitiveType, std::set<parquet::Type::type>> IMPALA_TO_PARQUET_SCALAR_TYPES =  {
+  {PrimitiveType::INVALID_TYPE, {parquet::Type::BOOLEAN}},
+  {PrimitiveType::TYPE_NULL, {parquet::Type::BOOLEAN}},
+  {PrimitiveType::TYPE_BOOLEAN, {parquet::Type::BOOLEAN}},
+  {PrimitiveType::TYPE_TINYINT, {parquet::Type::INT32}},
+  {PrimitiveType::TYPE_SMALLINT, {parquet::Type::INT32}},
+  {PrimitiveType::TYPE_INT, {parquet::Type::INT32}},
+  {PrimitiveType::TYPE_BIGINT, {parquet::Type::INT64}},
+  {PrimitiveType::TYPE_FLOAT, {parquet::Type::FLOAT}},
+  {PrimitiveType::TYPE_DOUBLE, {parquet::Type::DOUBLE}},
+  {PrimitiveType::TYPE_TIMESTAMP, {parquet::Type::INT96}},
+  {PrimitiveType::TYPE_STRING, {parquet::Type::BYTE_ARRAY}},
+  {PrimitiveType::TYPE_DATE, {parquet::Type::BYTE_ARRAY}},
+  {PrimitiveType::TYPE_DATETIME, {parquet::Type::BYTE_ARRAY}},
+  {PrimitiveType::TYPE_BINARY, {parquet::Type::BYTE_ARRAY}},
+  {PrimitiveType::TYPE_DECIMAL, {parquet::Type::FIXED_LEN_BYTE_ARRAY, parquet::Type::BYTE_ARRAY}},
+  {PrimitiveType::TYPE_CHAR, {parquet::Type::BYTE_ARRAY}},
+  {PrimitiveType::TYPE_VARCHAR, {parquet::Type::BYTE_ARRAY}},
+};
 
 /// Mapping of impala types to parquet storage types.  This is indexed by
 /// PrimitiveType enum
