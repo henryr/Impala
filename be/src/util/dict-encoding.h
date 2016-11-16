@@ -320,6 +320,7 @@ inline int DictEncoderBase::WriteData(uint8_t* buffer, int buffer_len) {
   return 1 + encoder.len();
 }
 
+
 template<typename T>
 inline bool DictDecoder<T>::Reset(uint8_t* dict_buffer, int dict_len,
     int fixed_len_size) {

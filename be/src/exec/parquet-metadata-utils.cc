@@ -669,9 +669,7 @@ Status ParquetSchemaResolver::ValidateScalarNode(const SchemaNode& node,
         PrintSubPath(tbl_desc_, path, idx), col_type.DebugString(), node.DebugString());
     return Status::Expected(msg);
   }
-  auto logical_types = IMPALA_TO_PARQUET_SCALAR_TYPES.find(col_type.type);
-  DCHECK(logical_types != IMPALA_TO_PARQUET_SCALAR_TYPES.end());
-  if (logical_types->second.find(node.element->type) == logical_types->second.end()) {
+  if (!ParquetLogicalTypeCompatible(col_type.type, node.element->type)) {
     ErrorMsg msg(TErrorCode::PARQUET_UNRECOGNIZED_SCHEMA, filename_,
         PrintSubPath(tbl_desc_, path, idx), col_type.DebugString(), node.DebugString());
     return Status::Expected(msg);

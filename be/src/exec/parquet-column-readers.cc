@@ -217,7 +217,11 @@ class ScalarColumnReader : public BaseScalarColumnReader {
     DCHECK(slot_desc_ != NULL);
     DCHECK_NE(slot_desc_->type().type, TYPE_BOOLEAN);
     if (slot_desc_->type().type == TYPE_DECIMAL) {
-      fixed_len_size_ = ParquetPlainEncoder::DecimalSize(slot_desc_->type());
+      if (node.element->type == parquet::Type::BYTE_ARRAY) {
+        fixed_len_size_ = -1;
+      } else {
+        fixed_len_size_ = ParquetPlainEncoder::DecimalSize(slot_desc_->type());
+      }
     } else if (slot_desc_->type().type == TYPE_VARCHAR) {
       fixed_len_size_ = slot_desc_->type().len;
     } else {

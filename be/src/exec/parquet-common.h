@@ -220,6 +220,11 @@ class ParquetPlainEncoder {
   /// 'buffer' is at least 'fixed_len_size' bytes long.
   template<typename T>
   static int DecodeFromFixedLenByteArray(uint8_t* buffer, int fixed_len_size, T* v);
+
+ private:
+  template<typename T>
+  static int DecodeDecimal(uint8_t* buffer, const uint8_t* buffer_end, int fixed_len_size,
+      T* v);
 };
 
 /// Disable for bools. Plain encoding is not used for booleans.
@@ -339,28 +344,40 @@ inline int ParquetPlainEncoder::Encode(
   return fixed_len_size;
 }
 
+template<typename T>
+inline int ParquetPlainEncoder::DecodeDecimal(uint8_t* buffer, const uint8_t* buffer_end,
+    int fixed_len_size, T* v) {
+  int decoded_size = 0;
+  if (fixed_len_size == -1) {
+    int32_t length = 0;
+    if (UNLIKELY(buffer_end - buffer < sizeof(int32_t))) return -1;
+    memcpy(&length, buffer, sizeof(int32_t));
+    fixed_len_size = length;
+    buffer += sizeof(int32_t);
+    decoded_size += sizeof(int32_t);
+    if (UNLIKELY(fixed_len_size != sizeof(T)) return -1;
+  }
+  if (UNLIKELY(buffer_end - buffer < fixed_len_size)) return -1;
+  DecimalUtil::DecodeFromFixedLenByteArray(buffer, fixed_len_size, v);
+  return decoded_size + fixed_len_size;
+}
+
 template<>
 inline int ParquetPlainEncoder::Decode(uint8_t* buffer, const uint8_t* buffer_end,
     int fixed_len_size, Decimal4Value* v) {
-  if (UNLIKELY(buffer_end - buffer < fixed_len_size)) return -1;
-  DecimalUtil::DecodeFromFixedLenByteArray(buffer, fixed_len_size, v);
-  return fixed_len_size;
+  return DecodeDecimal<Decimal4Value>(buffer, buffer_end, fixed_len_size, v);
 }
 
 template<>
 inline int ParquetPlainEncoder::Decode(uint8_t* buffer, const uint8_t* buffer_end,
     int fixed_len_size, Decimal8Value* v) {
-  if (UNLIKELY(buffer_end - buffer < fixed_len_size)) return -1;
-  DecimalUtil::DecodeFromFixedLenByteArray(buffer, fixed_len_size, v);
-  return fixed_len_size;
+  return DecodeDecimal<Decimal8Value>(buffer, buffer_end, fixed_len_size, v);
 }
 
 template<>
 inline int ParquetPlainEncoder::Decode(uint8_t* buffer, const uint8_t* buffer_end,
     int fixed_len_size, Decimal16Value* v) {
-  if (UNLIKELY(buffer_end - buffer < fixed_len_size)) return -1;
-  DecimalUtil::DecodeFromFixedLenByteArray(buffer, fixed_len_size, v);
-  return fixed_len_size;
+  return DecodeDecimal<Decimal16Value>(buffer, buffer_end, fixed_len_size, v);
 }
 
 }
