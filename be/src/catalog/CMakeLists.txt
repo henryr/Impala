@@ -18,8 +18,14 @@
 set(LIBRARY_OUTPUT_PATH "${BUILD_OUTPUT_ROOT_DIRECTORY}/catalog")
 set(EXECUTABLE_OUTPUT_PATH "${BUILD_OUTPUT_ROOT_DIRECTORY}/catalog")
 
+KRPC_GENERATE(CATALOG_SVC_PROTO_SRCS CATALOG_SVC_PROTO_HDRS
+  CATALOG_SVC_PROTO_TGTS
+  SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}
+  PROTO_FILES catalog_service.proto)
+
 add_library(Catalog
   catalog.cc
+  ${CATALOG_SVC_PROTO_SRCS}
   catalog-server.cc
   catalog-util.cc
   catalogd-main.cc

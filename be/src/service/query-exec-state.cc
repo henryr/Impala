@@ -19,6 +19,8 @@
 #include <limits>
 #include <gutil/strings/substitute.h>
 
+#include "catalog/catalog_service.pb.h"
+#include "catalog/catalog_service.proxy.h"
 #include "exprs/expr-context.h"
 #include "exprs/expr.h"
 #include "runtime/mem-tracker.h"
@@ -35,7 +37,6 @@
 #include "util/runtime-profile-counters.h"
 #include "util/time.h"
 
-#include "gen-cpp/CatalogService.h"
 #include "gen-cpp/CatalogService_types.h"
 
 #include <thrift/Thrift.h>
@@ -47,6 +48,11 @@ using namespace apache::hive::service::cli::thrift;
 using namespace apache::thrift;
 using namespace beeswax;
 using namespace strings;
+
+using impala::rpc::CatalogServiceProxy;
+using impala::rpc::UpdateCatalogRequestPB;
+using impala::rpc::UpdateCatalogResponsePB;
+using kudu::rpc::RpcController;
 
 DECLARE_int32(catalog_service_port);
 DECLARE_string(catalog_service_host);
@@ -902,17 +908,22 @@ Status ImpalaServer::QueryExecState::UpdateCatalog() {
       catalog_update.target_table = finalize_params.table_name;
       catalog_update.db_name = finalize_params.table_db;
 
-      Status cnxn_status;
       const TNetworkAddress& address =
           MakeNetworkAddress(FLAGS_catalog_service_host, FLAGS_catalog_service_port);
-      CatalogServiceConnection client(
-          exec_env_->catalogd_client_cache(), address, &cnxn_status);
-      RETURN_IF_ERROR(cnxn_status);
+      unique_ptr<CatalogServiceProxy> proxy;
+      RETURN_IF_ERROR(ExecEnv::GetInstance()->rpc_mgr()->GetProxy(address, &proxy));
+
+      UpdateCatalogRequestPB request_pb;
+      UpdateCatalogResponsePB response_pb;
+      RETURN_IF_ERROR(SerializeThriftToProtoWrapper(&catalog_update, true, &request_pb));
+      RpcController controller;
+      proxy->UpdateCatalog(request_pb, &response_pb, &controller);
+      RETURN_IF_ERROR(FromKuduStatus(controller.status()));
+
+      TUpdateCatalogResponse resp;
+      DeserializeThriftFromProtoWrapper(response_pb, true, &resp);
 
       VLOG_QUERY << "Executing FinalizeDml() using CatalogService";
-      TUpdateCatalogResponse resp;
-      RETURN_IF_ERROR(
-          client.DoRpc(&CatalogServiceClient::UpdateCatalog, catalog_update, &resp));
 
       Status status(resp.result.status);
       if (!status.ok()) LOG(ERROR) << "ERROR Finalizing DML: " << status.GetDetail();

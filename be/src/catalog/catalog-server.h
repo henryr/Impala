@@ -24,7 +24,6 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/unordered_set.hpp>
 
-#include "gen-cpp/CatalogService.h"
 #include "gen-cpp/Frontend_types.h"
 #include "gen-cpp/Types_types.h"
 #include "catalog/catalog.h"
@@ -68,15 +67,9 @@ class CatalogServer {
 
   void RegisterWebpages(Webserver* webserver);
 
-  /// Returns the Thrift API interface that proxies requests onto the local CatalogService.
-  const boost::shared_ptr<CatalogServiceIf>& thrift_iface() const {
-    return thrift_iface_;
-  }
   Catalog* catalog() const { return catalog_.get(); }
 
  private:
-  /// Thrift API implementation which proxies requests onto this CatalogService.
-  boost::shared_ptr<CatalogServiceIf> thrift_iface_;
   ThriftSerializer thrift_serializer_;
   MetricGroup* metrics_;
   boost::scoped_ptr<Catalog> catalog_;
