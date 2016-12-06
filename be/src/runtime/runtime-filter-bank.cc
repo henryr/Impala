@@ -24,7 +24,6 @@
 #include "kudu/util/net/net_util.h"
 
 #include "rpc/rpc.h"
-#include "runtime/client-cache.h"
 #include "runtime/exec-env.h"
 #include "runtime/mem-tracker.h"
 #include "runtime/runtime-filter.inline.h"
