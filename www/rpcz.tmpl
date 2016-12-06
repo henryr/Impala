@@ -18,6 +18,31 @@ under the License.
 -->
 {{> www/common-header.tmpl }}
 
+<h2>KRPC Services</h2>
+
+<table class='table table-hover table-bordered' id='{{name}}'>
+  <tr>
+    <th>Name</th>
+    <th>Num. processed</th>
+    <th>Queue size (max)</th>
+    <th>Queuing time</th>
+    <th>Overflow count</th>
+    <th>Timed out queuing count</th>
+  </tr>
+  {{#services}}
+  <tr>
+    <td>{{name}}</td>
+    <td>{{rpc_queue_time_histogram.count}}</td>
+    <td>{{queue_size}} ({{max_queue_size}})</td>
+    <td>{{rpc_queue_time_histogram.human_readable}}</td>
+    <td>{{rpcs_queue_overflow}}</td>
+    <td>{{rpcs_timed_out_in_queue}}</td>
+  </tr>
+  {{/services}}
+</table>
+
+<hr/>
+
 <h2>RPC durations
   <button class="btn btn-warning btn-xs" onClick="reset_all();">
     Reset all

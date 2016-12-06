@@ -20,15 +20,18 @@
 #include "kudu/rpc/acceptor_pool.h"
 #include "kudu/rpc/result_tracker.h"
 #include "kudu/rpc/rpc_controller.h"
+#include "kudu/rpc/rpc_introspection.pb.h"
 #include "kudu/rpc/service_if.h"
 #include "kudu/util/net/net_util.h"
+#include "util/webserver.h"
 
 #include "gutil/strings/substitute.h"
+#include "rapidjson/document.h"
 
 #include "common/names.h"
 
 using namespace impala;
-using std::move;
+using namespace rapidjson;
 
 using kudu::rpc::MessengerBuilder;
 using kudu::rpc::Messenger;
@@ -91,11 +94,9 @@ Status RpcMgr::RegisterService(int32_t num_service_threads, int32_t service_queu
     unique_ptr<ServiceIf> service_ptr) {
   DCHECK(is_inited()) << "Must call Init() before RegisterService()";
   DCHECK(!services_started_) << "Must call RegisterService() before StartServices()";
-  scoped_refptr<ServicePool> service_pool =
-      new ServicePool(gscoped_ptr<ServiceIf>(service_ptr.release()),
-          messenger_->metric_entity(), service_queue_depth);
-  KUDU_RETURN_IF_ERROR(
-      service_pool->Init(num_service_threads), "Service pool failed to start");
+  scoped_refptr<ImpalaServicePool> service_pool =
+      new ImpalaServicePool(move(service_ptr), messenger_->metric_entity(), service_queue_depth);
+  RETURN_IF_ERROR(service_pool->Init(num_service_threads));
 
   KUDU_RETURN_IF_ERROR(
       messenger_->RegisterService(service_pool->service_name(), service_pool),
@@ -132,3 +133,37 @@ void RpcMgr::UnregisterServices() {
   messenger_->Shutdown();
   service_pools_.clear();
 }
+
+void RpcMgr::ToJson(Document* doc) {
+  using kudu::rpc::DumpRunningRpcsRequestPB;
+  using kudu::rpc::DumpRunningRpcsResponsePB;
+
+  DumpRunningRpcsResponsePB response;
+  this->messenger_->DumpRunningRpcs(DumpRunningRpcsRequestPB(), &response);
+  int32_t num_inbound_calls_in_flight = 0;
+  int32_t num_outbound_calls_in_flight = 0;
+  for (const auto& cnxn: response.inbound_connections()) {
+    num_inbound_calls_in_flight += cnxn.calls_in_flight().size();
+  }
+  for (const auto& cnxn: response.outbound_connections()) {
+    num_outbound_calls_in_flight += cnxn.calls_in_flight().size();
+  }
+
+  doc->AddMember("num_outbound_calls_in_flight", num_outbound_calls_in_flight,
+      doc->GetAllocator());
+  doc->AddMember("num_inbound_calls_in_flight", num_inbound_calls_in_flight,
+      doc->GetAllocator());
+  doc->AddMember("num_outbound_cnxns", response.outbound_connections().size(),
+      doc->GetAllocator());
+  doc->AddMember("num_inbound_cnxns", response.outbound_connections().size(),
+      doc->GetAllocator());
+
+  Value services(kArrayType);
+  for (auto pool : service_pools_) {
+    Value service(kObjectType);
+    pool->ToJson(&service, doc);
+    services.PushBack(service, doc->GetAllocator());
+  }
+
+  doc->AddMember("services", services, doc->GetAllocator());
+};
