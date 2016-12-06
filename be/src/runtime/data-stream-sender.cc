@@ -33,7 +33,6 @@
 #include "runtime/row-batch.h"
 #include "runtime/runtime-state.h"
 #include "runtime/tuple-row.h"
-#include "runtime/client-cache.h"
 #include "runtime/mem-tracker.h"
 #include "util/aligned-new.h"
 #include "util/debug-util.h"
