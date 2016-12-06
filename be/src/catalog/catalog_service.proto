@@ -1,0 +1,52 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+//
+// Catalog service interface definitions.
+package impala;
+
+import "rpc/common.proto";
+
+service CatalogService {
+  // Executes a DDL request and returns details on the result of the operation.
+  rpc ExecDdl(ThriftWrapperPb) returns (ThriftWrapperPb);
+
+  // Gets the catalog object corresponding to the given request.
+  rpc GetCatalogObject(ThriftWrapperPb) returns (ThriftWrapperPb);
+
+  // Resets the Catalog metadata. Used to explicitly trigger reloading of the Hive
+  // Metastore metadata and/or HDFS block location metadata.
+  rpc ResetMetadata(ThriftWrapperPb) returns (ThriftWrapperPb);
+
+  // Updates the metastore with new partition information and returns a response
+  // with details on the result of the operation.
+  rpc UpdateCatalog(ThriftWrapperPb) returns (ThriftWrapperPb);
+
+  // Gets all user defined functions (aggregate and scalar) in the catalog matching
+  // the parameters of TGetFunctionsRequest.
+  rpc GetFunctions(ThriftWrapperPb) returns (ThriftWrapperPb);
+
+  // Prioritize the loading of metadata for the CatalogObjects specified in the
+  // TPrioritizeLoadRequest.
+  rpc PrioritizeLoad(ThriftWrapperPb) returns (ThriftWrapperPb);
+
+  // Performs a check with the Sentry Service to determine if the requesting user
+  // is configured as an admin on the Sentry Service. This API may be removed in
+  // the future and external clients should not rely on using it.
+  // TODO: When Sentry Service has a better mechanism to perform these changes this API
+  // should be deprecated.
+  rpc SentryAdminCheck(ThriftWrapperPb) returns (ThriftWrapperPb);
+}

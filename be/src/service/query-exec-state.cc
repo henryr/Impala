@@ -19,10 +19,11 @@
 #include <limits>
 #include <gutil/strings/substitute.h>
 
+#include "catalog/catalog_service.pb.h"
+#include "catalog/catalog_service.proxy.h"
 #include "exprs/expr-context.h"
 #include "exprs/expr.h"
-#include "runtime/client-cache-types.h"
-#include "runtime/client-cache.h"
+#include "rpc/rpc.h"
 #include "runtime/exec-env.h"
 #include "runtime/mem-tracker.h"
 #include "runtime/row-batch.h"
@@ -37,7 +38,6 @@
 #include "util/runtime-profile-counters.h"
 #include "util/time.h"
 
-#include "gen-cpp/CatalogService.h"
 #include "gen-cpp/CatalogService_types.h"
 
 #include <thrift/Thrift.h>
@@ -49,6 +49,8 @@ using namespace apache::hive::service::cli::thrift;
 using namespace apache::thrift;
 using namespace beeswax;
 using namespace strings;
+
+using kudu::rpc::RpcController;
 
 DECLARE_int32(catalog_service_port);
 DECLARE_string(catalog_service_host);
@@ -904,17 +906,15 @@ Status ImpalaServer::QueryExecState::UpdateCatalog() {
       catalog_update.target_table = finalize_params.table_name;
       catalog_update.db_name = finalize_params.table_db;
 
-      Status cnxn_status;
       const TNetworkAddress& address =
           MakeNetworkAddress(FLAGS_catalog_service_host, FLAGS_catalog_service_port);
-      CatalogServiceConnection client(
-          exec_env_->catalogd_client_cache(), address, &cnxn_status);
-      RETURN_IF_ERROR(cnxn_status);
-
-      VLOG_QUERY << "Executing FinalizeDml() using CatalogService";
       TUpdateCatalogResponse resp;
       RETURN_IF_ERROR(
-          client.DoRpc(&CatalogServiceClient::UpdateCatalog, catalog_update, &resp));
+          Rpc<CatalogServiceProxy>::Make(address, ExecEnv::GetInstance()->rpc_mgr())
+          .ExecuteWithThriftArgs(
+              &CatalogServiceProxy::UpdateCatalog, &catalog_update, &resp));
+
+      VLOG_QUERY << "Executing FinalizeDml() using CatalogService";
 
       Status status(resp.result.status);
       if (!status.ok()) LOG(ERROR) << "ERROR Finalizing DML: " << status.GetDetail();

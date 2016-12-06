@@ -311,10 +311,6 @@ const std::string& RuntimeState::GetEffectiveUser() const {
   return impala::GetEffectiveUser(query_ctx().session);
 }
 
-CatalogServiceClientCache* RuntimeState::catalogd_client_cache() {
-  return exec_env_->catalogd_client_cache();
-}
-
 DiskIoMgr* RuntimeState::io_mgr() {
   return exec_env_->disk_io_mgr();
 }

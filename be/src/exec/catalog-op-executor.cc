@@ -19,28 +19,29 @@
 
 #include <sstream>
 
+#include "catalog/catalog_service.pb.h"
+#include "catalog/catalog_service.proxy.h"
 #include "common/status.h"
 #include "exec/incr-stats-util.h"
+#include "exec/kudu-util.h"
 #include "gen-cpp/CatalogObjects_types.h"
-#include "gen-cpp/CatalogService.h"
 #include "gen-cpp/CatalogService_types.h"
-#include "runtime/client-cache-types.h"
-#include "runtime/client-cache.h"
-#include "runtime/exec-env.h"
+#include "rpc/rpc.h"
 #include "runtime/lib-cache.h"
+#include "runtime/exec-env.h"
 #include "service/hs2-util.h"
 #include "service/impala-server.h"
 #include "util/runtime-profile-counters.h"
 #include "util/string-parser.h"
 
-#include <thrift/protocol/TDebugProtocol.h>
 #include <thrift/Thrift.h>
 #include <gutil/strings/substitute.h>
 
 #include "common/names.h"
 using namespace impala;
 using namespace apache::hive::service::cli::thrift;
-using namespace apache::thrift;
+
+using kudu::rpc::RpcController;
 
 DECLARE_int32(catalog_service_port);
 DECLARE_string(catalog_service_host);
@@ -52,16 +53,16 @@ Status CatalogOpExecutor::Exec(const TCatalogOpRequest& request) {
   SCOPED_TIMER(exec_timer);
   const TNetworkAddress& address =
       MakeNetworkAddress(FLAGS_catalog_service_host, FLAGS_catalog_service_port);
-  CatalogServiceConnection client(env_->catalogd_client_cache(), address, &status);
-  RETURN_IF_ERROR(status);
+  RpcMgr* rpc_mgr = ExecEnv::GetInstance()->rpc_mgr();
   switch (request.op_type) {
     case TCatalogOpType::DDL: {
       // Compute stats stmts must be executed via ExecComputeStats().
       DCHECK(request.ddl_params.ddl_type != TDdlType::COMPUTE_STATS);
 
       exec_response_.reset(new TDdlExecResponse());
-      RETURN_IF_ERROR(client.DoRpc(&CatalogServiceClient::ExecDdl, request.ddl_params,
-          exec_response_.get()));
+      auto rpc = Rpc<CatalogServiceProxy>::Make(address, rpc_mgr);
+      RETURN_IF_ERROR(rpc.ExecuteWithThriftArgs(&CatalogServiceProxy::ExecDdl, &request.ddl_params, exec_response_.get()));
+
       catalog_update_result_.reset(
           new TCatalogUpdateResult(exec_response_.get()->result));
       Status status(exec_response_->result.status);
@@ -76,8 +77,9 @@ Status CatalogOpExecutor::Exec(const TCatalogOpRequest& request) {
     }
     case TCatalogOpType::RESET_METADATA: {
       TResetMetadataResponse response;
-      RETURN_IF_ERROR(client.DoRpc(&CatalogServiceClient::ResetMetadata,
-          request.reset_metadata_params, &response));
+      auto rpc = Rpc<CatalogServiceProxy>::Make(address, rpc_mgr);
+      RETURN_IF_ERROR(rpc.ExecuteWithThriftArgs(
+              &CatalogServiceProxy::ResetMetadata, &request.reset_metadata_params, &response));
       catalog_update_result_.reset(new TCatalogUpdateResult(response.result));
       return Status(response.result.status);
     }
@@ -252,16 +254,11 @@ Status CatalogOpExecutor::GetCatalogObject(const TCatalogObject& object_desc,
     TCatalogObject* result) {
   const TNetworkAddress& address =
       MakeNetworkAddress(FLAGS_catalog_service_host, FLAGS_catalog_service_port);
-  Status status;
-  CatalogServiceConnection client(env_->catalogd_client_cache(), address, &status);
-  RETURN_IF_ERROR(status);
-
   TGetCatalogObjectRequest request;
   request.__set_object_desc(object_desc);
-
   TGetCatalogObjectResponse response;
-  RETURN_IF_ERROR(
-      client.DoRpc(&CatalogServiceClient::GetCatalogObject, request, &response));
+  auto rpc = Rpc<CatalogServiceProxy>::Make(address, ExecEnv::GetInstance()->rpc_mgr());
+  RETURN_IF_ERROR(rpc.ExecuteWithThriftArgs(&CatalogServiceProxy::GetCatalogObject, &request, &response));
   *result = response.catalog_object;
   return Status::OK();
 }
@@ -270,20 +267,17 @@ Status CatalogOpExecutor::PrioritizeLoad(const TPrioritizeLoadRequest& req,
     TPrioritizeLoadResponse* result) {
   const TNetworkAddress& address =
       MakeNetworkAddress(FLAGS_catalog_service_host, FLAGS_catalog_service_port);
-  Status status;
-  CatalogServiceConnection client(env_->catalogd_client_cache(), address, &status);
-  RETURN_IF_ERROR(status);
-  RETURN_IF_ERROR(client.DoRpc(&CatalogServiceClient::PrioritizeLoad, req, result));
+  auto rpc = Rpc<CatalogServiceProxy>::Make(address, ExecEnv::GetInstance()->rpc_mgr());
+  RETURN_IF_ERROR(rpc.ExecuteWithThriftArgs(&CatalogServiceProxy::PrioritizeLoad, &req, result));
   return Status::OK();
 }
 
 Status CatalogOpExecutor::SentryAdminCheck(const TSentryAdminCheckRequest& req) {
   const TNetworkAddress& address =
       MakeNetworkAddress(FLAGS_catalog_service_host, FLAGS_catalog_service_port);
-  Status cnxn_status;
-  CatalogServiceConnection client(env_->catalogd_client_cache(), address, &cnxn_status);
-  RETURN_IF_ERROR(cnxn_status);
   TSentryAdminCheckResponse resp;
-  RETURN_IF_ERROR(client.DoRpc(&CatalogServiceClient::SentryAdminCheck, req, &resp));
+  auto rpc = Rpc<CatalogServiceProxy>::Make(address, ExecEnv::GetInstance()->rpc_mgr());
+  RETURN_IF_ERROR(rpc.ExecuteWithThriftArgs(&CatalogServiceProxy::SentryAdminCheck, &req, &resp));
+
   return Status(resp.status);
 }
