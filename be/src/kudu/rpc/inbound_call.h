@@ -190,6 +190,10 @@ class InboundCall {
   // returns an error.
   Status GetInboundSidecar(int idx, Slice* sidecar) const;
 
+  int64_t GetSize() {
+    return transfer_->data().size();
+  }
+
  private:
   friend class RpczStore;
 
