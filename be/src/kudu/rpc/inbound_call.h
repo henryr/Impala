@@ -195,6 +195,10 @@ class InboundCall {
   // access sidecars or serialized_request() after this method is called.
   void DiscardTransfer();
 
+  int64_t GetSize() {
+    return transfer_->data().size();
+  }
+
  private:
   friend class RpczStore;
 
