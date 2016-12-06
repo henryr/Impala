@@ -37,6 +37,8 @@ class ResultTracker;
 
 namespace impala {
 
+class Webserver;
+
 /// Central manager for all RPC services and clients.
 ///
 /// An RpcMgr managers 0 or more services: RPC interfaces that are a collection of
@@ -95,6 +97,8 @@ class RpcMgr {
     }
     messenger_->UnregisterAllServices();
   }
+
+  void RegisterWebpages(Webserver* webserver);
 
  private:
   Status RegisterServiceImpl(const std::string& name, kudu::rpc::ServiceIf* service);
