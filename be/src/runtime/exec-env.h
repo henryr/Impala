@@ -23,7 +23,6 @@
 
 // NOTE: try not to add more headers here: exec-env.h is included in many many files.
 #include "common/status.h"
-#include "runtime/client-cache-types.h"
 #include "util/hdfs-bulk-ops-defs.h" // For declaration of HdfsOpThreadPool
 
 namespace impala {
@@ -86,9 +85,6 @@ class ExecEnv {
   }
 
   DataStreamMgr* stream_mgr() { return stream_mgr_.get(); }
-  CatalogServiceClientCache* catalogd_client_cache() {
-    return catalogd_client_cache_.get();
-  }
   HBaseTableFactory* htable_factory() { return htable_factory_.get(); }
   DiskIoMgr* disk_io_mgr() { return disk_io_mgr_.get(); }
   Webserver* webserver() { return webserver_.get(); }
@@ -131,7 +127,6 @@ class ExecEnv {
   boost::scoped_ptr<DataStreamMgr> stream_mgr_;
   boost::scoped_ptr<Scheduler> scheduler_;
   boost::scoped_ptr<StatestoreSubscriber> statestore_subscriber_;
-  boost::scoped_ptr<CatalogServiceClientCache> catalogd_client_cache_;
   boost::scoped_ptr<HBaseTableFactory> htable_factory_;
   boost::scoped_ptr<DiskIoMgr> disk_io_mgr_;
   boost::scoped_ptr<Webserver> webserver_;

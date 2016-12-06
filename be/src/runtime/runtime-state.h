@@ -25,7 +25,6 @@
 
 // NOTE: try not to add more headers here: runtime-state.h is included in many many files.
 #include "common/global-types.h"  // for PlanNodeId
-#include "runtime/client-cache-types.h"
 #include "runtime/thread-resource-mgr.h"
 #include "util/runtime-profile.h"
 #include "gen-cpp/ImpalaInternalService_types.h"
@@ -122,7 +121,6 @@ class RuntimeState {
   ExecEnv* exec_env() { return exec_env_; }
   DataStreamMgr* stream_mgr();
   HBaseTableFactory* htable_factory();
-  CatalogServiceClientCache* catalogd_client_cache();
   DiskIoMgr* io_mgr();
   MemTracker* instance_mem_tracker() { return instance_mem_tracker_.get(); }
   MemTracker* query_mem_tracker() { return query_mem_tracker_; }

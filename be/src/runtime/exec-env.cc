@@ -24,9 +24,7 @@
 #include <gutil/strings/substitute.h>
 
 #include "common/logging.h"
-#include "gen-cpp/CatalogService.h"
 #include "rpc/rpc-mgr.h"
-#include "runtime/client-cache.h"
 #include "runtime/coordinator.h"
 #include "runtime/data-stream-mgr.h"
 #include "runtime/disk-io-mgr.h"
@@ -126,10 +124,6 @@ ExecEnv* ExecEnv::exec_env_ = NULL;
 ExecEnv::ExecEnv()
   : metrics_(new MetricGroup("impala-metrics")),
     stream_mgr_(new DataStreamMgr(metrics_.get())),
-    catalogd_client_cache_(
-        new CatalogServiceClientCache(FLAGS_catalog_client_connection_num_retries, 0,
-            FLAGS_catalog_client_rpc_timeout_ms, FLAGS_catalog_client_rpc_timeout_ms, "",
-            !FLAGS_ssl_client_ca_certificate.empty())),
     htable_factory_(new HBaseTableFactory()),
     disk_io_mgr_(new DiskIoMgr()),
     webserver_(new Webserver()),
@@ -176,10 +170,6 @@ ExecEnv::ExecEnv(const string& hostname, int backend_port, int webserver_port,
     const string& statestore_host, int statestore_port)
   : metrics_(new MetricGroup("impala-metrics")),
     stream_mgr_(new DataStreamMgr(metrics_.get())),
-    catalogd_client_cache_(
-        new CatalogServiceClientCache(FLAGS_catalog_client_connection_num_retries, 0,
-            FLAGS_catalog_client_rpc_timeout_ms, FLAGS_catalog_client_rpc_timeout_ms, "",
-            !FLAGS_ssl_client_ca_certificate.empty())),
     htable_factory_(new HBaseTableFactory()),
     disk_io_mgr_(new DiskIoMgr()),
     webserver_(new Webserver(webserver_port)),
@@ -276,7 +266,6 @@ Status ExecEnv::Init() {
   }
 
   metrics_->Init(enable_webserver_ ? webserver_.get() : NULL);
-  catalogd_client_cache_->InitMetrics(metrics_.get(), "catalog.server");
   RETURN_IF_ERROR(RegisterMemoryMetrics(metrics_.get(), true));
 
   RETURN_IF_ERROR(rpc_mgr_->Init(FLAGS_num_acceptor_threads));
