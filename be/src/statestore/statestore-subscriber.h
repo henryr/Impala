@@ -30,8 +30,6 @@
 #include "rpc/thrift-util.h"
 #include "rpc/thrift-client.h"
 #include "util/metrics.h"
-#include "gen-cpp/StatestoreService.h"
-#include "gen-cpp/StatestoreSubscriber.h"
 
 namespace impala {
 
