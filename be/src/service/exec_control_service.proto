@@ -1,0 +1,40 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+//
+
+// Any wrapped Thrift data structures can be found in
+// common/thrift/ImpalaInternalService.thrift.
+
+package impala;
+
+import "rpc/common.proto";
+
+// This service handles control messages for managing the fragment instance lifecycle -
+// execution, reporting and cancellation.
+service ExecControlService {
+  // Called by coord to start asynchronous execution of plan fragment instnace in backend.
+  rpc ExecPlanFragment(ThriftWrapperPb) returns (ThriftWrapperPb);
+
+  // Periodically called by backend to report status of plan fragment execution
+  // back to coord; also called when execution is finished, for whatever reason.
+  rpc ReportExecStatus(ThriftWrapperPb) returns (ThriftWrapperPb);
+
+  // Called by coord to cancel execution of a single plan fragment, which this
+  // coordinator initiated with a prior call to ExecPlanFragment.
+  // Cancellation is asynchronous.
+  rpc CancelPlanFragment(ThriftWrapperPb) returns (ThriftWrapperPb);
+}

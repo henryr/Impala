@@ -25,10 +25,9 @@
 
 #include "common/logging.h"
 #include "gen-cpp/CatalogService.h"
-#include "gen-cpp/ImpalaInternalService.h"
-#include "runtime/backend-client.h"
 #include "runtime/bufferpool/buffer-pool.h"
 #include "runtime/bufferpool/reservation-tracker.h"
+#include "rpc/rpc-mgr.h"
 #include "runtime/client-cache.h"
 #include "runtime/coordinator.h"
 #include "runtime/data-stream-mgr.h"
@@ -133,10 +132,6 @@ ExecEnv* ExecEnv::exec_env_ = nullptr;
 ExecEnv::ExecEnv()
   : metrics_(new MetricGroup("impala-metrics")),
     stream_mgr_(new DataStreamMgr(metrics_.get())),
-    impalad_client_cache_(
-        new ImpalaBackendClientCache(FLAGS_backend_client_connection_num_retries, 0,
-            FLAGS_backend_client_rpc_timeout_ms, FLAGS_backend_client_rpc_timeout_ms, "",
-            !FLAGS_ssl_client_ca_certificate.empty())),
     catalogd_client_cache_(
         new CatalogServiceClientCache(FLAGS_catalog_client_connection_num_retries, 0,
             FLAGS_catalog_client_rpc_timeout_ms, FLAGS_catalog_client_rpc_timeout_ms, "",
@@ -165,14 +160,12 @@ ExecEnv::ExecEnv()
   // Initialize the scheduler either dynamically (with a statestore) or statically (with
   // a standalone single backend)
   if (FLAGS_use_statestore) {
-    subscriber_address_ =
-        MakeNetworkAddress(FLAGS_hostname, FLAGS_state_store_subscriber_port);
     TNetworkAddress statestore_address =
         MakeNetworkAddress(FLAGS_state_store_host, FLAGS_state_store_port);
 
     statestore_subscriber_.reset(new StatestoreSubscriber(
         Substitute("impalad@$0", TNetworkAddressToString(backend_address_)),
-        subscriber_address_, statestore_address, rpc_mgr_.get(), metrics_.get()));
+        backend_address_, statestore_address, rpc_mgr_.get(), metrics_.get()));
 
     if (FLAGS_is_coordinator) {
       scheduler_.reset(new Scheduler(statestore_subscriber_.get(),
@@ -196,14 +189,10 @@ ExecEnv::ExecEnv()
 }
 
 // TODO: Need refactor to get rid of duplicated code.
-ExecEnv::ExecEnv(const string& hostname, int backend_port, int subscriber_port,
-    int webserver_port, const string& statestore_host, int statestore_port)
+ExecEnv::ExecEnv(const string& hostname, int backend_port, int webserver_port,
+    const string& statestore_host, int statestore_port)
   : metrics_(new MetricGroup("impala-metrics")),
     stream_mgr_(new DataStreamMgr(metrics_.get())),
-    impalad_client_cache_(
-        new ImpalaBackendClientCache(FLAGS_backend_client_connection_num_retries, 0,
-            FLAGS_backend_client_rpc_timeout_ms, FLAGS_backend_client_rpc_timeout_ms, "",
-            !FLAGS_ssl_client_ca_certificate.empty())),
     catalogd_client_cache_(
         new CatalogServiceClientCache(FLAGS_catalog_client_connection_num_retries, 0,
             FLAGS_catalog_client_rpc_timeout_ms, FLAGS_catalog_client_rpc_timeout_ms, "",
@@ -231,13 +220,12 @@ ExecEnv::ExecEnv(const string& hostname, int backend_port, int subscriber_port,
   request_pool_service_.reset(new RequestPoolService(metrics_.get()));
 
   if (FLAGS_use_statestore && statestore_port > 0) {
-    subscriber_address_ = MakeNetworkAddress(hostname, subscriber_port);
     TNetworkAddress statestore_address =
         MakeNetworkAddress(statestore_host, statestore_port);
 
     statestore_subscriber_.reset(new StatestoreSubscriber(
         Substitute("impalad@$0", TNetworkAddressToString(backend_address_)),
-        subscriber_address_, statestore_address, rpc_mgr_.get(), metrics_.get()));
+        backend_address_, statestore_address, rpc_mgr_.get(), metrics_.get()));
 
     if (FLAGS_is_coordinator) {
       scheduler_.reset(new Scheduler(statestore_subscriber_.get(),
@@ -270,9 +258,7 @@ Status ExecEnv::InitForFeTests() {
   return Status::OK();
 }
 
-Status ExecEnv::StartServices() {
-  LOG(INFO) << "Starting global services";
-
+Status ExecEnv::Init() {
   // Initialize global memory limit.
   // Depending on the system configuration, we will have to calculate the process
   // memory limit either based on the available physical memory, or if overcommitting
@@ -308,12 +294,11 @@ Status ExecEnv::StartServices() {
   }
 
   metrics_->Init(enable_webserver_ ? webserver_.get() : nullptr);
-  impalad_client_cache_->InitMetrics(metrics_.get(), "impala-server.backends");
   catalogd_client_cache_->InitMetrics(metrics_.get(), "catalog.server");
   RETURN_IF_ERROR(RegisterMemoryMetrics(
       metrics_.get(), true, buffer_reservation_.get(), buffer_pool_.get()));
 
-  RETURN_IF_ERROR(rpc_mgr_->Init(FLAGS_num_acceptor_threads));
+  RETURN_IF_ERROR(rpc_mgr_->Init(FLAGS_num_reactor_threads));
 
 #ifndef ADDRESS_SANITIZER
   // Limit of -1 means no memory limit.
@@ -357,7 +342,6 @@ Status ExecEnv::StartServices() {
   // Start services in order to ensure that dependencies between them are met
   if (enable_webserver_) {
     AddDefaultUrlCallbacks(webserver_.get(), mem_tracker_.get(), metrics_.get());
-    RETURN_IF_ERROR(webserver_->Start());
   } else {
     LOG(INFO) << "Not starting webserver";
   }
@@ -376,6 +360,15 @@ Status ExecEnv::StartServices() {
   } else {
     default_fs_ = "hdfs://";
   }
+
+  return Status::OK();
+}
+
+Status ExecEnv::StartServices(int svc_port) {
+  LOG(INFO) << "Starting global services on port: " << svc_port;
+
+  if (enable_webserver_) RETURN_IF_ERROR(webserver_->Start());
+
   // Must happen after all topic registrations / callbacks are done
   if (statestore_subscriber_.get() != nullptr) {
     Status status = statestore_subscriber_->Start();
@@ -387,8 +380,7 @@ Status ExecEnv::StartServices() {
 
   // Do this last of all - now RPCs may arrive so all services should be up to handle
   // them.
-  RETURN_IF_ERROR(
-      rpc_mgr_->StartServices(subscriber_address_.port, FLAGS_num_acceptor_threads));
+  RETURN_IF_ERROR(rpc_mgr_->StartServices(svc_port, FLAGS_num_acceptor_threads));
   return Status::OK();
 }
 

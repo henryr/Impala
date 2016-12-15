@@ -17,27 +17,45 @@
 
 #include <boost/thread/locks.hpp>
 #include <boost/thread/mutex.hpp>
+#include <condition_variable>
+#include <queue>
 
-#include "runtime/data-stream-recvr.h"
 #include "runtime/data-stream-mgr.h"
+#include "runtime/data-stream-recvr.h"
 #include "runtime/mem-tracker.h"
 #include "runtime/row-batch.h"
 #include "runtime/sorted-run-merger.h"
-#include "util/runtime-profile-counters.h"
+#include "service/data_stream_service.pb.h"
 #include "util/periodic-counter-updater.h"
+#include "util/runtime-profile-counters.h"
+
+#include "kudu/rpc/rpc_context.h"
 
 #include "common/names.h"
 
-using boost::condition_variable;
+using std::condition_variable_any;
+using std::queue;
+
+using kudu::rpc::ErrorStatusPB;
+using kudu::rpc::RpcContext;
+
+DECLARE_int32(datastream_sender_timeout_ms);
 
 namespace impala {
 
-// Implements a blocking queue of row batches from one or more senders. One queue
-// is maintained per sender if is_merging_ is true for the enclosing receiver, otherwise
-// rows from all senders are placed in the same queue.
+// Implements a FIFO queue of row batches from one or more senders. One queue is
+// maintained per sender if is_merging_ is true for the enclosing receiver, otherwise rows
+// from all senders are placed in the same queue.
+//
+// Batches are added by senders via AddBatch(), and removed by an enclosing
+// DataStreamRecvr via GetBatch(). If a sender adds a batch that overflows the queue, the
+// batch is discarded, and the sender is added to a queue of 'pending senders' that will
+// be signalled to try again in FIFO order. That signal is usually sent when a space
+// arrives in the queue, but may also be sent by the DataStreamMgr. See the DataStreamMgr
+// class comment for details.
 class DataStreamRecvr::SenderQueue {
  public:
-  SenderQueue(DataStreamRecvr* parent_recvr, int num_senders, RuntimeProfile* profile);
+  SenderQueue(DataStreamRecvr* parent_recvr, int num_senders);
 
   // Return the next batch from this sender queue. Sets the returned batch in cur_batch_.
   // A returned batch that is not filled to capacity does *not* indicate
@@ -47,11 +65,11 @@ class DataStreamRecvr::SenderQueue {
   // must acquire data from the returned batch before the next call to GetBatch().
   Status GetBatch(RowBatch** next_batch);
 
-  // Adds a row batch to this sender queue if this stream has not been cancelled;
-  // blocks if this will make the stream exceed its buffer limit.
-  // If the total size of the batches in this queue would exceed the allowed buffer size,
-  // the queue is considered full and the call blocks until a batch is dequeued.
-  void AddBatch(const TRowBatch& batch);
+  // Adds a row batch to this sender queue if this stream has not been cancelled. If this
+  // batch will make the stream exceed its buffer limit, the batch is discarded and
+  // 'payload' is copied to pending_senders_ to be responded to in the future, and the
+  // method returns immediately.
+  void AddBatch(TransmitDataCtx&& payload);
 
   // Decrement the number of remaining senders for this queue and signal eos ("new data")
   // if the count drops to 0. The number of senders will be 1 for a merging
@@ -68,25 +86,32 @@ class DataStreamRecvr::SenderQueue {
   // Returns the current batch from this queue being processed by a consumer.
   RowBatch* current_batch() const { return current_batch_.get(); }
 
+  // Loops through all pending senders and responds to their RPC if more than
+  // FLAGS_datastream_sender_timeout_ms / 2 has elapsed since they were added to the
+  // queue. The response is always ERROR_SERVER_TOO_BUSY, signalling to the sender that
+  // they should re-transmit. Called by DataStreamMgr periodically.
+  void CheckPendingSenders();
+
  private:
   // Receiver of which this queue is a member.
   DataStreamRecvr* recvr_;
 
+  // Enforces mutual exclusion between Close() and AddBatch(), so that if AddBatch() does
+  // any work, Close() will not run until after it (and can perform any clean up).
+  SpinLock closing_lock_;
+
   // protects all subsequent data.
-  mutex lock_;
+  SpinLock lock_;
 
   // if true, the receiver fragment for this stream got cancelled
-  bool is_cancelled_;
+  bool is_cancelled_ = false;
 
   // number of senders which haven't closed the channel yet
   // (if it drops to 0, end-of-stream is true)
   int num_remaining_senders_;
 
   // signal arrival of new batch or the eos/cancelled condition
-  condition_variable data_arrival_cv_;
-
-  // signal removal of data by stream consumer
-  condition_variable data_removal__cv_;
+  condition_variable_any data_arrival_cv_;
 
   // queue of (batch length, batch) pairs.  The SenderQueue block owns memory to
   // these batches. They are handed off to the caller via GetBatch.
@@ -99,34 +124,36 @@ class DataStreamRecvr::SenderQueue {
   scoped_ptr<RowBatch> current_batch_;
 
   // Set to true when the first batch has been received
-  bool received_first_batch_;
+  bool received_first_batch_ = false;
+
+  // Queue of pending senders - those that have a batch to deliver, but the queue was full
+  // when they last tried to do so. The senders wait here until there is a space for their
+  // batches, allowing the receiver-side to implement basic flow-control.
+  queue<TransmitDataCtx> pending_senders_;
 };
 
-DataStreamRecvr::SenderQueue::SenderQueue(DataStreamRecvr* parent_recvr, int num_senders,
-    RuntimeProfile* profile)
-  : recvr_(parent_recvr),
-    is_cancelled_(false),
-    num_remaining_senders_(num_senders),
-    received_first_batch_(false) {
-}
+DataStreamRecvr::SenderQueue::SenderQueue(DataStreamRecvr* parent_recvr, int num_senders)
+    : recvr_(parent_recvr), num_remaining_senders_(num_senders) { }
 
 Status DataStreamRecvr::SenderQueue::GetBatch(RowBatch** next_batch) {
-  unique_lock<mutex> l(lock_);
+  SCOPED_TIMER(recvr_->queue_get_batch_time_);
+  unique_lock<SpinLock> l(lock_);
   // wait until something shows up or we know we're done
   while (!is_cancelled_ && batch_queue_.empty() && num_remaining_senders_ > 0) {
     VLOG_ROW << "wait arrival fragment_instance_id=" << recvr_->fragment_instance_id()
              << " node=" << recvr_->dest_node_id();
     // Don't count time spent waiting on the sender as active time.
     CANCEL_SAFE_SCOPED_TIMER(recvr_->data_arrival_timer_, &is_cancelled_);
+    CANCEL_SAFE_SCOPED_TIMER(recvr_->inactive_timer_, &is_cancelled_);
     CANCEL_SAFE_SCOPED_TIMER(
-        received_first_batch_ ? NULL : recvr_->first_batch_wait_total_timer_,
+        received_first_batch_ ? nullptr : recvr_->first_batch_wait_total_timer_,
         &is_cancelled_);
     data_arrival_cv_.wait(l);
   }
 
   // cur_batch_ must be replaced with the returned batch.
   current_batch_.reset();
-  *next_batch = NULL;
+  *next_batch = nullptr;
   if (is_cancelled_) return Status::CANCELLED;
 
   if (batch_queue_.empty()) {
@@ -141,85 +168,87 @@ Status DataStreamRecvr::SenderQueue::GetBatch(RowBatch** next_batch) {
   recvr_->num_buffered_bytes_.Add(-batch_queue_.front().first);
   VLOG_ROW << "fetched #rows=" << result->num_rows();
   batch_queue_.pop_front();
-  data_removal__cv_.notify_one();
+
+  // We consumed a batch, so there's room in the queue. Ask the longest-blocked sender to
+  // try again.
+  if (!pending_senders_.empty()) {
+    SCOPED_TIMER(recvr_->pending_response_timer_);
+    recvr_->mgr_->EnqueueSenderReject(move(pending_senders_.front()));
+    pending_senders_.pop();
+  }
+
   current_batch_.reset(result);
   *next_batch = current_batch_.get();
   return Status::OK();
 }
 
-void DataStreamRecvr::SenderQueue::AddBatch(const TRowBatch& thrift_batch) {
-  unique_lock<mutex> l(lock_);
-  if (is_cancelled_) return;
+void DataStreamRecvr::SenderQueue::AddBatch(TransmitDataCtx&& payload) {
+  lock_guard<SpinLock> closing_lock(closing_lock_);
 
-  int batch_size = RowBatch::GetBatchSize(thrift_batch);
-  COUNTER_ADD(recvr_->bytes_received_counter_, batch_size);
-  DCHECK_GT(num_remaining_senders_, 0);
+  int batch_size = RowBatch::GetBatchSize(payload.proto_batch);
 
-  // if there's something in the queue and this batch will push us over the
-  // buffer limit we need to wait until the batch gets drained.
-  // Note: It's important that we enqueue thrift_batch regardless of buffer limit if
-  // the queue is currently empty. In the case of a merging receiver, batches are
-  // received from a specific queue based on data order, and the pipeline will stall
-  // if the merger is waiting for data from an empty queue that cannot be filled because
-  // the limit has been reached.
-  while (!batch_queue_.empty() && recvr_->ExceedsLimit(batch_size) && !is_cancelled_) {
-    CANCEL_SAFE_SCOPED_TIMER(recvr_->buffer_full_total_timer_, &is_cancelled_);
-    VLOG_ROW << " wait removal: empty=" << (batch_queue_.empty() ? 1 : 0)
-             << " #buffered=" << recvr_->num_buffered_bytes_.Load()
-             << " batch_size=" << batch_size << "\n";
+  {
+    unique_lock<SpinLock> l(lock_);
+    COUNTER_ADD(recvr_->bytes_received_counter_, batch_size);
 
-    // We only want one thread running the timer at any one time. Only
-    // one thread may lock the try_lock, and that 'winner' starts the
-    // scoped timer.
-    bool got_timer_lock = false;
-    {
-      try_mutex::scoped_try_lock timer_lock(recvr_->buffer_wall_timer_lock_);
-      if (timer_lock) {
-        CANCEL_SAFE_SCOPED_TIMER(recvr_->buffer_full_wall_timer_, &is_cancelled_);
-        data_removal__cv_.wait(l);
-        got_timer_lock = true;
-      } else {
-        data_removal__cv_.wait(l);
-        got_timer_lock = false;
-      }
+    // num_remaining_senders_ could be 0 because an AddBatch() can arrive *after* a
+    // EndDataStream() RPC for the same sender, due to asynchrony on the sender side (the
+    // sender gets closed or cancelled, but doesn't wait for the oustanding TransmitData()
+    // to complete before trying to close the channel).
+    if (is_cancelled_ || num_remaining_senders_ == 0) {
+      Status::OK().ToProto(payload.response->mutable_status());
+      payload.context->RespondSuccess();
+      return;
     }
-    // If we had the timer lock, wake up another writer to make sure
-    // that they (if no-one else) starts the timer. The guarantee is
-    // that if no thread has the try_lock, the thread that we wake up
-    // here will obtain it and run the timer.
+
+    // If there's something in the queue and this batch will push us over the buffer limit
+    // we need to wait until the queue gets drained. We store the rpc context so that we
+    // can signal it at a later time to resend the batch that we couldn't process here.
     //
-    // We must have given up the try_lock by this point, otherwise the
-    // woken thread might not successfully take the lock once it has
-    // woken up. (In fact, no other thread will run in AddBatch until
-    // this thread exits because of mutual exclusion around lock_, but
-    // it's good not to rely on that fact).
-    //
-    // The timer may therefore be an underestimate by the amount of
-    // time it takes this thread to finish (and yield lock_) and the
-    // notified thread to be woken up and to acquire the try_lock. In
-    // practice, this time is small relative to the total wait time.
-    if (got_timer_lock) data_removal__cv_.notify_one();
+    // Note: It's important that we enqueue proto_batch regardless of buffer limit if
+    // the queue is currently empty. In the case of a merging receiver, batches are
+    // received from a specific queue based on data order, and the pipeline will stall
+    // if the merger is waiting for data from an empty queue that cannot be filled because
+    // the limit has been reached.
+    if (!batch_queue_.empty() && recvr_->ExceedsLimit(batch_size)) {
+      // We're not going to use the memory associated with this RPC.
+      payload.context->DiscardTransfer();
+
+      // Enqueue pending sender, return.
+      pending_senders_.push(move(payload));
+      COUNTER_ADD(recvr_->num_rejected_batches_, 1);
+      return;
+    }
+    COUNTER_ADD(recvr_->num_accepted_batches_, 1);
+    COUNTER_ADD(recvr_->bytes_accepted_counter_, batch_size);
+    recvr_->num_buffered_bytes_.Add(batch_size);
   }
 
-  if (!is_cancelled_) {
-    RowBatch* batch = NULL;
-    {
-      SCOPED_TIMER(recvr_->deserialize_row_batch_timer_);
-      // Note: if this function makes a row batch, the batch *must* be added
-      // to batch_queue_. It is not valid to create the row batch and destroy
-      // it in this thread.
-      batch = new RowBatch(recvr_->row_desc(), thrift_batch, recvr_->mem_tracker());
-    }
-    VLOG_ROW << "added #rows=" << batch->num_rows()
-             << " batch_size=" << batch_size << "\n";
+  RowBatch* batch = nullptr;
+  {
+    SCOPED_TIMER(recvr_->deserialize_row_batch_timer_);
+    // Note: if this function makes a row batch, the batch *must* be added to
+    // batch_queue_. Close() will handle deleting any unconsumed batches from
+    // batch_queue_. Taking closing_lock_ at the beginning of this method ensures that
+    // Close() cannot run until after the batch is added to the queue.
+    // TODO: move this off this thread.
+    batch = new RowBatch(recvr_->row_desc(), payload.proto_batch, recvr_->mem_tracker());
+  }
+
+  {
+    lock_guard<SpinLock> l(lock_);
+    VLOG_ROW << "added #rows=" << batch->num_rows() << " batch_size=" << batch_size;
     batch_queue_.push_back(make_pair(batch_size, batch));
-    recvr_->num_buffered_bytes_.Add(batch_size);
     data_arrival_cv_.notify_one();
   }
+
+  Status::OK().ToProto(payload.response->mutable_status());
+  payload.context->RespondSuccess();
+
 }
 
 void DataStreamRecvr::SenderQueue::DecrementSenders() {
-  lock_guard<mutex> l(lock_);
+  lock_guard<SpinLock> l(lock_);
   DCHECK_GT(num_remaining_senders_, 0);
   num_remaining_senders_ = max(0, num_remaining_senders_ - 1);
   VLOG_FILE << "decremented senders: fragment_instance_id="
@@ -231,7 +260,7 @@ void DataStreamRecvr::SenderQueue::DecrementSenders() {
 
 void DataStreamRecvr::SenderQueue::Cancel() {
   {
-    lock_guard<mutex> l(lock_);
+    lock_guard<SpinLock> l(lock_);
     if (is_cancelled_) return;
     is_cancelled_ = true;
     VLOG_QUERY << "cancelled stream: fragment_instance_id_="
@@ -241,22 +270,47 @@ void DataStreamRecvr::SenderQueue::Cancel() {
   // Wake up all threads waiting to produce/consume batches.  They will all
   // notice that the stream is cancelled and handle it.
   data_arrival_cv_.notify_all();
-  data_removal__cv_.notify_all();
   PeriodicCounterUpdater::StopTimeSeriesCounter(
       recvr_->bytes_received_time_series_counter_);
 }
 
 void DataStreamRecvr::SenderQueue::Close() {
-  lock_guard<mutex> l(lock_);
+  lock_guard<SpinLock> c(closing_lock_);
+  lock_guard<SpinLock> l(lock_);
   // Note that the queue must be cancelled first before it can be closed or we may
   // risk running into a race which can leak row batches. Please see IMPALA-3034.
   DCHECK(is_cancelled_);
+
   // Delete any batches queued in batch_queue_
-  for (RowBatchQueue::iterator it = batch_queue_.begin();
-      it != batch_queue_.end(); ++it) {
-    delete it->second;
+  for (const auto& queue_entry: batch_queue_) delete queue_entry.second;
+  while (!pending_senders_.empty()) {
+    TransmitDataCtx* payload = &pending_senders_.front();
+    Status::OK().ToProto(payload->response->mutable_status());
+    payload->context->RespondSuccess();
+    pending_senders_.pop();
   }
+
   current_batch_.reset();
+}
+
+void DataStreamRecvr::SenderQueue::CheckPendingSenders() {
+  int64_t now = MonotonicMillis();
+
+  vector<TransmitDataCtx> to_notify;
+  // Copy the senders to notify to avoid holding lock_ while we respond.
+  {
+    lock_guard<SpinLock> l(lock_);
+    const int32_t TIMEOUT = FLAGS_datastream_sender_timeout_ms / 2;
+    while (!pending_senders_.empty()
+        && (now - pending_senders_.front().arrival_time_ms) > TIMEOUT) {
+      to_notify.push_back(move(pending_senders_.front()));
+      pending_senders_.pop();
+    }
+  }
+  for (auto& ctx: to_notify) {
+    ctx.context->RespondRpcFailure(ErrorStatusPB::ERROR_SERVER_TOO_BUSY,
+        kudu::Status::ServiceUnavailable("Sender queue was full. Please re-send."));
+  }
 }
 
 Status DataStreamRecvr::CreateMerger(const TupleRowComparator& less_than) {
@@ -267,17 +321,20 @@ Status DataStreamRecvr::CreateMerger(const TupleRowComparator& less_than) {
   // Create the merger that will a single stream of sorted rows.
   merger_.reset(new SortedRunMerger(less_than, &row_desc_, profile_, false));
 
-  for (int i = 0; i < sender_queues_.size(); ++i) {
+  for (SenderQueue* queue: sender_queues_) {
     input_batch_suppliers.push_back(
-        bind(mem_fn(&SenderQueue::GetBatch), sender_queues_[i], _1));
+        [queue](RowBatch** next_batch) -> Status {
+          return queue->GetBatch(next_batch);
+        });
   }
+
   RETURN_IF_ERROR(merger_->Prepare(input_batch_suppliers));
   return Status::OK();
 }
 
 void DataStreamRecvr::TransferAllResources(RowBatch* transfer_batch) {
   for (SenderQueue* sender_queue: sender_queues_) {
-    if (sender_queue->current_batch() != NULL) {
+    if (sender_queue->current_batch() != nullptr) {
       sender_queue->current_batch()->TransferResourceOwnership(transfer_batch);
     }
   }
@@ -301,33 +358,48 @@ DataStreamRecvr::DataStreamRecvr(DataStreamMgr* stream_mgr, MemTracker* parent_t
   sender_queues_.reserve(num_queues);
   int num_sender_per_queue = is_merging ? 1 : num_senders;
   for (int i = 0; i < num_queues; ++i) {
-    SenderQueue* queue = sender_queue_pool_.Add(new SenderQueue(this,
-        num_sender_per_queue, profile));
+    SenderQueue* queue =
+        sender_queue_pool_.Add(new SenderQueue(this, num_sender_per_queue));
     sender_queues_.push_back(queue);
   }
 
+  // Maintain two child profiles - receiver side measurements (from the GetBatch() path),
+  // and sender side measurements (from AddBatch()).
+  RuntimeProfile* recvr_side_profile = profile_->CreateChild("RecvrSide");
+  RuntimeProfile* sender_side_profile = profile_->CreateChild("SenderSide");
+
   // Initialize the counters
   bytes_received_counter_ =
-      ADD_COUNTER(profile_, "BytesReceived", TUnit::BYTES);
-  bytes_received_time_series_counter_ =
-      ADD_TIME_SERIES_COUNTER(profile_, "BytesReceived", bytes_received_counter_);
+      ADD_COUNTER(recvr_side_profile, "TotalBytesReceived", TUnit::BYTES);
+  bytes_accepted_counter_ =
+      ADD_COUNTER(recvr_side_profile, "AcceptedBytesReceived", TUnit::BYTES);
+  bytes_received_time_series_counter_ = ADD_TIME_SERIES_COUNTER(
+      recvr_side_profile, "BytesReceived", bytes_received_counter_);
   deserialize_row_batch_timer_ =
-      ADD_TIMER(profile_, "DeserializeRowBatchTimer");
-  buffer_full_wall_timer_ = ADD_TIMER(profile_, "SendersBlockedTimer");
-  buffer_full_total_timer_ = ADD_TIMER(profile_, "SendersBlockedTotalTimer(*)");
-  data_arrival_timer_ = profile_->inactive_timer();
-  first_batch_wait_total_timer_ = ADD_TIMER(profile_, "FirstBatchArrivalWaitTime");
+      ADD_TIMER(sender_side_profile, "DeserializeRowBatchTimer");
+  inactive_timer_ = profile_->inactive_timer();
+  queue_get_batch_time_ = ADD_TIMER(recvr_side_profile, "TotalGetBatchTime");
+  data_arrival_timer_ =
+      ADD_CHILD_TIMER(recvr_side_profile, "DataArrivalTimer", "TotalGetBatchTime");
+  pending_response_timer_ =
+      ADD_CHILD_TIMER(recvr_side_profile, "PendingResponseTime", "TotalGetBatchTime");
+  first_batch_wait_total_timer_ =
+      ADD_TIMER(recvr_side_profile, "FirstBatchArrivalWaitTime");
+  num_rejected_batches_ =
+      ADD_COUNTER(sender_side_profile, "NumBatchesRejected", TUnit::UNIT);
+  num_accepted_batches_ =
+      ADD_COUNTER(sender_side_profile, "NumBatchesAccepted", TUnit::UNIT);
 }
 
 Status DataStreamRecvr::GetNext(RowBatch* output_batch, bool* eos) {
-  DCHECK(merger_.get() != NULL);
+  DCHECK(merger_.get() != nullptr);
   return merger_->GetNext(output_batch, eos);
 }
 
-void DataStreamRecvr::AddBatch(const TRowBatch& thrift_batch, int sender_id) {
-  int use_sender_id = is_merging_ ? sender_id : 0;
+void DataStreamRecvr::AddBatch(TransmitDataCtx&& payload) {
+  int use_sender_id = is_merging_ ? payload.request->sender_id() : 0;
   // Add all batches to the same queue if is_merging_ is false.
-  sender_queues_[use_sender_id]->AddBatch(thrift_batch);
+  sender_queues_[use_sender_id]->AddBatch(move(payload));
 }
 
 void DataStreamRecvr::RemoveSender(int sender_id) {
@@ -336,32 +408,32 @@ void DataStreamRecvr::RemoveSender(int sender_id) {
 }
 
 void DataStreamRecvr::CancelStream() {
-  for (int i = 0; i < sender_queues_.size(); ++i) {
-    sender_queues_[i]->Cancel();
-  }
+  for (auto& queue: sender_queues_) queue->Cancel();
 }
 
 void DataStreamRecvr::Close() {
   // Remove this receiver from the DataStreamMgr that created it.
   // TODO: log error msg
   mgr_->DeregisterRecvr(fragment_instance_id(), dest_node_id());
-  mgr_ = NULL;
-  for (int i = 0; i < sender_queues_.size(); ++i) {
-    sender_queues_[i]->Close();
-  }
+  mgr_ = nullptr;
+  for (auto& queue: sender_queues_) queue->Close();
   merger_.reset();
   mem_tracker_->UnregisterFromParent();
   mem_tracker_.reset();
 }
 
 DataStreamRecvr::~DataStreamRecvr() {
-  DCHECK(mgr_ == NULL) << "Must call Close()";
+  DCHECK(mgr_ == nullptr) << "Must call Close()";
 }
 
 Status DataStreamRecvr::GetBatch(RowBatch** next_batch) {
   DCHECK(!is_merging_);
   DCHECK_EQ(sender_queues_.size(), 1);
   return sender_queues_[0]->GetBatch(next_batch);
+}
+
+void DataStreamRecvr::ReplyToPendingSenders() {
+  for (SenderQueue* queue: sender_queues_) queue->CheckPendingSenders();
 }
 
 }

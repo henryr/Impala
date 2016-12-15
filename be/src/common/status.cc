@@ -18,6 +18,7 @@
 #include <boost/algorithm/string/join.hpp>
 
 #include "common/status.h"
+#include "rpc/common.pb.h"
 #include "util/debug-util.h"
 
 #include "common/names.h"
@@ -140,6 +141,10 @@ Status::Status(const TStatus& status) {
   FromThrift(status);
 }
 
+Status::Status(const StatusPb& status) {
+  FromProto(status);
+}
+
 Status& Status::operator=(const TStatus& status) {
   delete msg_;
   FromThrift(status);
@@ -222,6 +227,33 @@ void Status::FromThrift(const TStatus& status) {
           [&](string const& detail) { msg_->AddDetail(detail); });
     }
   }
+}
+
+void Status::FromProto(const StatusPb& status) {
+  if (status.status_code() == TErrorCode::OK) {
+    msg_ = nullptr;
+  } else {
+    msg_ = new ErrorMsg();
+    for (int i = 0; i < status.error_msgs().size(); ++i) {
+      if (i == 0) {
+        msg_->SetErrorMsg(status.error_msgs().Get(i));
+      } else {
+        msg_->AddDetail(status.error_msgs().Get(i));
+      }
+    }
+  }
+}
+
+void Status::ToProto(StatusPb* status) const {
+  status->Clear();
+  if (msg_ == nullptr) {
+    status->set_status_code(TErrorCode::OK);
+    return;
+  }
+
+  status->set_status_code(msg_->error());
+  status->add_error_msgs(msg_->msg());
+  for (const string& s : msg_->details()) status->add_error_msgs(s);
 }
 
 void Status::FreeMessage() noexcept {

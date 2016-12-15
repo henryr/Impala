@@ -35,8 +35,8 @@ class TestRPCTimeout(CustomClusterTestSuite):
 
   @classmethod
   def setup_class(cls):
-    if cls.exploration_strategy() != 'exhaustive':
-      pytest.skip('runs only in exhaustive')
+    # if cls.exploration_strategy() != 'exhaustive':
+    #   pytest.skip('runs only in exhaustive')
     super(TestRPCTimeout, cls).setup_class()
 
   def execute_query_verify_metrics(self, query, repeat = 1):
@@ -77,13 +77,13 @@ class TestRPCTimeout(CustomClusterTestSuite):
     self.execute_query_verify_metrics(query)
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
+  @CustomClusterTestSuite.with_args("--rpc_exec_plan_fragment_timeout_ms=1000"
       " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=1"
       " --datastream_sender_timeout_ms=30000")
   def test_execplanfragment_timeout(self, vector):
     for i in range(3):
       ex= self.execute_query_expect_failure(self.client, self.TEST_QUERY)
-      assert "RPC recv timed out" in str(ex)
+      assert "Timed out: ExecPlanFragment RPC to" in str(ex)
     verifiers = [ MetricVerifier(i.service) for i in ImpalaCluster().impalads ]
 
     for v in verifiers:
@@ -91,7 +91,7 @@ class TestRPCTimeout(CustomClusterTestSuite):
       v.verify_num_unused_buffers()
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
+  @CustomClusterTestSuite.with_args("--rpc_cancel_plan_fragment_timeout_ms=1000"
       " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=2"
       " --datastream_sender_timeout_ms=30000")
   def test_cancelplanfragment_timeout(self, vector):
@@ -99,33 +99,33 @@ class TestRPCTimeout(CustomClusterTestSuite):
     self.execute_query_then_cancel(query, vector)
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
+  @CustomClusterTestSuite.with_args("--rpc_publish_filter_timeout_ms=1000"
       " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=3")
   def test_publishfilter_timeout(self, vector):
     self.execute_runtime_filter_query()
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
+  @CustomClusterTestSuite.with_args("--rpc_update_filter_timeout_ms=1000"
       " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=4")
   def test_updatefilter_timeout(self, vector):
     self.execute_runtime_filter_query()
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
+  @CustomClusterTestSuite.with_args("--datastream_sender_timeout_ms=1000"
       " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=5")
   def test_transmitdata_timeout(self, vector):
     self.execute_query_verify_metrics(self.TEST_QUERY)
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
+  @CustomClusterTestSuite.with_args("--rpc_report_exec_status_timeout_ms=1000"
       " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=6"
       " --status_report_interval=1")
   def test_reportexecstatus_timeout(self, vector):
     self.execute_query_verify_metrics(self.TEST_QUERY)
 
   @pytest.mark.execute_serially
-  @CustomClusterTestSuite.with_args("--backend_client_rpc_timeout_ms=1000"
+  @CustomClusterTestSuite.with_args("--rpc_end_datastream_timeout_ms=1000"
       " --fault_injection_rpc_delay_ms=3000 --fault_injection_rpc_type=7"
-      " --datastream_sender_timeout_ms=30000")
-  def test_random_rpc_timeout(self, vector):
-    self.execute_query_verify_metrics(self.TEST_QUERY, 10)
+      " --status_report_interval=1")
+  def test_enddatastream_timeout(self, vector):
+    self.execute_query_verify_metrics(self.TEST_QUERY)

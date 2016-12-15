@@ -315,6 +315,8 @@ error_codes = (
 
   ("SCRATCH_READ_TRUNCATED", 102, "Error reading $0 bytes from scratch file '$1' at "
    "offset $2: could only read $3 bytes"),
+
+  ("DATASTREAM_RECVR_ALREADY_GONE", 103, "Datastream receiver already torn down"),
 )
 
 import sys
