@@ -440,6 +440,7 @@ class CodeGenerator : public ::google::protobuf::compiler::CodeGenerator {
       "using kudu::rpc::ResultTracker;\n"
       "using kudu::rpc::RpcContext;\n"
       "using kudu::rpc::RpcMethodInfo;\n"
+      "using kudu::MetricEntity;\n"
       "using std::unique_ptr;\n"
       "\n"
       "$open_namespace$"
