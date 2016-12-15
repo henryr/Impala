@@ -26,9 +26,10 @@
 #include <immintrin.h>
 
 #include "common/compiler-util.h"
-#include "gen-cpp/ImpalaInternalService_types.h"
 #include "gutil/macros.h"
 #include "runtime/buffered-block-mgr.h"
+
+#include "service/impala_internal_service.pb.h"
 
 namespace impala {
 
@@ -58,15 +59,16 @@ class BloomFilter {
  public:
   /// Consumes at most (1 << log_heap_space) bytes on the heap.
   explicit BloomFilter(const int log_heap_space);
-  explicit BloomFilter(const TBloomFilter& thrift);
+  explicit BloomFilter(const BloomFilterPb& proto);
   ~BloomFilter();
 
   /// Representation of a filter which allows all elements to pass.
   static constexpr BloomFilter* const ALWAYS_TRUE_FILTER = NULL;
 
-  /// Converts 'filter' to its corresponding Thrift representation. If the first argument
-  /// is NULL, it is interpreted as a complete filter which contains all elements.
-  static void ToThrift(const BloomFilter* filter, TBloomFilter* thrift);
+  /// Converts 'filter' to its corresponding protobuf representation. If the first
+  /// argument is NULL, it is interpreted as a complete filter which contains all
+  /// elements.
+  static void ToProto(const BloomFilter* filter, BloomFilterPb* proto);
 
   /// Adds an element to the BloomFilter. The function used to generate 'hash' need not
   /// have good uniformity, but it should have low collision probability. For instance, if
@@ -80,7 +82,7 @@ class BloomFilter {
   bool Find(const uint32_t hash) const noexcept;
 
   /// Computes the logical OR of 'in' with 'out' and stores the result in 'out'.
-  static void Or(const TBloomFilter& in, TBloomFilter* out);
+  static void Or(const BloomFilterPb& in, BloomFilterPb* out);
 
   /// As more distinct items are inserted into a BloomFilter, the false positive rate
   /// rises. MaxNdv() returns the NDV (number of distinct values) at which a BloomFilter
@@ -152,8 +154,8 @@ class BloomFilter {
     return 1uLL << (log_num_buckets_ + LOG_BUCKET_BYTE_SIZE);
   }
 
-  /// Serializes this filter as Thrift.
-  void ToThrift(TBloomFilter* thrift) const;
+  /// Serializes this filter as protobuf.
+  void ToProto(BloomFilterPb* proto) const;
 
   /// Some constants used in hashing. #defined for efficiency reasons.
 #define IMPALA_BLOOM_HASH_CONSTANTS                                             \

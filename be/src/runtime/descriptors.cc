@@ -32,6 +32,8 @@
 #include "exprs/expr.h"
 #include "runtime/runtime-state.h"
 
+#include "service/impala_internal_service.pb.h"
+
 #include "common/names.h"
 
 using boost::algorithm::join;
@@ -423,6 +425,11 @@ void RowDescriptor::ToThrift(vector<TTupleId>* row_tuple_ids) {
   for (int i = 0; i < tuple_desc_map_.size(); ++i) {
     row_tuple_ids->push_back(tuple_desc_map_[i]->id());
   }
+}
+
+void RowDescriptor::ToProto(RowBatchPb* row_batch) {
+  row_batch->mutable_row_tuples()->Clear();
+  for (auto desc : tuple_desc_map_) row_batch->add_row_tuples(desc->id());
 }
 
 bool RowDescriptor::IsPrefixOf(const RowDescriptor& other_desc) const {

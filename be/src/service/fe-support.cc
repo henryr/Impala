@@ -32,7 +32,6 @@
 #include "gen-cpp/Frontend_types.h"
 #include "rpc/jni-thrift-util.h"
 #include "rpc/thrift-server.h"
-#include "runtime/client-cache.h"
 #include "runtime/exec-env.h"
 #include "runtime/hdfs-fs-cache.h"
 #include "runtime/lib-cache.h"

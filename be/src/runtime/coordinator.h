@@ -61,7 +61,6 @@ class ExecEnv;
 class TUpdateCatalogRequest;
 class TQueryExecRequest;
 class TReportExecStatusParams;
-class TRowBatch;
 class TPlanExecRequest;
 class TRuntimeProfileTree;
 class RuntimeProfile;
@@ -71,6 +70,7 @@ class QueryResultSet;
 class MemTracker;
 class PlanRootSink;
 class FragmentInstanceState;
+class UpdateFilterRequestPb;
 
 struct DebugOptions;
 
@@ -212,7 +212,7 @@ class Coordinator { // NOLINT: The member variables could be re-ordered to save 
   /// with others for the same filter ID into a global filter. If all updates for that
   /// filter ID have been received (may be 1 or more per filter), broadcast the global
   /// filter to fragment instances.
-  void UpdateFilter(const TUpdateFilterParams& params);
+  void UpdateFilter(const UpdateFilterRequestPb* request);
 
   /// Called once the query is complete to tear down any remaining state.
   void TearDown();
@@ -471,7 +471,8 @@ class Coordinator { // NOLINT: The member variables could be re-ordered to save 
   void CancelInternal();
 
   /// Cancels all fragment instances. Assumes that lock_ is held. This may be called when
-  /// the query is not being cancelled in the case where the query limit is reached.
+  /// the query is not being cancelled in the case where the query limit is
+  /// reached. Returns when all cancellation RPCs have completed.
   void CancelFragmentInstances();
 
   /// Acquires lock_ and updates query_status_ with 'status' if it's not already

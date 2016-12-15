@@ -28,3 +28,15 @@ package impala;
 
 // Common wrapper struct for Thrift data structures serialized to Protobuf.
 message ThriftWrapperPb { required bytes thrift_struct = 1; }
+
+// Proto-serialized version of Impala's Status object.
+message StatusPb {
+  required int32 status_code = 1;
+  repeated string error_msgs = 2;
+}
+
+// 128-bit ID (equivalent to TUniqueID).
+message UniqueIdPb {
+  required int64 hi = 1;
+  required int64 lo = 2;
+}

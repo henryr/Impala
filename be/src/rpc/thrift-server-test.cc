@@ -194,7 +194,7 @@ TEST(ConcurrencyTest, DISABLED_ManyConcurrentConnections) {
 
   ThreadPool<int64_t> pool(
       "group", "test", 256, 10000, [port](int tid, const int64_t& item) {
-        using Client = ThriftClient<ImpalaInternalServiceClient>;
+        using Client = ThriftClient<BeeswaxServiceClient>;
         Client* client = new Client("127.0.0.1", port, "", NULL, false);
         Status status = client->Open();
         ASSERT_OK(status);
