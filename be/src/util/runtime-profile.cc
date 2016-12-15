@@ -396,6 +396,29 @@ void RuntimeProfile::ComputeTimeInProfile(int64_t total) {
   }
 }
 
+RuntimeProfile* RuntimeProfile::CreateChild(const string& name, bool indent,
+    RuntimeProfile* loc) {
+  lock_guard<SpinLock> l(children_lock_);
+  if (child_map_.count(name) > 0) return nullptr;
+  ChildVector::iterator insert_pos;
+  if (loc == nullptr) {
+    insert_pos = children_.end();
+  } else {
+    bool found = false;
+    for (ChildVector::iterator it = children_.begin(); it != children_.end(); ++it) {
+      if (it->first == loc) {
+        insert_pos = it + 1;
+        found = true;
+        break;
+      }
+    }
+    DCHECK(found) << "Invalid loc";
+  }
+  RuntimeProfile* profile = pool_->Add(new RuntimeProfile(pool_, name));
+  AddChildLocked(profile, indent, insert_pos);
+  return profile;
+}
+
 void RuntimeProfile::AddChild(RuntimeProfile* child, bool indent, RuntimeProfile* loc) {
   lock_guard<SpinLock> l(children_lock_);
   ChildVector::iterator insert_pos;

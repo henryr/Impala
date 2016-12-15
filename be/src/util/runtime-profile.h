@@ -126,6 +126,12 @@ class RuntimeProfile { // NOLINT: This struct is not packed, but there are not s
   void AddChild(RuntimeProfile* child,
       bool indent = true, RuntimeProfile* location = NULL);
 
+  /// Creates a child profile, and returns it. If a profile with 'name' already exists,
+  /// nullptr is returned. The new profile uses the same object pool that this profile
+  /// does.
+  RuntimeProfile* CreateChild(const string& name, bool indent = true,
+      RuntimeProfile* loc = nullptr);
+
   /// Adds a child profile, similarly to AddChild(). The child profile is put before any
   /// existing profiles.
   void PrependChild(RuntimeProfile* child, bool indent = true);

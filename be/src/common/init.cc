@@ -76,6 +76,9 @@ DEFINE_int64(pause_monitor_warn_threshold_ms, 10000, "If the pause monitor sleep
     "more than this time period, a warning is logged. If set to 0 or less, pause monitor"
     " is disabled.");
 
+DEFINE_bool(dcheck_on_startup, false, "For debugging only. If true, a debug build will"
+            " crash on start-up");
+
 // Defined by glog. This allows users to specify the log level using a glob. For
 // example -vmodule=*scanner*=3 would enable full logging for scanners. If redaction
 // is enabled, this option won't be allowed because some logging dumps table data
@@ -245,4 +248,6 @@ void impala::InitCommonRuntime(int argc, char** argv, bool init_jvm,
     HeapProfilerStart(FLAGS_heap_profile_dir.c_str());
   }
 #endif
+
+  DCHECK(!FLAGS_dcheck_on_startup);
 }

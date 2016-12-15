@@ -22,22 +22,22 @@
 #include <boost/thread/locks.hpp>
 #include <boost/thread/thread.hpp>
 
-#include "runtime/row-batch.h"
 #include "runtime/data-stream-recvr.h"
 #include "runtime/raw-value.inline.h"
+#include "runtime/row-batch.h"
 #include "runtime/runtime-state.h"
+#include "service/impala_internal_service.pb.h"
 #include "util/debug-util.h"
 #include "util/periodic-counter-updater.h"
 #include "util/runtime-profile-counters.h"
 #include "util/uid-util.h"
 
-#include "gen-cpp/ImpalaInternalService.h"
-#include "gen-cpp/ImpalaInternalService_types.h"
+#include "kudu/rpc/rpc_context.h"
 
 #include "common/names.h"
 
-using namespace apache::thrift;
 using std::boolalpha;
+using kudu::rpc::RpcContext;
 
 DEFINE_int32(datastream_sender_timeout_ms, 120000, "(Advanced) The time, in ms, that can "
     "elapse  before a plan fragment will time-out trying to send the initial row batch.");
@@ -62,6 +62,7 @@ DataStreamMgr::DataStreamMgr(MetricGroup* metrics) {
       metrics_->AddCounter<int64_t>("total-senders-blocked-on-recvr-creation", 0L);
   num_senders_timedout_ = metrics_->AddCounter<int64_t>(
       "total-senders-timedout-waiting-for-recvr-creation", 0L);
+  pending_sender_thread_.reset(new Thread("data-stream-mgr", "sender-checker", [this]() { this->ReplyToPendingSenders(); }));
 }
 
 inline uint32_t DataStreamMgr::GetHashValue(
@@ -166,27 +167,27 @@ shared_ptr<DataStreamRecvr> DataStreamMgr::FindRecvr(
 }
 
 Status DataStreamMgr::AddData(const TUniqueId& fragment_instance_id,
-    PlanNodeId dest_node_id, const TRowBatch& thrift_batch, int sender_id) {
+    const TransmitDataCtx& payload) {
   VLOG_ROW << "AddData(): fragment_instance_id=" << fragment_instance_id
-           << " node=" << dest_node_id
-           << " size=" << RowBatch::GetBatchSize(thrift_batch);
+           << " node=" << payload.request->dest_node_id() << " size="
+           << RowBatch::GetBatchSize(payload.proto_batch);
   bool already_unregistered;
-  shared_ptr<DataStreamRecvr> recvr = FindRecvrOrWait(fragment_instance_id, dest_node_id,
-      &already_unregistered);
-  if (recvr.get() == NULL) {
+  shared_ptr<DataStreamRecvr> recvr = FindRecvrOrWait(
+      fragment_instance_id, payload.request->dest_node_id(), &already_unregistered);
+  if (recvr.get() == nullptr) {
     // The receiver may remove itself from the receiver map via DeregisterRecvr() at any
     // time without considering the remaining number of senders.  As a consequence,
-    // FindRecvrOrWait() may return NULL if a thread calling DeregisterRecvr() beat the
+    // FindRecvrOrWait() may return nullptr if a thread calling DeregisterRecvr() beat the
     // thread calling FindRecvr() in acquiring lock_. We detect this case by checking
     // already_unregistered - if true then the receiver was already closed deliberately,
     // and there's no unexpected error here. If already_unregistered is false,
     // FindRecvrOrWait() timed out, which is unexpected and suggests a query setup error;
     // we return DATASTREAM_SENDER_TIMEOUT to trigger tear-down of the query.
-    return already_unregistered ? Status::OK() :
+    return already_unregistered ? Status(TErrorCode::DATASTREAM_RECVR_ALREADY_GONE) :
         Status(TErrorCode::DATASTREAM_SENDER_TIMEOUT, PrintId(fragment_instance_id));
   }
   DCHECK(!already_unregistered);
-  recvr->AddBatch(thrift_batch, sender_id);
+  recvr->AddBatch(payload);
   return Status::OK();
 }
 
@@ -197,7 +198,7 @@ Status DataStreamMgr::CloseSender(const TUniqueId& fragment_instance_id,
   bool unused;
   shared_ptr<DataStreamRecvr> recvr = FindRecvrOrWait(fragment_instance_id, dest_node_id,
       &unused);
-  if (recvr.get() != NULL) recvr->RemoveSender(sender_id);
+  if (recvr.get() != nullptr) recvr->RemoveSender(sender_id);
 
   {
     // Remove any closed streams that have been in the cache for more than
@@ -261,17 +262,40 @@ void DataStreamMgr::Cancel(const TUniqueId& fragment_instance_id) {
       fragment_recvr_set_.lower_bound(make_pair(fragment_instance_id, 0));
   while (i != fragment_recvr_set_.end() && i->first == fragment_instance_id) {
     shared_ptr<DataStreamRecvr> recvr = FindRecvr(i->first, i->second, false);
-    if (recvr.get() == NULL) {
+    if (recvr.get() == nullptr) {
       // keep going but at least log it
-      stringstream err;
-      err << "Cancel(): missing in stream_map: fragment=" << i->first
-          << " node=" << i->second;
-      LOG(ERROR) << err.str();
+      LOG(ERROR) << Substitute("Cancel(): missing in stream_map: fragment=$0 node=$1",
+          PrintId(i->first), i->second);
     } else {
       recvr->CancelStream();
     }
     ++i;
   }
+}
+
+void DataStreamMgr::ReplyToPendingSenders() {
+  while (true) {
+    // First make copy of all receivers
+    vector<shared_ptr<DataStreamRecvr>> recvrs;
+    {
+      lock_guard<mutex> l(lock_);
+      for (const auto& recvr: receiver_map_) recvrs.push_back(recvr.second);
+    }
+
+    for (shared_ptr<DataStreamRecvr> recvr: recvrs) {
+      recvr->ReplyToPendingSenders();
+    }
+
+    bool timed_out = false;
+    shutdown_promise_.Get(10000, &timed_out);
+    if (!timed_out) return;
+  }
+}
+
+DataStreamMgr::~DataStreamMgr() {
+  shutdown_promise_.Set(true);
+  LOG(INFO) << "Waiting for pending sender thread...";
+  pending_sender_thread_->Join();
 }
 
 }
