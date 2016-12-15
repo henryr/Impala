@@ -18,37 +18,40 @@
 #include "runtime/data-stream-sender.h"
 
 #include <iostream>
-#include <thrift/protocol/TDebugProtocol.h>
 
 #include "common/logging.h"
-#include "exprs/expr.h"
+#include "exec/kudu-util.h"
 #include "exprs/expr-context.h"
+#include "exprs/expr.h"
 #include "gutil/strings/substitute.h"
-#include "runtime/descriptors.h"
-#include "runtime/tuple-row.h"
-#include "runtime/row-batch.h"
-#include "runtime/raw-value.inline.h"
-#include "runtime/runtime-state.h"
 #include "runtime/client-cache.h"
+#include "runtime/descriptors.h"
+#include "runtime/exec-env.h"
 #include "runtime/mem-tracker.h"
-#include "runtime/backend-client.h"
+#include "runtime/mem-tracker.h"
+#include "runtime/raw-value.inline.h"
+#include "runtime/row-batch.h"
+#include "runtime/runtime-state.h"
+#include "runtime/tuple-row.h"
 #include "util/aligned-new.h"
 #include "util/debug-util.h"
 #include "util/network-util.h"
-#include "util/thread-pool.h"
-#include "rpc/thrift-client.h"
-#include "rpc/thrift-util.h"
 
-#include "gen-cpp/Types_types.h"
-#include "gen-cpp/ImpalaInternalService.h"
-#include "gen-cpp/ImpalaInternalService_types.h"
+#include "kudu/rpc/rpc_controller.h"
+#include "kudu/util/net/net_util.h"
+#include "kudu/util/net/sockaddr.h"
+#include "rpc/rpc.h"
+#include "service/impala-server.h"
+#include "service/impala_internal_service.pb.h"
+#include "service/impala_internal_service.proxy.h"
 
 #include "common/names.h"
 
 using boost::condition_variable;
-using namespace apache::thrift;
-using namespace apache::thrift::protocol;
-using namespace apache::thrift::transport;
+
+using kudu::rpc::RpcController;
+
+DECLARE_int32(be_port);
 
 namespace impala {
 
@@ -56,7 +59,7 @@ namespace impala {
 // to a single destination ipaddress/node.
 // It has a fixed-capacity buffer and allows the caller either to add rows to
 // that buffer individually (AddRow()), or circumvent the buffer altogether and send
-// TRowBatches directly (SendBatch()). Either way, there can only be one in-flight RPC
+// RowBatchPB directly (SendBatch()). Either way, there can only be one in-flight RPC
 // at any one time (ie, sending will block if the most recent rpc hasn't finished,
 // which allows the receiver node to throttle the sender by withholding acks).
 // *Not* thread-safe.
@@ -76,8 +79,6 @@ class DataStreamSender::Channel : public CacheLineAligned {
       fragment_instance_id_(fragment_instance_id),
       dest_node_id_(dest_node_id),
       num_data_bytes_sent_(0),
-      rpc_thread_("DataStreamSender", "SenderThread", 1, 1,
-          bind<void>(mem_fn(&Channel::TransmitData), this, _1, _2)),
       rpc_in_flight_(false) {
   }
 
@@ -93,7 +94,7 @@ class DataStreamSender::Channel : public CacheLineAligned {
   // Asynchronously sends a row batch.
   // Returns the status of the most recently finished TransmitData
   // rpc (or OK if there wasn't one that hasn't been reported yet).
-  Status SendBatch(TRowBatch* batch);
+  Status SendBatch(RowBatchPB* batch);
 
   // Return status of last TransmitData rpc (initiated by the most recent call
   // to either SendBatch() or SendCurrentBatch()).
@@ -109,7 +110,7 @@ class DataStreamSender::Channel : public CacheLineAligned {
   Status FlushAndSendEos(RuntimeState* state);
 
   int64_t num_data_bytes_sent() const { return num_data_bytes_sent_; }
-  TRowBatch* thrift_batch() { return &thrift_batch_; }
+  RowBatchPB* proto_batch() { return &proto_batch_; }
 
  private:
   DataStreamSender* parent_;
@@ -120,20 +121,13 @@ class DataStreamSender::Channel : public CacheLineAligned {
   TUniqueId fragment_instance_id_;
   PlanNodeId dest_node_id_;
 
-  // the number of TRowBatch.data bytes sent successfully
+  // the number of RowBatchPB.data bytes sent successfully
   int64_t num_data_bytes_sent_;
 
   // we're accumulating rows into this batch
   scoped_ptr<RowBatch> batch_;
-  TRowBatch thrift_batch_;
+  RowBatchPB proto_batch_;
 
-  // We want to reuse the rpc thread to prevent creating a thread per rowbatch.
-  // TODO: currently we only have one batch in flight, but we should buffer more
-  // batches. This is a bit tricky since the channels share the outgoing batch
-  // pointer we need some mechanism to coordinate when the batch is all done.
-  // TODO: if the order of row batches does not matter, we can consider increasing
-  // the number of threads.
-  ThreadPool<TRowBatch*> rpc_thread_; // sender thread.
   condition_variable rpc_done_cv_;   // signaled when rpc_in_flight_ is set to true.
   mutex rpc_thread_lock_; // Lock with rpc_done_cv_ protecting rpc_in_flight_
   bool rpc_in_flight_;  // true if the rpc_thread_ is busy sending.
@@ -141,19 +135,9 @@ class DataStreamSender::Channel : public CacheLineAligned {
   Status rpc_status_;  // status of most recently finished TransmitData rpc
   RuntimeState* runtime_state_;
 
-  // Serialize batch_ into thrift_batch_ and send via SendBatch().
+  // Serialize batch_ into proto_batch_ and send via SendBatch().
   // Returns SendBatch() status.
   Status SendCurrentBatch();
-
-  // Synchronously call TransmitData() on a client from impalad_client_cache and
-  // update rpc_status_ based on return value (or set to error if RPC failed).
-  // Called from a thread from the rpc_thread_ pool.
-  void TransmitData(int thread_id, const TRowBatch*);
-  void TransmitDataHelper(const TRowBatch*);
-
-  // Send RPC and retry waiting for response if get RPC timeout error.
-  Status DoTransmitDataRpc(ImpalaBackendConnection* client,
-      const TTransmitDataParams& params, TTransmitDataResult* res);
 };
 
 Status DataStreamSender::Channel::Init(RuntimeState* state) {
@@ -164,75 +148,64 @@ Status DataStreamSender::Channel::Init(RuntimeState* state) {
   return Status::OK();
 }
 
-Status DataStreamSender::Channel::SendBatch(TRowBatch* batch) {
+Status DataStreamSender::Channel::SendBatch(RowBatchPB* batch) {
+  DCHECK(batch != NULL);
+
   VLOG_ROW << "Channel::SendBatch() instance_id=" << fragment_instance_id_
-           << " dest_node=" << dest_node_id_ << " #rows=" << batch->num_rows;
-  // return if the previous batch saw an error
+           << " dest_node=" << dest_node_id_ << " #rows=" << batch->num_rows();
+  //  return if the previous batch saw an error
   RETURN_IF_ERROR(GetSendStatus());
   {
     unique_lock<mutex> l(rpc_thread_lock_);
     rpc_in_flight_ = true;
   }
-  if (!rpc_thread_.Offer(batch)) {
-    unique_lock<mutex> l(rpc_thread_lock_);
-    rpc_in_flight_ = false;
-  }
+
+  // Completion callback for the TransmitData() RPC which is guaranteed to be called
+  // exactly once. We (the DSS) guarantee that this will be called before the DSS is
+  // destroyed because of the WaitForRpc() call that happens during Teardown().
+  auto cb = [this](const Status& status, TransmitDataRequestPB* request,
+      TransmitDataResponsePB* response, RpcController* controller) {
+    Status rpc_status = status.ok() ? FromKuduStatus(controller->status()) : status;
+
+    if (!rpc_status.ok()) {
+      rpc_status_ = rpc_status;
+    } else if (response->status().status_code() != TErrorCode::OK) {
+      this->rpc_status_ = Status(response->status());
+    } else {
+      this->num_data_bytes_sent_ += RowBatch::GetBatchSize(request->row_batch());
+      VLOG_ROW << "incremented #data_bytes_sent=" << this->num_data_bytes_sent_;
+    }
+    // TODO(KRPC): Re-enable
+    // this->parent_->thrift_transmit_timer_->Stop();
+    // COUNTER_ADD(this->parent_->profile_->total_time_counter(),
+    //     this->parent_->thrift_transmit_timer_->LapTime());
+
+    // In the broadcast case, this is shared amongst all RPCs, but not owned by any of
+    // them. Release the batch so that deleting the request object won't delete the batch
+    // itself.
+    request->release_row_batch();
+    {
+      unique_lock<mutex> l(this->rpc_thread_lock_);
+      this->rpc_in_flight_ = false;
+    }
+    rpc_done_cv_.notify_one();
+    delete request;
+    delete response;
+  };
+
+  unique_ptr<TransmitDataRequestPB> request = make_unique<TransmitDataRequestPB>();
+  request->mutable_dest_fragment_instance_id()->set_lo(fragment_instance_id_.lo);
+  request->mutable_dest_fragment_instance_id()->set_hi(fragment_instance_id_.hi);
+  request->set_dest_node_id(dest_node_id_);
+  request->set_allocated_row_batch(batch);
+  request->set_sender_id(parent_->sender_id_);
+
+  unique_ptr<TransmitDataResponsePB> response = make_unique<TransmitDataResponsePB>();
+  Rpc<DataStreamServiceProxy>::Make(address_, ExecEnv::GetInstance()->rpc_mgr())
+      .ExecuteAsync(&DataStreamServiceProxy::TransmitDataAsync, request.release(),
+          response.release(), cb);
+
   return Status::OK();
-}
-
-void DataStreamSender::Channel::TransmitData(int thread_id, const TRowBatch* batch) {
-  DCHECK(rpc_in_flight_);
-  TransmitDataHelper(batch);
-
-  {
-    unique_lock<mutex> l(rpc_thread_lock_);
-    rpc_in_flight_ = false;
-  }
-  rpc_done_cv_.notify_one();
-}
-
-void DataStreamSender::Channel::TransmitDataHelper(const TRowBatch* batch) {
-  DCHECK(batch != NULL);
-  VLOG_ROW << "Channel::TransmitData() instance_id=" << fragment_instance_id_
-           << " dest_node=" << dest_node_id_
-           << " #rows=" << batch->num_rows;
-  TTransmitDataParams params;
-  params.protocol_version = ImpalaInternalServiceVersion::V1;
-  params.__set_dest_fragment_instance_id(fragment_instance_id_);
-  params.__set_dest_node_id(dest_node_id_);
-  params.__set_row_batch(*batch);  // yet another copy
-  params.__set_eos(false);
-  params.__set_sender_id(parent_->sender_id_);
-
-  ImpalaBackendConnection client(runtime_state_->impalad_client_cache(),
-      address_, &rpc_status_);
-  if (!rpc_status_.ok()) return;
-
-  TTransmitDataResult res;
-  client->SetTransmitDataCounter(parent_->thrift_transmit_timer_);
-  rpc_status_ = DoTransmitDataRpc(&client, params, &res);
-  client->ResetTransmitDataCounter();
-  if (!rpc_status_.ok()) return;
-  COUNTER_ADD(parent_->profile_->total_time_counter(),
-      parent_->thrift_transmit_timer_->LapTime());
-
-  if (res.status.status_code != TErrorCode::OK) {
-    rpc_status_ = res.status;
-  } else {
-    num_data_bytes_sent_ += RowBatch::GetBatchSize(*batch);
-    VLOG_ROW << "incremented #data_bytes_sent="
-             << num_data_bytes_sent_;
-  }
-}
-
-Status DataStreamSender::Channel::DoTransmitDataRpc(ImpalaBackendConnection* client,
-    const TTransmitDataParams& params, TTransmitDataResult* res) {
-  Status status = client->DoRpc(&ImpalaBackendClient::TransmitData, params, res);
-  while (status.code() == TErrorCode::RPC_RECV_TIMEOUT &&
-      !runtime_state_->is_cancelled()) {
-    status = client->RetryRpcRecv(&ImpalaBackendClient::recv_TransmitData, res);
-  }
-  return status;
 }
 
 void DataStreamSender::Channel::WaitForRpc() {
@@ -246,7 +219,7 @@ void DataStreamSender::Channel::WaitForRpc() {
 Status DataStreamSender::Channel::AddRow(TupleRow* row) {
   if (batch_->AtCapacity()) {
     // batch_ is full, let's send it; but first wait for an ongoing
-    // transmission to finish before modifying thrift_batch_
+    // transmission to finish before modifying proto_batch_
     RETURN_IF_ERROR(SendCurrentBatch());
   }
   TupleRow* dest = batch_->GetRow(batch_->AddRow());
@@ -263,12 +236,11 @@ Status DataStreamSender::Channel::AddRow(TupleRow* row) {
 }
 
 Status DataStreamSender::Channel::SendCurrentBatch() {
-  // make sure there's no in-flight TransmitData() call that might still want to
-  // access thrift_batch_
+  // make sure there's no in-flight RPC call that might still want to access proto_batch_
   WaitForRpc();
-  RETURN_IF_ERROR(parent_->SerializeBatch(batch_.get(), &thrift_batch_));
+  RETURN_IF_ERROR(parent_->SerializeBatch(batch_.get(), &proto_batch_));
   batch_->Reset();
-  RETURN_IF_ERROR(SendBatch(&thrift_batch_));
+  RETURN_IF_ERROR(SendBatch(&proto_batch_));
   return Status::OK();
 }
 
@@ -288,53 +260,39 @@ Status DataStreamSender::Channel::FlushAndSendEos(RuntimeState* state) {
   // We can return an error here and not go on to send the EOS RPC because the error that
   // we returned will be sent to the coordinator who will then cancel all the remote
   // fragments including the one that this sender is sending to.
-  if (batch_->num_rows() > 0) {
-    // flush
-    RETURN_IF_ERROR(SendCurrentBatch());
-  }
-
+  if (batch_->num_rows() > 0) RETURN_IF_ERROR(SendCurrentBatch());
   RETURN_IF_ERROR(GetSendStatus());
 
-  Status client_cnxn_status;
-  ImpalaBackendConnection client(runtime_state_->impalad_client_cache(),
-      address_, &client_cnxn_status);
-  RETURN_IF_ERROR(client_cnxn_status);
+  // Wait until the channel is clear before closing it.
+  WaitForRpc();
 
-  TTransmitDataParams params;
-  params.protocol_version = ImpalaInternalServiceVersion::V1;
-  params.__set_dest_fragment_instance_id(fragment_instance_id_);
-  params.__set_dest_node_id(dest_node_id_);
-  params.__set_sender_id(parent_->sender_id_);
-  params.__set_eos(true);
-  TTransmitDataResult res;
+  EndDataStreamRequestPB request;
+  request.mutable_dest_fragment_instance_id()->set_lo(fragment_instance_id_.lo);
+  request.mutable_dest_fragment_instance_id()->set_hi(fragment_instance_id_.hi);
+  request.set_dest_node_id(dest_node_id_);
+  request.set_sender_id(parent_->sender_id_);
 
-  VLOG_RPC << "calling TransmitData(eos=true) to terminate channel.";
-  rpc_status_ = DoTransmitDataRpc(&client, params, &res);
-  if (!rpc_status_.ok()) {
-    return Status(rpc_status_.code(),
-       Substitute("TransmitData(eos=true) to $0 failed:\n $1",
-        TNetworkAddressToString(address_), rpc_status_.msg().msg()));
-  }
-  return Status(res.status);
+  EndDataStreamResponsePB response;
+  RETURN_IF_ERROR(
+      Rpc<DataStreamServiceProxy>::Make(address_, ExecEnv::GetInstance()->rpc_mgr())
+          .Execute(&DataStreamServiceProxy::EndDataStream, request, &response));
+
+  return Status::OK();
 }
 
 void DataStreamSender::Channel::Teardown(RuntimeState* state) {
-  // FlushAndSendEos() should have been called before calling Teardown(), which means that
-  // all the data should already be drained. Calling DrainAndShutdown() only to shutdown.
-  rpc_thread_.DrainAndShutdown();
   batch_.reset();
 }
 
 DataStreamSender::DataStreamSender(ObjectPool* pool, int sender_id,
     const RowDescriptor& row_desc, const TDataStreamSink& sink,
-    const vector<TPlanFragmentDestination>& destinations,
-    int per_channel_buffer_size)
+    const vector<TPlanFragmentDestination>& destinations, int per_channel_buffer_size)
   : DataSink(row_desc),
     sender_id_(sender_id),
     current_channel_idx_(0),
     flushed_(false),
     closed_(false),
-    current_thrift_batch_(&thrift_batch1_),
+    current_proto_batch_(&proto_batch1_),
     serialize_batch_timer_(NULL),
     thrift_transmit_timer_(NULL),
     bytes_sent_counter_(NULL),
@@ -421,23 +379,23 @@ Status DataStreamSender::Send(RuntimeState* state, RowBatch* batch) {
 
   if (batch->num_rows() == 0) return Status::OK();
   if (broadcast_ || channels_.size() == 1) {
-    // current_thrift_batch_ is *not* the one that was written by the last call
+    // current_proto_batch_ is *not* the one that was written by the last call
     // to Serialize()
-    RETURN_IF_ERROR(SerializeBatch(batch, current_thrift_batch_, channels_.size()));
+    RETURN_IF_ERROR(SerializeBatch(batch, current_proto_batch_, channels_.size()));
     // SendBatch() will block if there are still in-flight rpcs (and those will
-    // reference the previously written thrift batch)
-    for (int i = 0; i < channels_.size(); ++i) {
-      RETURN_IF_ERROR(channels_[i]->SendBatch(current_thrift_batch_));
+    // reference the previously written thrift batch).
+    // TODO: Fix this so that slow receivers don't penalize the average case.
+    for (auto channel : channels_) {
+      RETURN_IF_ERROR(channel->SendBatch(current_proto_batch_));
     }
-    current_thrift_batch_ =
-        (current_thrift_batch_ == &thrift_batch1_ ? &thrift_batch2_ : &thrift_batch1_);
+    current_proto_batch_ = &proto_batch1_ ? &proto_batch2_ : &proto_batch1_;
   } else if (random_) {
     // Round-robin batches among channels. Wait for the current channel to finish its
     // rpc before overwriting its batch.
     Channel* current_channel = channels_[current_channel_idx_];
     current_channel->WaitForRpc();
-    RETURN_IF_ERROR(SerializeBatch(batch, current_channel->thrift_batch()));
-    RETURN_IF_ERROR(current_channel->SendBatch(current_channel->thrift_batch()));
+    RETURN_IF_ERROR(SerializeBatch(batch, current_channel->proto_batch()));
+    RETURN_IF_ERROR(current_channel->SendBatch(current_channel->proto_batch()));
     current_channel_idx_ = (current_channel_idx_ + 1) % channels_.size();
   } else {
     // hash-partition batch's rows across channels
@@ -445,8 +403,7 @@ Status DataStreamSender::Send(RuntimeState* state, RowBatch* batch) {
     for (int i = 0; i < batch->num_rows(); ++i) {
       TupleRow* row = batch->GetRow(i);
       uint32_t hash_val = HashUtil::FNV_SEED;
-      for (int i = 0; i < partition_expr_ctxs_.size(); ++i) {
-        ExprContext* ctx = partition_expr_ctxs_[i];
+      for (ExprContext* ctx : partition_expr_ctxs_) {
         void* partition_val = ctx->GetValue(row);
         // We can't use the crc hash function here because it does not result
         // in uncorrelated hashes with different seeds.  Instead we must use
@@ -487,14 +444,16 @@ void DataStreamSender::Close(RuntimeState* state) {
   closed_ = true;
 }
 
-Status DataStreamSender::SerializeBatch(RowBatch* src, TRowBatch* dest, int num_receivers) {
+Status DataStreamSender::SerializeBatch(
+    RowBatch* src, RowBatchPB* dest, int num_receivers) {
   VLOG_ROW << "serializing " << src->num_rows() << " rows";
   {
     SCOPED_TIMER(profile_->total_time_counter());
     SCOPED_TIMER(serialize_batch_timer_);
     RETURN_IF_ERROR(src->Serialize(dest));
     int bytes = RowBatch::GetBatchSize(*dest);
-    int uncompressed_bytes = bytes - dest->tuple_data.size() + dest->uncompressed_size;
+    int uncompressed_bytes =
+        bytes - dest->tuple_data().size() + dest->uncompressed_size();
     // The size output_batch would be if we didn't compress tuple_data (will be equal to
     // actual batch size if tuple_data isn't compressed)
 

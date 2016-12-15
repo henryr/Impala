@@ -18,13 +18,14 @@
 #include <boost/thread/locks.hpp>
 #include <boost/thread/mutex.hpp>
 
-#include "runtime/data-stream-recvr.h"
 #include "runtime/data-stream-mgr.h"
+#include "runtime/data-stream-recvr.h"
 #include "runtime/mem-tracker.h"
 #include "runtime/row-batch.h"
 #include "runtime/sorted-run-merger.h"
-#include "util/runtime-profile-counters.h"
+#include "service/impala_internal_service.pb.h"
 #include "util/periodic-counter-updater.h"
+#include "util/runtime-profile-counters.h"
 
 #include "common/names.h"
 
@@ -51,7 +52,7 @@ class DataStreamRecvr::SenderQueue {
   // blocks if this will make the stream exceed its buffer limit.
   // If the total size of the batches in this queue would exceed the allowed buffer size,
   // the queue is considered full and the call blocks until a batch is dequeued.
-  void AddBatch(const TRowBatch& batch);
+  void AddBatch(const RowBatchPB& batch);
 
   // Decrement the number of remaining senders for this queue and signal eos ("new data")
   // if the count drops to 0. The number of senders will be 1 for a merging
@@ -147,17 +148,17 @@ Status DataStreamRecvr::SenderQueue::GetBatch(RowBatch** next_batch) {
   return Status::OK();
 }
 
-void DataStreamRecvr::SenderQueue::AddBatch(const TRowBatch& thrift_batch) {
+void DataStreamRecvr::SenderQueue::AddBatch(const RowBatchPB& proto_batch) {
   unique_lock<mutex> l(lock_);
   if (is_cancelled_) return;
 
-  int batch_size = RowBatch::GetBatchSize(thrift_batch);
+  int batch_size = RowBatch::GetBatchSize(proto_batch);
   COUNTER_ADD(recvr_->bytes_received_counter_, batch_size);
   DCHECK_GT(num_remaining_senders_, 0);
 
   // if there's something in the queue and this batch will push us over the
   // buffer limit we need to wait until the batch gets drained.
-  // Note: It's important that we enqueue thrift_batch regardless of buffer limit if
+  // Note: It's important that we enqueue proto_batch regardless of buffer limit if
   // the queue is currently empty. In the case of a merging receiver, batches are
   // received from a specific queue based on data order, and the pipeline will stall
   // if the merger is waiting for data from an empty queue that cannot be filled because
@@ -208,7 +209,7 @@ void DataStreamRecvr::SenderQueue::AddBatch(const TRowBatch& thrift_batch) {
       // Note: if this function makes a row batch, the batch *must* be added
       // to batch_queue_. It is not valid to create the row batch and destroy
       // it in this thread.
-      batch = new RowBatch(recvr_->row_desc(), thrift_batch, recvr_->mem_tracker());
+      batch = new RowBatch(recvr_->row_desc(), proto_batch, recvr_->mem_tracker());
     }
     VLOG_ROW << "added #rows=" << batch->num_rows()
              << " batch_size=" << batch_size << "\n";
@@ -324,10 +325,10 @@ Status DataStreamRecvr::GetNext(RowBatch* output_batch, bool* eos) {
   return merger_->GetNext(output_batch, eos);
 }
 
-void DataStreamRecvr::AddBatch(const TRowBatch& thrift_batch, int sender_id) {
+void DataStreamRecvr::AddBatch(const RowBatchPB& proto_batch, int sender_id) {
   int use_sender_id = is_merging_ ? sender_id : 0;
   // Add all batches to the same queue if is_merging_ is false.
-  sender_queues_[use_sender_id]->AddBatch(thrift_batch);
+  sender_queues_[use_sender_id]->AddBatch(proto_batch);
 }
 
 void DataStreamRecvr::RemoveSender(int sender_id) {

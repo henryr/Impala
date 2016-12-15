@@ -145,6 +145,61 @@ TEST_F(RpcTest, RetryPolicyTest) {
   rpc_mgr_.UnregisterServices();
 }
 
+TEST_F(RpcTest, RetryAsyncTest) {
+  int32_t retries = 0;
+  auto cb = [&retries](RpcContext* context) {
+    ++retries;
+    context->RespondRpcFailure(
+        ErrorStatusPB::ERROR_SERVER_TOO_BUSY, kudu::Status::ServiceUnavailable(""));
+  };
+
+  unique_ptr<ServiceIf> impl(
+      new PingServiceImpl(rpc_mgr_.metric_entity(), rpc_mgr_.result_tracker(), cb));
+  ASSERT_OK(rpc_mgr_.RegisterService(10, 1024, move(impl)));
+  rpc_mgr_.StartServices(SERVICE_PORT, 2);
+
+  auto rpc = Rpc<PingServiceProxy>::Make(
+      MakeNetworkAddress("localhost", SERVICE_PORT), &rpc_mgr_);
+
+  PingRequestPb request;
+  PingResponsePb response;
+  Promise<bool> done_signal;
+  Status out_status;
+  auto completion = [&done_signal, &out_status](const Status& status,
+      PingRequestPb* request, PingResponsePb* resp, RpcController* controller) {
+    out_status = FromKuduStatus(controller->status());
+    done_signal.Set(true);
+  };
+  rpc.ExecuteAsync(&PingServiceProxy::PingAsync, &request, &response, completion);
+  done_signal.Get();
+  ASSERT_FALSE(out_status.ok());
+  ASSERT_EQ(3, retries);
+}
+
+TEST_F(RpcTest, AsyncCallbackAlwaysCalled) {
+  unique_ptr<ServiceIf> impl(
+      new PingServiceImpl(rpc_mgr_.metric_entity(), rpc_mgr_.result_tracker()));
+  ASSERT_OK(rpc_mgr_.RegisterService(10, 1024, move(impl)));
+  rpc_mgr_.StartServices(SERVICE_PORT, 2);
+
+  auto rpc = Rpc<PingServiceProxy>::Make(
+                 MakeNetworkAddress("localhost", SERVICE_PORT), &rpc_mgr_)
+                 .SetMaxAttempts(-1); // Set meaningless retry amount.
+
+  PingRequestPb request;
+  PingResponsePb response;
+  Promise<bool> done_signal;
+  Status out_status;
+  auto completion = [&done_signal, &out_status](const Status& status,
+      PingRequestPb* request, PingResponsePb* resp, RpcController* controller) {
+    out_status = status;
+    done_signal.Set(true);
+  };
+  rpc.ExecuteAsync(&PingServiceProxy::PingAsync, &request, &response, completion);
+  done_signal.Get();
+  ASSERT_FALSE(out_status.ok());
+}
+
 TEST_F(RpcTest, TimeoutTest) {
   // Test that requests will timeout as configured if they take too long.
   auto cb = [](RpcContext* context) {

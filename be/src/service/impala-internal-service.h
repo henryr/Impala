@@ -18,35 +18,44 @@
 #ifndef IMPALA_SERVICE_IMPALA_INTERNAL_SERVICE_H
 #define IMPALA_SERVICE_IMPALA_INTERNAL_SERVICE_H
 
-#include "gen-cpp/ImpalaInternalService.h"
-#include "gen-cpp/ImpalaInternalService_types.h"
+#include "service/impala_internal_service.pb.h"
+#include "service/impala_internal_service.service.h"
 
 namespace impala {
 
-class ImpalaServer;
-class QueryExecMgr;
+class RpcMgr;
 
-/// Proxies Thrift RPC requests onto their implementing objects for the
+/// Proxies RPC requests onto their implementing objects for the
 /// ImpalaInternalService service.
-class ImpalaInternalService : public ImpalaInternalServiceIf {
+class ImpalaInternalServiceImpl : public ImpalaInternalServiceIf {
  public:
-  ImpalaInternalService();
-  virtual void ExecPlanFragment(TExecPlanFragmentResult& return_val,
-      const TExecPlanFragmentParams& params);
-  virtual void CancelPlanFragment(TCancelPlanFragmentResult& return_val,
-      const TCancelPlanFragmentParams& params);
-  virtual void ReportExecStatus(TReportExecStatusResult& return_val,
-      const TReportExecStatusParams& params);
-  virtual void TransmitData(TTransmitDataResult& return_val,
-      const TTransmitDataParams& params);
-  virtual void UpdateFilter(TUpdateFilterResult& return_val,
-      const TUpdateFilterParams& params);
-  virtual void PublishFilter(TPublishFilterResult& return_val,
-      const TPublishFilterParams& params);
+  ImpalaInternalServiceImpl(RpcMgr* rpc_mgr);
 
- private:
-  ImpalaServer* impala_server_;
-  QueryExecMgr* query_exec_mgr_;
+  virtual void ExecPlanFragment(const ThriftWrapperPb* request, ThriftWrapperPb* response,
+      kudu::rpc::RpcContext* context);
+
+  virtual void ReportExecStatus(const ThriftWrapperPb* request, ThriftWrapperPb* response,
+      kudu::rpc::RpcContext* context);
+
+  virtual void CancelPlanFragment(const ThriftWrapperPb* request,
+      ThriftWrapperPb* response, kudu::rpc::RpcContext* context);
+};
+
+class DataStreamService : public DataStreamServiceIf {
+ public:
+  DataStreamService(RpcMgr* rpc_mgr);
+
+  virtual void EndDataStream(const EndDataStreamRequestPB* request,
+      EndDataStreamResponsePB* response, kudu::rpc::RpcContext* context);
+
+  virtual void TransmitData(const TransmitDataRequestPB* request,
+      TransmitDataResponsePB* response, kudu::rpc::RpcContext* context);
+
+  virtual void PublishFilter(const PublishFilterRequestPB* request,
+      PublishFilterResponsePB* response, kudu::rpc::RpcContext* context);
+
+  virtual void UpdateFilter(const UpdateFilterRequestPB* request,
+      UpdateFilterResponsePB* response, kudu::rpc::RpcContext* context);
 };
 
 }

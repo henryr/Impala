@@ -21,15 +21,28 @@
 #include <boost/thread/locks.hpp>
 #include <boost/thread/lock_guard.hpp>
 
-#include "runtime/exec-env.h"
-#include "runtime/backend-client.h"
+// TODO(KRPC): Remove unused headers
+#include "codegen/llvm-codegen.h"
+#include "gutil/strings/substitute.h"
+#include "rpc/rpc.h"
+#include "rpc/thrift-util.h"
+#include "rpc/thrift-util.h"
 #include "runtime/runtime-filter-bank.h"
-#include "runtime/client-cache.h"
+#include "service/impala_internal_service.pb.h"
+#include "service/impala_internal_service.pb.h"
+#include "util/bloom-filter.h"
+
+#include "kudu/util/net/net_util.h"
+#include "service/impala_internal_service.proxy.h"
+
+#include "runtime/exec-env.h"
+#include "runtime/runtime-filter-bank.h"
 #include "runtime/runtime-state.h"
 #include "runtime/query-state.h"
 #include "gen-cpp/ImpalaInternalService_types.h"
 
 using namespace impala;
+using kudu::rpc::RpcController;
 
 FragmentInstanceState::FragmentInstanceState(
     QueryState* query_state, const TPlanFragmentCtx& fragment_ctx,
@@ -74,17 +87,6 @@ void FragmentInstanceState::ReportStatusCb(
   DCHECK(status.ok() || done);  // if !status.ok() => done
   Status exec_status = UpdateStatus(status);
 
-  Status coord_status;
-  ImpalaBackendConnection coord(
-      ExecEnv::GetInstance()->impalad_client_cache(), coord_address(), &coord_status);
-  if (!coord_status.ok()) {
-    stringstream s;
-    s << "Couldn't get a client for " << coord_address() <<"\tReason: "
-      << coord_status.GetDetail();
-    UpdateStatus(Status(ErrorMsg(TErrorCode::INTERNAL_ERROR, s.str())));
-    return;
-  }
-
   TReportExecStatusParams params;
   params.protocol_version = ImpalaInternalServiceVersion::V1;
   params.__set_query_id(query_state_->query_ctx().query_id);
@@ -121,19 +123,13 @@ void FragmentInstanceState::ReportStatusCb(
   params.__isset.error_log = (params.error_log.size() > 0);
 
   TReportExecStatusResult res;
-  Status rpc_status;
-  bool retry_is_safe;
-  // Try to send the RPC 3 times before failing.
-  for (int i = 0; i < 3; ++i) {
-    rpc_status = coord.DoRpc(
-        &ImpalaBackendClient::ReportExecStatus, params, &res, &retry_is_safe);
-    if (rpc_status.ok()) {
-      rpc_status = Status(res.status);
-      break;
-    }
-    if (!retry_is_safe) break;
-    if (i < 2) SleepForMs(100);
-  }
+  Status rpc_status =
+      Rpc<ImpalaInternalServiceProxy>::Make(
+          coord_address(), ExecEnv::GetInstance()->rpc_mgr())
+          .ExecuteWithThriftArgs(
+              &ImpalaInternalServiceProxy::ReportExecStatus, &params, &res);
+  if (rpc_status.ok()) rpc_status = Status(res.status);
+
   if (!rpc_status.ok()) {
     UpdateStatus(rpc_status);
     executor_.Cancel();
@@ -141,9 +137,7 @@ void FragmentInstanceState::ReportStatusCb(
 }
 
 void FragmentInstanceState::PublishFilter(
-    int32_t filter_id, const TBloomFilter& thrift_bloom_filter) {
-  VLOG_FILE << "PublishFilter(): instance_id=" << PrintId(instance_id())
-            << " filter_id=" << filter_id;
+    int32_t filter_id, const BloomFilterPB& bloom_filter_pb) {
   // Defensively protect against blocking forever in case there's some problem with
   // Prepare().
   static const int WAIT_MS = 30000;
@@ -157,7 +151,7 @@ void FragmentInstanceState::PublishFilter(
   }
   if (!prepare_status.ok()) return;
   executor_.runtime_state()->filter_bank()->PublishGlobalFilter(
-      filter_id, thrift_bloom_filter);
+      filter_id, bloom_filter_pb);
 }
 
 const TQueryCtx& FragmentInstanceState::query_ctx() const {

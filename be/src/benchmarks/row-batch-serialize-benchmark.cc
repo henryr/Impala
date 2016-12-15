@@ -26,6 +26,7 @@
 #include "runtime/tuple-row.h"
 #include "service/fe-support.h"
 #include "service/frontend.h"
+#include "service/impala_internal_service.pb.h"
 #include "testutil/desc-tbl-builder.h"
 #include "util/benchmark.h"
 #include "util/compress.h"
@@ -100,14 +101,15 @@ static scoped_ptr<Frontend> fe;
 class RowBatchSerializeBaseline {
  public:
    // Copy of baseline version without dedup logic
-  static int Serialize(RowBatch* batch, TRowBatch* output_batch) {
-    output_batch->row_tuples.clear();
-    output_batch->tuple_offsets.clear();
-    output_batch->compression_type = THdfsCompression::NONE;
+  static int Serialize(RowBatch* batch, RowBatchPB* output_batch) {
+    output_batch->mutable_row_tuples()->Clear();
+    output_batch->mutable_tuple_offsets()->Clear();
+    output_batch->set_compression_type(THdfsCompression::NONE);
 
-    output_batch->num_rows = batch->num_rows_;
-    batch->row_desc_.ToThrift(&output_batch->row_tuples);
-    output_batch->tuple_offsets.reserve(batch->num_rows_ * batch->num_tuples_per_row_);
+    output_batch->set_num_rows(batch->num_rows_);
+    batch->row_desc_.ToProto(output_batch);
+    output_batch->mutable_tuple_offsets()->Reserve(
+        batch->num_rows_ * batch->num_tuples_per_row_);
 
     int64_t size = TotalByteSize(batch);
     SerializeInternal(batch, size, output_batch);
@@ -124,32 +126,32 @@ class RowBatchSerializeBaseline {
       if (batch->compression_scratch_.size() < compressed_size) {
         batch->compression_scratch_.resize(compressed_size);
       }
-      uint8_t* input = (uint8_t*)output_batch->tuple_data.c_str();
+      uint8_t* input = (uint8_t*)output_batch->mutable_tuple_data()->c_str();
       uint8_t* compressed_output = (uint8_t*)batch->compression_scratch_.c_str();
       compressor->ProcessBlock(true, size, input, &compressed_size, &compressed_output);
       if (LIKELY(compressed_size < size)) {
         batch->compression_scratch_.resize(compressed_size);
-        output_batch->tuple_data.swap(batch->compression_scratch_);
-        output_batch->compression_type = THdfsCompression::LZ4;
+        output_batch->mutable_tuple_data()->swap(batch->compression_scratch_);
+        output_batch->set_compression_type(THdfsCompression::LZ4);
       }
       VLOG_ROW << "uncompressed size: " << size << ", compressed size: " << compressed_size;
     }
 
     // The size output_batch would be if we didn't compress tuple_data (will be equal to
     // actual batch size if tuple_data isn't compressed)
-    return batch->GetBatchSize(*output_batch) - output_batch->tuple_data.size() + size;
+    return batch->GetBatchSize(*output_batch) - output_batch->tuple_data().size() + size;
   }
 
   // Copy of baseline version without dedup logic
-  static void SerializeInternal(RowBatch* batch, int64_t size, TRowBatch* output_batch) {
-    DCHECK_LE(size, output_batch->tuple_data.max_size());
-    output_batch->tuple_data.resize(size);
-    output_batch->uncompressed_size = size;
+  static void SerializeInternal(RowBatch* batch, int64_t size, RowBatchPB* output_batch) {
+    DCHECK_LE(size, output_batch->tuple_data().max_size());
+    output_batch->mutable_tuple_data()->resize(size);
+    output_batch->set_uncompressed_size(size);
 
     // Copy tuple data of unique tuples, including strings, into output_batch (converting
     // string pointers into offsets in the process).
     int offset = 0; // current offset into output_batch->tuple_data
-    char* tuple_data = const_cast<char*>(output_batch->tuple_data.c_str());
+    char* tuple_data = const_cast<char*>(output_batch->mutable_tuple_data()->c_str());
 
     for (int i = 0; i < batch->num_rows_; ++i) {
        vector<TupleDescriptor*>::const_iterator desc =
@@ -158,11 +160,11 @@ class RowBatchSerializeBaseline {
         Tuple* tuple = batch->GetRow(i)->GetTuple(j);
         if (tuple == NULL) {
           // NULLs are encoded as -1
-          output_batch->tuple_offsets.push_back(-1);
+          output_batch->add_tuple_offsets(-1);
           continue;
         }
         // Record offset before creating copy (which increments offset and tuple_data)
-        output_batch->tuple_offsets.push_back(offset);
+        output_batch->add_tuple_offsets(offset);
         tuple->DeepCopy(**desc, &tuple_data, &offset, /* convert_ptrs */ true);
         DCHECK_LE(offset, size);
       }
@@ -184,21 +186,22 @@ class RowBatchSerializeBaseline {
   }
 
   // Copy of baseline version without dedup logic
-  static void Deserialize(RowBatch* batch, const TRowBatch& input_batch) {
-     batch->num_rows_ = input_batch.num_rows;
-     batch->capacity_ =  batch->num_rows_;
+  static void Deserialize(RowBatch* batch, const RowBatchPB& input_batch) {
+    batch->num_rows_ = input_batch.num_rows();
+    batch->capacity_ = batch->num_rows_;
     uint8_t* tuple_data;
-    if (input_batch.compression_type != THdfsCompression::NONE) {
+    if (input_batch.compression_type() != THdfsCompression::NONE) {
       // Decompress tuple data into data pool
-      uint8_t* compressed_data = (uint8_t*)input_batch.tuple_data.c_str();
-      size_t compressed_size = input_batch.tuple_data.size();
+      const uint8_t* compressed_data =
+          reinterpret_cast<const uint8_t*>(input_batch.tuple_data().c_str());
+      size_t compressed_size = input_batch.tuple_data().size();
 
       scoped_ptr<Codec> decompressor;
-      Status status = Codec::CreateDecompressor(NULL, false, input_batch.compression_type,
-          &decompressor);
+      Status status = Codec::CreateDecompressor(NULL, false,
+          (THdfsCompression::type)input_batch.compression_type(), &decompressor);
       DCHECK(status.ok()) << status.GetDetail();
 
-      int64_t uncompressed_size = input_batch.uncompressed_size;
+      int64_t uncompressed_size = input_batch.uncompressed_size();
       DCHECK_NE(uncompressed_size, -1) << "RowBatch decompression failed";
       tuple_data = batch->tuple_data_pool()->Allocate(uncompressed_size);
       status = decompressor->ProcessBlock(true, compressed_size, compressed_data,
@@ -207,18 +210,18 @@ class RowBatchSerializeBaseline {
       decompressor->Close();
     } else {
       // Tuple data uncompressed, copy directly into data pool
-      tuple_data = batch->tuple_data_pool()->Allocate(input_batch.tuple_data.size());
-      memcpy(tuple_data, input_batch.tuple_data.c_str(), input_batch.tuple_data.size());
+      tuple_data = batch->tuple_data_pool()->Allocate(input_batch.tuple_data().size());
+      memcpy(
+          tuple_data, input_batch.tuple_data().c_str(), input_batch.tuple_data().size());
     }
 
     // Convert input_batch.tuple_offsets into pointers
     int tuple_idx = 0;
-    for (vector<int32_t>::const_iterator offset = input_batch.tuple_offsets.begin();
-         offset != input_batch.tuple_offsets.end(); ++offset) {///
-      if (*offset == -1) {
+    for (int32_t offset : input_batch.tuple_offsets()) {
+      if (offset == -1) {
         batch->tuple_ptrs_[tuple_idx++] = NULL;
       } else {
-        batch->tuple_ptrs_[tuple_idx++] = reinterpret_cast<Tuple*>(tuple_data + *offset);
+        batch->tuple_ptrs_[tuple_idx++] = reinterpret_cast<Tuple*>(tuple_data + offset);
       }
     }
 
@@ -285,7 +288,7 @@ class RowBatchSerializeBenchmark {
   static void TestSerialize(int batch_size, void* data) {
     SerializeArgs* args = reinterpret_cast<SerializeArgs*>(data);
     for (int iter = 0; iter < batch_size; ++iter) {
-      TRowBatch trow_batch;
+      RowBatchPB trow_batch;
       args->batch->Serialize(&trow_batch, args->full_dedup);
     }
   }
@@ -293,13 +296,13 @@ class RowBatchSerializeBenchmark {
   static void TestSerializeBaseline(int batch_size, void* data) {
     RowBatch* batch = reinterpret_cast<RowBatch*>(data);
     for (int iter = 0; iter < batch_size; ++iter) {
-      TRowBatch trow_batch;
+      RowBatchPB trow_batch;
       RowBatchSerializeBaseline::Serialize(batch, &trow_batch);
     }
   }
 
   struct DeserializeArgs {
-    TRowBatch* trow_batch;
+    RowBatchPB* trow_batch;
     RowDescriptor* row_desc;
     MemTracker* tracker;
   };
@@ -314,8 +317,8 @@ class RowBatchSerializeBenchmark {
   static void TestDeserializeBaseline(int batch_size, void* data) {
     struct DeserializeArgs* args = reinterpret_cast<struct DeserializeArgs*>(data);
     for (int iter = 0; iter < batch_size; ++iter) {
-      RowBatch deserialized_batch(*args->row_desc, args->trow_batch->num_rows,
-          args->tracker);
+      RowBatch deserialized_batch(
+          *args->row_desc, args->trow_batch->num_rows(), args->tracker);
       RowBatchSerializeBaseline::Deserialize(&deserialized_batch, *args->trow_batch);
     }
   }
@@ -336,20 +339,20 @@ class RowBatchSerializeBenchmark {
 
     RowBatch* no_dup_batch = obj_pool.Add(new RowBatch(row_desc, NUM_ROWS, &tracker));
     FillBatch(no_dup_batch, 12345, 1, -1);
-    TRowBatch no_dup_tbatch;
+    RowBatchPB no_dup_tbatch;
     no_dup_batch->Serialize(&no_dup_tbatch);
 
     RowBatch* adjacent_dup_batch =
         obj_pool.Add(new RowBatch(row_desc, NUM_ROWS, &tracker));
     FillBatch(adjacent_dup_batch, 12345, 5, -1);
-    TRowBatch adjacent_dup_tbatch;
+    RowBatchPB adjacent_dup_tbatch;
     adjacent_dup_batch->Serialize(&adjacent_dup_tbatch, false);
 
     RowBatch* dup_batch =
         obj_pool.Add(new RowBatch(row_desc, NUM_ROWS, &tracker));
     // Non-adjacent duplicates.
     FillBatch(dup_batch, 12345, 1, NUM_ROWS / 5);
-    TRowBatch dup_tbatch;
+    RowBatchPB dup_tbatch;
     dup_batch->Serialize(&dup_tbatch, true);
 
     int baseline;

@@ -18,6 +18,7 @@
 #include <boost/algorithm/string/join.hpp>
 
 #include "common/status.h"
+#include "service/impala_internal_service.pb.h"
 #include "util/debug-util.h"
 
 #include "common/names.h"
@@ -135,6 +136,16 @@ Status::Status(const TStatus& status)
   : msg_(status.status_code == TErrorCode::OK
       ? NULL : new ErrorMsg(status.status_code, status.error_msgs)) { }
 
+Status::Status(const StatusPB& status) {
+  if (status.status_code() == TErrorCode::OK) {
+    msg_ = nullptr;
+  } else {
+    vector<string> v;
+    for (const auto& s : status.error_msgs()) v.push_back(s);
+    msg_ = new ErrorMsg((TErrorCode::type)(status.status_code()), v);
+  }
+}
+
 Status& Status::operator=(const TStatus& status) {
   delete msg_;
   if (status.status_code == TErrorCode::OK) {
@@ -205,6 +216,18 @@ void Status::ToThrift(TStatus* status) const {
     for (const string& s: msg_->details()) status->error_msgs.push_back(s);
     status->__isset.error_msgs = true;
   }
+}
+
+void Status::ToProto(StatusPB* status) const {
+  status->Clear();
+  if (msg_ == nullptr) {
+    status->set_status_code(TErrorCode::OK);
+    return;
+  }
+
+  status->set_status_code(msg_->error());
+  status->add_error_msgs(msg_->msg());
+  for (const string& s : msg_->details()) status->add_error_msgs(s);
 }
 
 void Status::FreeMessage() noexcept {

@@ -22,27 +22,32 @@
 #include <unistd.h>
 #include <jni.h>
 
-#include "common/logging.h"
+#include "codegen/llvm-codegen.h"
 #include "common/init.h"
+#include "common/logging.h"
+#include "common/status.h"
 #include "exec/hbase-table-scanner.h"
 #include "exec/hbase-table-writer.h"
 #include "exprs/hive-udf-call.h"
-#include "runtime/hbase-table.h"
-#include "codegen/llvm-codegen.h"
-#include "common/status.h"
+#include "gen-cpp/ImpalaService.h"
+#include "gen-cpp/ImpalaService.h"
+#include "rpc/rpc-mgr.h"
+#include "rpc/rpc-mgr.h"
+#include "rpc/rpc-trace.h"
+#include "rpc/thrift-server.h"
+#include "rpc/thrift-util.h"
 #include "runtime/coordinator.h"
 #include "runtime/exec-env.h"
+#include "runtime/hbase-table.h"
+#include "service/fe-support.h"
+#include "service/impala-internal-service.h"
+#include "service/impala-server.h"
+#include "util/impalad-metrics.h"
 #include "util/jni-util.h"
 #include "util/network-util.h"
-#include "rpc/thrift-util.h"
-#include "rpc/thrift-server.h"
-#include "rpc/rpc-trace.h"
-#include "service/impala-server.h"
-#include "service/fe-support.h"
-#include "gen-cpp/ImpalaService.h"
-#include "gen-cpp/ImpalaInternalService.h"
-#include "util/impalad-metrics.h"
 #include "util/thread.h"
+
+#include <memory>
 
 #include "common/names.h"
 
@@ -73,24 +78,15 @@ int ImpaladMain(int argc, char** argv) {
     LOG(WARNING) << "Llama support has been deprecated. FLAGS_enable_rm has no effect.";
     LOG(WARNING) << "*****************************************************************";
   }
+  ExecEnv* exec_env = new ExecEnv();
+  exec_env->Init();
+  StartThreadInstrumentation(exec_env->metrics(), exec_env->webserver());
+  InitRpcEventTracing(exec_env->webserver());
 
-  // start backend service for the coordinator on be_port
-  ExecEnv exec_env;
-  StartThreadInstrumentation(exec_env.metrics(), exec_env.webserver());
-  InitRpcEventTracing(exec_env.webserver());
+  boost::shared_ptr<ImpalaServer> impala_server(new ImpalaServer(exec_env));
+  ABORT_IF_ERROR(impala_server->Init(FLAGS_be_port, FLAGS_beeswax_port, FLAGS_hs2_port));
+  Status status = impala_server->Start();
 
-  ThriftServer* beeswax_server = NULL;
-  ThriftServer* hs2_server = NULL;
-  ThriftServer* be_server = NULL;
-  ImpalaServer* server = NULL;
-  ABORT_IF_ERROR(CreateImpalaServer(&exec_env, FLAGS_beeswax_port, FLAGS_hs2_port,
-      FLAGS_be_port, &beeswax_server, &hs2_server, &be_server, &server));
-
-  ABORT_IF_ERROR(be_server->Start());
-
-  ABORT_IF_ERROR(beeswax_server->Start());
-  ABORT_IF_ERROR(hs2_server->Start());
-  Status status = exec_env.StartServices();
   if (!status.ok()) {
     LOG(ERROR) << "Impalad services did not start correctly, exiting.  Error: "
                << status.GetDetail();
@@ -99,13 +95,8 @@ int ImpaladMain(int argc, char** argv) {
   }
   ImpaladMetrics::IMPALA_SERVER_READY->set_value(true);
   LOG(INFO) << "Impala has started.";
-  // this blocks until the beeswax and hs2 servers terminate
-  beeswax_server->Join();
-  hs2_server->Join();
 
-  delete be_server;
-  delete beeswax_server;
-  delete hs2_server;
+  impala_server->Join();
 
   return 0;
 }

@@ -44,21 +44,22 @@ class RequestPoolService;
 class RpcMgr;
 class Scheduler;
 class StatestoreSubscriber;
-class TestExecEnv;
 class ThreadResourceMgr;
 class TmpFileMgr;
 class Webserver;
 
-/// Execution environment for queries/plan fragments.
-/// Contains all required global structures, and handles to
-/// singleton services. Clients must call StartServices exactly
-/// once to properly initialise service state.
+/// Execution environment for Impala daemon. Contains all required global structures, and
+/// handles to singleton services. Clients must call Init(), followed by StartServices()
+/// exactly once to properly initialise service state.
+///
+/// There should only be one ExecEnv instance. It should always be accessed by calling
+/// ExecEnv::GetInstance().
 class ExecEnv {
  public:
   ExecEnv();
 
-  ExecEnv(const std::string& hostname, int backend_port, int subscriber_port,
-          int webserver_port, const std::string& statestore_host, int statestore_port);
+  ExecEnv(const std::string& hostname, int backend_port, int webserver_port,
+      const std::string& statestore_host, int statestore_port);
 
   /// Returns the first created exec env instance. In a normal impalad, this is
   /// the only instance. In test setups with multiple ExecEnv's per process,
@@ -67,8 +68,16 @@ class ExecEnv {
 
   /// Empty destructor because the compiler-generated one requires full
   /// declarations for classes in scoped_ptrs.
-  virtual ~ExecEnv();
+  ~ExecEnv();
 
+  /// Initialize the exec environment, including parsing memory limits and initializing
+  /// subsystems like the webserver, scheduler etc.
+  Status Init();
+
+  /// Starts any dependent services in their correct order.
+  Status StartServices(int service_port);
+
+  /// TODO: Should ExecEnv own the ImpalaServer as well?
   void SetImpalaServer(ImpalaServer* server) { impala_server_ = server; }
 
   StatestoreSubscriber* statestore_subscriber() {
@@ -76,9 +85,6 @@ class ExecEnv {
   }
 
   DataStreamMgr* stream_mgr() { return stream_mgr_.get(); }
-  ImpalaBackendClientCache* impalad_client_cache() {
-    return impalad_client_cache_.get();
-  }
   CatalogServiceClientCache* catalogd_client_cache() {
     return catalogd_client_cache_.get();
   }
@@ -107,9 +113,6 @@ class ExecEnv {
 
   const TNetworkAddress& backend_address() const { return backend_address_; }
 
-  /// Starts any dependent services in their correct order
-  virtual Status StartServices();
-
   /// Initializes the exec env for running FE tests.
   Status InitForFeTests();
 
@@ -121,13 +124,11 @@ class ExecEnv {
   /// Returns the configured defaultFs set in core-site.xml
   string default_fs() { return default_fs_; }
 
- protected:
-  /// Leave protected so that subclasses can override
+ private:
   boost::scoped_ptr<MetricGroup> metrics_;
   boost::scoped_ptr<DataStreamMgr> stream_mgr_;
   boost::scoped_ptr<Scheduler> scheduler_;
   boost::scoped_ptr<StatestoreSubscriber> statestore_subscriber_;
-  boost::scoped_ptr<ImpalaBackendClientCache> impalad_client_cache_;
   boost::scoped_ptr<CatalogServiceClientCache> catalogd_client_cache_;
   boost::scoped_ptr<HBaseTableFactory> htable_factory_;
   boost::scoped_ptr<DiskIoMgr> disk_io_mgr_;
@@ -148,15 +149,11 @@ class ExecEnv {
 
   bool enable_webserver_;
 
- private:
   static ExecEnv* exec_env_;
   bool is_fe_tests_;
 
   /// Address of the Impala backend server instance
   TNetworkAddress backend_address_;
-
-  /// Address of statestore subscriber service.
-  TNetworkAddress subscriber_address_;
 
   /// fs.defaultFs value set in core-site.xml
   std::string default_fs_;

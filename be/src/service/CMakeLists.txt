@@ -21,10 +21,19 @@ set(LIBRARY_OUTPUT_PATH "${BUILD_OUTPUT_ROOT_DIRECTORY}/service")
 # where to put generated binaries.
 set(EXECUTABLE_OUTPUT_PATH "${BUILD_OUTPUT_ROOT_DIRECTORY}/service")
 
+KRPC_GENERATE(IMP_INTERNAL_SVC_PROTO_SRCS IMP_INTERNAL_SVC_PROTO_HDRS
+  IMP_INTERNAL_SVC_PROTO_TGTS
+  SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}
+  EXTRA_PROTO_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../
+  PROTO_FILES impala_internal_service.proto)
+add_custom_target(impala-internal-svc-proto-deps DEPENDS ${IMP_INTERNAL_SVC_PROTO_TGTS})
+
 add_library(Service
   frontend.cc
   fe-support.cc
   hs2-util.cc
+  impala-internal-service.cc
+  ${IMP_INTERNAL_SVC_PROTO_SRCS}
   impala-server.cc
   impala-http-handler.cc
   impala-hs2-server.cc

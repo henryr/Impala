@@ -28,3 +28,13 @@ package impala;
 
 // Common wrapper struct for Thrift data structures serialized to Protobuf.
 message ThriftWrapperPb { required bytes thrift_struct = 1; }
+
+message StatusPB {
+  required int32 status_code = 1;
+  repeated string error_msgs = 2;
+}
+
+message UniqueIdPB {
+  required int64 hi = 1;
+  required int64 lo = 2;
+}

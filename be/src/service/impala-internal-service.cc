@@ -17,87 +17,140 @@
 
 #include "service/impala-internal-service.h"
 
-#include <boost/lexical_cast.hpp>
-
-#include "common/status.h"
-#include "service/impala-server.h"
+#include "gen-cpp/ImpalaInternalService_types.h"
+#include "kudu/rpc/rpc_context.h"
+#include "rpc/thrift-util.h"
+#include "runtime/data-stream-mgr.h"
+#include "runtime/exec-env.h"
+#include "runtime/fragment-instance-state.h"
 #include "runtime/query-exec-mgr.h"
 #include "runtime/query-state.h"
-#include "runtime/fragment-instance-state.h"
-#include "runtime/exec-env.h"
-#include "testutil/fault-injection-util.h"
+#include "service/impala-server.h"
+#include "service/impala_internal_service.pb.h"
 
-using namespace impala;
+using kudu::rpc::RpcContext;
 
-ImpalaInternalService::ImpalaInternalService() {
-  impala_server_ = ExecEnv::GetInstance()->impala_server();
-  DCHECK(impala_server_ != nullptr);
-  query_exec_mgr_ = ExecEnv::GetInstance()->query_exec_mgr();
-  DCHECK(query_exec_mgr_ != nullptr);
+namespace impala {
+
+ImpalaInternalServiceImpl::ImpalaInternalServiceImpl(RpcMgr* mgr)
+  : ImpalaInternalServiceIf(mgr->metric_entity(), mgr->result_tracker()) {}
+
+DataStreamService::DataStreamService(RpcMgr* mgr)
+  : DataStreamServiceIf(mgr->metric_entity(), mgr->result_tracker()) {}
+
+void DataStreamService::EndDataStream(const EndDataStreamRequestPB* request,
+    EndDataStreamResponsePB* response, RpcContext* context) {
+  TUniqueId finst_id;
+  finst_id.__set_lo(request->dest_fragment_instance_id().lo());
+  finst_id.__set_hi(request->dest_fragment_instance_id().hi());
+
+  VLOG_ROW << "EndDataStream(): instance_id=" << PrintId(finst_id)
+           << " node_id=" << request->dest_node_id()
+           << " sender_id=" << request->sender_id();
+
+  ExecEnv::GetInstance()->stream_mgr()->CloseSender(
+      finst_id, request->dest_node_id(), request->sender_id());
+  context->RespondSuccess();
 }
 
-void ImpalaInternalService::ExecPlanFragment(TExecPlanFragmentResult& return_val,
-    const TExecPlanFragmentParams& params) {
-  VLOG_QUERY << "ExecPlanFragment():"
-            << " instance_id=" << params.fragment_instance_ctx.fragment_instance_id;
-  FAULT_INJECTION_RPC_DELAY(RPC_EXECPLANFRAGMENT);
-  query_exec_mgr_->StartFInstance(params).SetTStatus(&return_val);
+void DataStreamService::TransmitData(const TransmitDataRequestPB* request,
+    TransmitDataResponsePB* response, RpcContext* context) {
+  TUniqueId finst_id;
+  finst_id.__set_lo(request->dest_fragment_instance_id().lo());
+  finst_id.__set_hi(request->dest_fragment_instance_id().hi());
+
+  VLOG_ROW << "TransmitData(): instance_id=" << finst_id
+           << " node_id=" << request->dest_node_id()
+           << " #rows=" << request->row_batch().num_rows()
+           << " sender_id=" << request->sender_id();
+  Status status = ExecEnv::GetInstance()->stream_mgr()->AddData(
+      finst_id, request->dest_node_id(), request->row_batch(), request->sender_id());
+  status.ToProto(response->mutable_status());
+
+  context->RespondSuccess();
 }
 
-template <typename T> void SetUnknownIdError(
-    const string& id_type, const TUniqueId& id, T* status_container) {
-  Status status(ErrorMsg(TErrorCode::INTERNAL_ERROR,
-      Substitute("Unknown $0 id: $1", id_type, lexical_cast<string>(id))));
-  status.SetTStatus(status_container);
-}
+void DataStreamService::PublishFilter(const PublishFilterRequestPB* request,
+    PublishFilterResponsePB* response, RpcContext* context) {
+  TUniqueId finst_id;
+  finst_id.__set_lo(request->dst_instance_id().lo());
+  finst_id.__set_hi(request->dst_instance_id().hi());
 
-void ImpalaInternalService::CancelPlanFragment(TCancelPlanFragmentResult& return_val,
-    const TCancelPlanFragmentParams& params) {
-  VLOG_QUERY << "CancelPlanFragment(): instance_id=" << params.fragment_instance_id;
-  FAULT_INJECTION_RPC_DELAY(RPC_CANCELPLANFRAGMENT);
-  QueryState::ScopedRef qs(GetQueryId(params.fragment_instance_id));
-  if (qs.get() == nullptr) {
-    SetUnknownIdError("query", GetQueryId(params.fragment_instance_id), &return_val);
-    return;
+  QueryState::ScopedRef qs(GetQueryId(finst_id));
+  if (qs.get() != nullptr) {
+    FragmentInstanceState* fis = qs->GetFInstanceState(finst_id);
+    if (fis != nullptr) {
+      fis->PublishFilter(request->filter_id(), request->bloom_filter());
+    }
   }
-  FragmentInstanceState* fis = qs->GetFInstanceState(params.fragment_instance_id);
-  if (fis == nullptr) {
-    SetUnknownIdError("instance", params.fragment_instance_id, &return_val);
-    return;
+
+  context->RespondSuccess();
+}
+
+void DataStreamService::UpdateFilter(const UpdateFilterRequestPB* request,
+    UpdateFilterResponsePB* response, RpcContext* context) {
+  ExecEnv::GetInstance()->impala_server()->UpdateFilter(request, response);
+  context->RespondSuccess();
+}
+
+void ImpalaInternalServiceImpl::ExecPlanFragment(
+    const ThriftWrapperPb* request, ThriftWrapperPb* response, RpcContext* context) {
+  TExecPlanFragmentParams thrift_request;
+  Status status = DeserializeThriftFromProtoWrapper(*request, &thrift_request);
+  TExecPlanFragmentResult return_val;
+  if (status.ok()) {
+    status = ExecEnv::GetInstance()->query_exec_mgr()->StartFInstance(thrift_request);
   }
-  Status status = fis->Cancel();
   status.SetTStatus(&return_val);
+  SerializeThriftToProtoWrapper(&return_val, response);
+  context->RespondSuccess();
 }
 
-void ImpalaInternalService::ReportExecStatus(TReportExecStatusResult& return_val,
-    const TReportExecStatusParams& params) {
-  VLOG_QUERY << "ReportExecStatus(): instance_id=" << params.fragment_instance_id;
-  FAULT_INJECTION_RPC_DELAY(RPC_REPORTEXECSTATUS);
-  impala_server_->ReportExecStatus(return_val, params);
+void ImpalaInternalServiceImpl::ReportExecStatus(
+    const ThriftWrapperPb* request, ThriftWrapperPb* response, RpcContext* context) {
+  TReportExecStatusParams thrift_request;
+  Status status = DeserializeThriftFromProtoWrapper(*request, &thrift_request);
+
+  if (status.ok()) {
+    TReportExecStatusResult return_val;
+    ExecEnv::GetInstance()->impala_server()->ReportExecStatus(return_val, thrift_request);
+    SerializeThriftToProtoWrapper(&return_val, response);
+  }
+  context->RespondSuccess();
 }
 
-void ImpalaInternalService::TransmitData(TTransmitDataResult& return_val,
-    const TTransmitDataParams& params) {
-  FAULT_INJECTION_RPC_DELAY(RPC_TRANSMITDATA);
-  impala_server_->TransmitData(return_val, params);
+namespace {
+
+Status GetUnknownIdError(const string& id_type, const TUniqueId& id) {
+  return Status(ErrorMsg(
+      TErrorCode::INTERNAL_ERROR, Substitute("Unknown $0 id: $1", id_type, PrintId(id))));
 }
 
-void ImpalaInternalService::UpdateFilter(TUpdateFilterResult& return_val,
-    const TUpdateFilterParams& params) {
-  VLOG_QUERY << "UpdateFilter(): filter=" << params.filter_id
-            << " query_id=" << PrintId(params.query_id);
-  FAULT_INJECTION_RPC_DELAY(RPC_UPDATEFILTER);
-  impala_server_->UpdateFilter(return_val, params);
 }
 
-void ImpalaInternalService::PublishFilter(TPublishFilterResult& return_val,
-    const TPublishFilterParams& params) {
-  VLOG_QUERY << "PublishFilter(): filter=" << params.filter_id
-            << " instance_id=" << PrintId(params.dst_instance_id);
-  FAULT_INJECTION_RPC_DELAY(RPC_PUBLISHFILTER);
-  QueryState::ScopedRef qs(GetQueryId(params.dst_instance_id));
-  if (qs.get() == nullptr) return;
-  FragmentInstanceState* fis = qs->GetFInstanceState(params.dst_instance_id);
-  if (fis == nullptr) return;
-  fis->PublishFilter(params.filter_id, params.bloom_filter);
+void ImpalaInternalServiceImpl::CancelPlanFragment(
+    const ThriftWrapperPb* request, ThriftWrapperPb* response, RpcContext* context) {
+  TCancelPlanFragmentParams thrift_request;
+  Status status = DeserializeThriftFromProtoWrapper(*request, &thrift_request);
+
+  TCancelPlanFragmentResult return_val;
+  if (status.ok()) {
+    QueryState::ScopedRef qs(GetQueryId(thrift_request.fragment_instance_id));
+    if (qs.get() == nullptr) {
+      status =
+          GetUnknownIdError("query", GetQueryId(thrift_request.fragment_instance_id));
+    } else {
+      FragmentInstanceState* fis =
+          qs->GetFInstanceState(thrift_request.fragment_instance_id);
+      if (fis == nullptr) {
+        status = GetUnknownIdError("instance", thrift_request.fragment_instance_id);
+      }
+      status = fis->Cancel();
+    }
+  }
+
+  status.SetTStatus(&return_val);
+  SerializeThriftToProtoWrapper(&return_val, response);
+  context->RespondSuccess();
+}
 }
