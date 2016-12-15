@@ -123,7 +123,6 @@ class RuntimeState {
   ExecEnv* exec_env() { return exec_env_; }
   DataStreamMgr* stream_mgr();
   HBaseTableFactory* htable_factory();
-  ImpalaBackendClientCache* impalad_client_cache();
   CatalogServiceClientCache* catalogd_client_cache();
   DiskIoMgr* io_mgr();
   MemTracker* instance_mem_tracker() { return instance_mem_tracker_.get(); }

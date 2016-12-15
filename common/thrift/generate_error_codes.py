@@ -312,6 +312,8 @@ error_codes = (
   ("SCRATCH_ALLOCATION_FAILED", 101, "Could not create files in any configured scratch "
    "directories (--scratch_dirs). See logs for previous errors that may have prevented "
    "creating or writing scratch files."),
+
+  ("DATASTREAM_RECVR_ALREADY_GONE", 102, "Datastream receiver already torn down"),
 )
 
 import sys

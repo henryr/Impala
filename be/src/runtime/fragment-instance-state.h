@@ -27,6 +27,7 @@
 
 namespace impala {
 
+class ProtoBloomFilter;
 class TPlanFragmentCtx;
 class TPlanFragmentInstanceCtx;
 class TBloomFilter;
@@ -68,7 +69,7 @@ class FragmentInstanceState {
   Status Cancel();
 
   /// Publishes filter with ID 'filter_id' to this fragment instance's filter bank.
-  void PublishFilter(int32_t filter_id, const TBloomFilter& thrift_bloom_filter);
+  void PublishFilter(int32_t filter_id, const ProtoBloomFilter& thrift_bloom_filter);
 
   QueryState* query_state() { return query_state_; }
   PlanFragmentExecutor* executor() { return &executor_; }

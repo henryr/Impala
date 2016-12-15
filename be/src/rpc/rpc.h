@@ -46,6 +46,21 @@ namespace impala {
 /// RpcResponsePb response;
 /// RETURN_IF_ERROR(rpc.Execute(&MyServiceProxy::Rpc, request, &response));
 ///
+/// For the async case:
+///
+/// unique_ptr<RpcRequestPB> request = make_unique<RpcRequestPB>();
+/// unique_ptr<RpcResponsePB> response = make_unique<RpcResponsePB>();
+///
+/// // Release request and response into the completion handler, which is guaranteed to be
+/// // called.
+/// Rpc<MyServiceProxy>::Make(address, rpc_mgr)
+///     .ExecuteAsync(&MyServiceProxy::Rpc, request.release(), response.release(),
+///       [](const Status& status, RpcRequestPB* request, RpcResponsePB* response) {
+///         if (!status.ok()) LOG(INFO) << "Error!";
+///         delete request;
+///         delete response;
+///     });
+///
 /// All RPCs must have a timeout set. The default timeout is 5 minutes.
 
 /// TODO: Move these into Rpc<>?
@@ -104,6 +119,33 @@ class Rpc {
     return FromKuduStatus(controller_->GetInboundSidecar(idx, sidecar));
   }
 
+  /// Handles asynchronous execution, and retry. The completion callback 'cb' is
+  /// guaranteed to be called exactly once after the invocation and any retries have
+  /// finished - whether the RPC was successful or not. The callback should have the
+  /// following signature:
+  ///
+  /// CB(const Status& status, REQ* req, RESP* resp, RpcController* controller)
+  ///
+  /// where
+  ///   'status' is OK if the RPC was successfully aattempted (i.e. there were no
+  ///   problems acquiring the resources to send the RPC)
+  ///   'req' and 'resp' are the protobuf messages passed into ExecuteAsync().
+  ///   'controller' is the KRPC RpcController which contains the status of the RPC
+  ///   attempt. If !status.ok(), may be nullptr.
+  ///
+  /// The RPC parameter objects 'req' and 'resp' are owned by the caller, and must not be
+  /// destroyed before 'cb' is called. A convenient pattern is to allocate 'req' and
+  /// 'resp' on the heap and delete them in 'cb'.
+  template <typename F, typename REQ, typename RESP, typename CB>
+  void ExecuteAsync(const F& func, REQ* req, RESP* resp, const CB& cb) const {
+    Status status = CheckConfiguration();
+    if (!status.ok()) {
+      cb(status, req, resp, nullptr);
+      return;
+    }
+    ExecuteAsyncHelper(func, req, resp, 0, cb);
+  }
+
   /// Executes this RPC. If the remote service is too busy, execution is re-attempted up
   /// to a fixed number of times, after which an error is returned. Retries are attempted
   /// only if the remote server signals that it is too busy. Retries are spaced by the
@@ -122,28 +164,12 @@ class Rpc {
   /// func(const REQ& request, RESP* response, RpcController* controller).
   template <typename F, typename REQ, typename RESP>
   Status Execute(const F& func, const REQ& req, RESP* resp) {
-    if (max_rpc_attempts_ < 1) {
-      return Status(
-          strings::Substitute("Invalid number of retry attempts: $0", max_rpc_attempts_));
-    }
-
-    if (max_rpc_attempts_ > 1 && retry_interval_ms_ <= 0) {
-      return Status(
-          strings::Substitute("Invalid retry interval: $0", retry_interval_ms_));
-    }
-
+    RETURN_IF_ERROR(CheckConfiguration());
     std::unique_ptr<P> proxy;
     RETURN_IF_ERROR(mgr_->GetProxy(remote_, &proxy));
     controller_.reset(new kudu::rpc::RpcController());
     for (int i = 0; i < max_rpc_attempts_; ++i) {
-      controller_->Reset();
-      controller_->set_timeout(rpc_timeout_);
-      for (const auto& sidecar: outbound_sidecars_) {
-        int dummy;
-        controller_->AddOutboundSidecar(
-            kudu::rpc::RpcSidecar::FromSlice(sidecar), &dummy);
-      }
-
+      RETURN_IF_ERROR(InitController(controller_.get()));
       ((proxy.get())->*func)(req, resp, controller_.get());
       if (controller_->status().ok()) return Status::OK();
 
@@ -157,8 +183,8 @@ class Rpc {
   }
 
   /// Wrapper for Execute() that handles serialization from and to Thrift
-  /// arguments. Provided for compatibility with RPCs that have not yet been translated
-  /// to native Protobuf. Returns an error if serialization to or from protobuf fails,
+  /// arguments. Provided for compatibility with RPCs that have not yet been translated to
+  /// native Protobuf. Returns an error if serialization to or from protobuf fails,
   /// otherwise returns the same as Execute().
   template <typename F, typename TREQ, typename TRESP>
   Status ExecuteWithThriftArgs(const F& func, TREQ* req, TRESP* resp) {
@@ -178,6 +204,65 @@ class Rpc {
     uint32_t len = sidecar.size();
     RETURN_IF_ERROR(DeserializeThriftMsg(sidecar.data(), &len, true, resp));
     return Status::OK();
+  }
+
+  /// Wrapper for ExecuteAsync() that handles serialization from and to Thrift arguments.
+  template <typename F, typename TREQ, typename TRESP, typename CB>
+  void ExecuteWithThriftArgsAsync(
+      const F& func, TREQ* thrift_req, TRESP* thrift_resp, const CB& cb) {
+    // There are two levels of RPC parameters at play here:
+    //
+    // thrift_req and thrift_resp are owned by the caller, and should be deleted by the
+    // caller, typically during the user-supplied completion callback. They are 'wrapped'
+    // by the *_proto structures.
+    //
+    // request_proto and response_proto are owned by this method, and are deleted by the
+    // wrapper callback 'completion' below.
+    int idx = -1;
+    ThriftSerializer serializer(true);
+    std::unique_ptr<std::string> serialized = std::make_unique<std::string>();
+    Status status = serializer.Serialize(thrift_req, serialized.get());
+    if (!status.ok()) {
+      cb(status, thrift_req, thrift_resp, nullptr);
+      return;
+    }
+    AddSidecar(kudu::Slice(*serialized.get()), &idx);
+
+    std::unique_ptr<ThriftWrapperPb> request_proto = std::make_unique<ThriftWrapperPb>();
+    request_proto->set_sidecar_idx(idx);
+    std::unique_ptr<ThriftWrapperPb> response_proto = std::make_unique<ThriftWrapperPb>();
+
+    // Completion callback that handles deserializing the response_proto to Thrift, and
+    // then calls the caller-supplied callback in all cases.
+    auto completion =
+        [
+          thrift_req, thrift_resp, cb = std::move(cb), serialized = serialized.release()
+        ](const Status& status, ThriftWrapperPb* request, ThriftWrapperPb* response,
+            kudu::rpc::RpcController* controller) {
+      // Make sure that all heap-allocated parameters are deleted once this callback
+      // completes.
+      std::unique_ptr<std::string> serialized_wrapper(serialized);
+      std::unique_ptr<ThriftWrapperPb> request_wrapper(request);
+      std::unique_ptr<ThriftWrapperPb> response_wrapper(response);
+
+      // Most callers will delete thrift_req and thrift_resp inside the callback, so don't
+      // refer to them after cb() is called.
+      if (!status.ok() || !controller->status().ok()) {
+        cb(status, thrift_req, thrift_resp, controller);
+        return;
+      }
+      kudu::Slice sidecar;
+      Status deser_status = FromKuduStatus(
+          controller->GetInboundSidecar(response->sidecar_idx(), &sidecar));
+      if (deser_status.ok()) {
+        uint32_t len = sidecar.size();
+        deser_status = DeserializeThriftMsg(sidecar.data(), &len, true, thrift_resp);
+      }
+      cb(deser_status, thrift_req, thrift_resp, controller);
+    };
+
+    // Call the standard asynchronous handler with the wrapper completion callback.
+    ExecuteAsync(func, request_proto.release(), response_proto.release(), completion);
   }
 
   Rpc(const Rpc& other) {
@@ -218,6 +303,20 @@ class Rpc {
 
   Rpc(const TNetworkAddress& remote, RpcMgr* mgr) : remote_(remote), mgr_(mgr) {}
 
+  Status CheckConfiguration() const {
+    if (max_rpc_attempts_ < 1) {
+      return Status(
+          strings::Substitute("Invalid number of retry attempts: $0", max_rpc_attempts_));
+    }
+
+    if (max_rpc_attempts_ > 1 && retry_interval_ms_ <= 0) {
+      return Status(
+          strings::Substitute("Invalid retry interval: $0", retry_interval_ms_));
+    }
+
+    return Status::OK();
+  }
+
   /// Returns true if the controller is in an error state that corresponds to the remote
   /// server being too busy to handle this request. In that case, we may want to retry
   /// after waiting.
@@ -225,6 +324,81 @@ class Rpc {
     const kudu::rpc::ErrorStatusPB* err = controller.error_response();
     return controller.status().IsRemoteError() && err && err->has_code()
         && err->code() == kudu::rpc::ErrorStatusPB::ERROR_SERVER_TOO_BUSY;
+  }
+
+  Status InitController(kudu::rpc::RpcController* controller) const {
+    controller->Reset();
+    controller->set_timeout(rpc_timeout_);
+    for (const auto& sidecar : outbound_sidecars_) {
+      int dummy;
+      RETURN_IF_ERROR(FromKuduStatus(controller->AddOutboundSidecar(
+          kudu::rpc::RpcSidecar::FromSlice(sidecar), &dummy)));
+    }
+    return Status::OK();
+  }
+
+  /// Helper method for ExecuteAsync(). Implements retry logic by scheduling a retry task
+  /// on a reactor thread.
+  template <typename F, typename REQ, typename RESP, typename CB>
+  void ExecuteAsyncHelper(
+      const F& func, REQ* req, RESP* resp, int num_attempts, const CB& cb) const {
+    using RpcController = kudu::rpc::RpcController;
+    std::unique_ptr<RpcController> controller = std::make_unique<RpcController>();
+    RpcController* controller_ptr = controller.get();
+    Status status = InitController(controller_ptr);
+
+    ++num_attempts;
+    // Wraps the supplied completion callback, and implements retry logic for asynchronous
+    // RPCs. May be executed after the enclosing ExecuteAsyncHelper() call has finished,
+    // and indeed after the enclosing Rpc object has been destroyed. Therefore capture all
+    // state necessary to retry the RPC by value.
+    //
+    // When the RPC has either successfully been executed, or the number of retries has
+    // exceeded the limit, the completion callback 'cb' is called.
+    // func(
+    // Retries are scheduled on a reactor thread. Since this callback is also called from
+    // a reactor thread, we cannot sleep here before rescheduling (like we do in the
+    // synchronous case).
+    //
+    // To avoid forcing the caller to manage the lifetime of this Rpc object until the rpc
+    // finally completes, we copy *this into the completion callback to ensure we can
+    // access retry parameters.
+    auto cb_wrapper = [
+      rpc = *this, func, req, resp, cb = std::move(cb),
+      controller_ptr = controller.release(), num_attempts
+    ]() {
+      // Ensure that controller is always deleted on function exit.
+      std::unique_ptr<kudu::rpc::RpcController> controller(controller_ptr);
+
+      // If this RPC should not be retried, call the completion function.
+      if (!IsRetryableError(*controller_ptr) || num_attempts >= rpc.max_rpc_attempts_) {
+        cb(Status::OK(), req, resp, controller_ptr);
+        return;
+      }
+
+      // Create a new task that retries the execution from a reactor thread.
+      auto reactor_task = [ rpc, func, req, resp, cb = std::move(cb), num_attempts ](
+          const kudu::Status& status) {
+        // Here 'status' refers to the success of scheduling on the reactor thread itself,
+        // which typically does not fail.
+        if (!status.ok()) {
+          cb(FromKuduStatus(status), req, resp, nullptr);
+          return;
+        }
+        rpc.ExecuteAsyncHelper(func, req, resp, num_attempts, cb);
+      };
+      rpc.mgr_->messenger()->ScheduleOnReactor(
+          reactor_task, kudu::MonoDelta::FromMilliseconds(rpc.retry_interval_ms_));
+    };
+
+    std::unique_ptr<P> proxy;
+    if (status.ok()) status = mgr_->GetProxy(remote_, &proxy);
+    if (!status.ok()) {
+      cb(status, req, resp, nullptr);
+      return;
+    }
+
+    ((proxy.get())->*func)(*req, resp, controller_ptr, std::move(cb_wrapper));
   }
 };
 

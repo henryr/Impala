@@ -33,6 +33,8 @@
 
 namespace impala {
 
+class StatusPb;
+
 /// Status is used as a function return type to indicate success, failure or cancellation
 /// of the function. In case of successful completion, it only occupies sizeof(void*)
 /// statically allocated memory and therefore no more members should be added to this
@@ -177,6 +179,7 @@ class Status {
   /// "Copy" c'tor from TStatus.
   /// Retains the TErrorCode value and the message
   Status(const TStatus& status);
+  Status(const StatusPb& status);
 
   /// same as previous c'tor
   /// Retains the TErrorCode value and the message
@@ -229,6 +232,7 @@ class Status {
 
   /// Convert into TStatus.
   void ToThrift(TStatus* status) const;
+  void ToProto(StatusPb* status) const;
 
   /// Returns the formatted message of the error message and the individual details of the
   /// additional messages as a single string. This should only be called internally and
