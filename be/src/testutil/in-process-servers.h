@@ -42,8 +42,7 @@ class InProcessImpalaServer {
  public:
   /// Initialises the server, but does not start any network-attached
   /// services or run any threads.
-  InProcessImpalaServer(const std::string& hostname, int backend_port,
-                        int subscriber_port, int webserver_port,
+  InProcessImpalaServer(const std::string& hostname, int backend_port, int webserver_port,
                         const std::string& statestore_host, int statestore_port);
 
   /// Starts an in-process Impala server with ephemeral ports that are independent of the
@@ -99,9 +98,6 @@ class InProcessImpalaServer {
 
   /// ExecEnv holds much of the per-service state
   boost::scoped_ptr<ExecEnv> exec_env_;
-
-  /// Backend Thrift server
-  boost::scoped_ptr<ThriftServer> be_server_;
 
   /// Frontend HiveServer2 server
   boost::scoped_ptr<ThriftServer> hs2_server_;

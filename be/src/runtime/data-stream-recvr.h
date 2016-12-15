@@ -24,11 +24,12 @@
 #include "common/object-pool.h"
 #include "common/status.h"
 #include "gen-cpp/Types_types.h"   // for TUniqueId
-#include "gen-cpp/Results_types.h" // for TRowBatch
 #include "runtime/descriptors.h"
 #include "util/tuple-row-compare.h"
 
 namespace impala {
+
+namespace rpc { class RowBatchPB; }
 
 class DataStreamMgr;
 class SortedRunMerger;
@@ -104,7 +105,7 @@ class DataStreamRecvr {
 
   /// Add a new batch of rows to the appropriate sender queue, blocking if the queue is
   /// full. Called from DataStreamMgr.
-  void AddBatch(const TRowBatch& thrift_batch, int sender_id);
+  void AddBatch(const rpc::RowBatchPB& proto_batch, int sender_id);
 
   /// Indicate that a particular sender is done. Delegated to the appropriate
   /// sender queue. Called from DataStreamMgr.

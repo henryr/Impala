@@ -32,11 +32,15 @@
 #include "exprs/expr.h"
 #include "runtime/runtime-state.h"
 
+#include "service/impala_internal_service.pb.h"
+
 #include "common/names.h"
 
 using boost::algorithm::join;
 using namespace llvm;
 using namespace strings;
+
+using impala::rpc::RowBatchPB;
 
 // In 'thrift_partition', the location is stored in a compressed format that references
 // the 'partition_prefixes' of 'thrift_table'. This function decompresses that format into
@@ -422,6 +426,14 @@ void RowDescriptor::ToThrift(vector<TTupleId>* row_tuple_ids) {
   row_tuple_ids->clear();
   for (int i = 0; i < tuple_desc_map_.size(); ++i) {
     row_tuple_ids->push_back(tuple_desc_map_[i]->id());
+  }
+}
+
+void RowDescriptor::ToProto(RowBatchPB* row_batch) {
+  //  row_tuple_ids->clear();
+  row_batch->mutable_row_tuples()->Clear();
+  for (int i = 0; i < tuple_desc_map_.size(); ++i) {
+    row_batch->add_row_tuples(tuple_desc_map_[i]->id());
   }
 }
 

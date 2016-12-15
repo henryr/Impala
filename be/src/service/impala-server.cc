@@ -74,11 +74,13 @@
 #include "util/runtime-profile.h"
 #include "util/runtime-profile-counters.h"
 
+#include "rpc/rpc-mgr.h"
+#include "service/impala_internal_service.pb.h"
+
 #include "gen-cpp/Types_types.h"
 #include "gen-cpp/ImpalaService.h"
 #include "gen-cpp/DataSinks_types.h"
 #include "gen-cpp/ImpalaService_types.h"
-#include "gen-cpp/ImpalaInternalService.h"
 #include "gen-cpp/LineageGraph_types.h"
 
 #include "common/names.h"
@@ -97,6 +99,8 @@ using namespace apache::thrift;
 using namespace boost::posix_time;
 using namespace beeswax;
 using namespace strings;
+using impala::rpc::UpdateFilterRequestPB;
+using impala::rpc::UpdateFilterResponsePB;
 
 DECLARE_int32(be_port);
 DECLARE_string(nn);
@@ -1094,33 +1098,6 @@ void ImpalaServer::ReportExecStatus(
   exec_state->coord()->UpdateFragmentExecStatus(params).SetTStatus(&return_val);
 }
 
-void ImpalaServer::TransmitData(
-    TTransmitDataResult& return_val, const TTransmitDataParams& params) {
-  VLOG_ROW << "TransmitData(): instance_id=" << params.dest_fragment_instance_id
-           << " node_id=" << params.dest_node_id
-           << " #rows=" << params.row_batch.num_rows
-           << " sender_id=" << params.sender_id
-           << " eos=" << (params.eos ? "true" : "false");
-  // TODO: fix Thrift so we can simply take ownership of thrift_batch instead
-  // of having to copy its data
-  if (params.row_batch.num_rows > 0) {
-    Status status = exec_env_->stream_mgr()->AddData(
-        params.dest_fragment_instance_id, params.dest_node_id, params.row_batch,
-        params.sender_id);
-    status.SetTStatus(&return_val);
-    if (!status.ok()) {
-      // should we close the channel here as well?
-      return;
-    }
-  }
-
-  if (params.eos) {
-    exec_env_->stream_mgr()->CloseSender(
-        params.dest_fragment_instance_id, params.dest_node_id,
-        params.sender_id).SetTStatus(&return_val);
-  }
-}
-
 void ImpalaServer::InitializeConfigVariables() {
   QueryOptionsMask set_query_options; // unused
   Status status = ParseQueryOptions(FLAGS_default_query_options,
@@ -1520,7 +1497,10 @@ void ImpalaServer::MembershipCallback(
             vector<TNetworkAddress>& failed_hosts = queries_to_cancel[*query_id];
             failed_hosts.push_back(loc_entry->first);
           }
-          exec_env_->impalad_client_cache()->CloseConnections(loc_entry->first);
+
+          // TODO(KRPC): Do we need to destroy connections from RpcMgr? Probably not,
+          // because they time out.
+
           // We can remove the location wholesale once we know backend's failed. To do so
           // safely during iteration, we have to be careful not in invalidate the current
           // iterator, so copy the iterator to do the erase(..) and advance the original.
@@ -1827,12 +1807,10 @@ void ImpalaServer::RegisterSessionTimeout(int32_t session_timeout) {
   }
 }
 
-Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port, int be_port,
-    ThriftServer** beeswax_server, ThriftServer** hs2_server, ThriftServer** be_server,
-    ImpalaServer** impala_server) {
+Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port,
+    ThriftServer** beeswax_server, ThriftServer** hs2_server, ImpalaServer** impala_server) {
   DCHECK((beeswax_port == 0) == (beeswax_server == NULL));
   DCHECK((hs2_port == 0) == (hs2_server == NULL));
-  DCHECK((be_port == 0) == (be_server == NULL));
 
   boost::shared_ptr<ImpalaServer> handler(new ImpalaServer(exec_env));
 
@@ -1879,24 +1857,6 @@ Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port, int
     LOG(INFO) << "Impala HiveServer2 Service listening on " << hs2_port;
   }
 
-  if (be_port != 0 && be_server != NULL) {
-    boost::shared_ptr<ImpalaInternalService> thrift_if(new ImpalaInternalService());
-    boost::shared_ptr<TProcessor> be_processor(
-        new ImpalaInternalServiceProcessor(thrift_if));
-    boost::shared_ptr<TProcessorEventHandler> event_handler(
-        new RpcEventHandler("backend", exec_env->metrics()));
-    be_processor->setEventHandler(event_handler);
-
-    *be_server = new ThriftServer("backend", be_processor, be_port, NULL,
-        exec_env->metrics(), FLAGS_be_service_threads);
-    if (EnableInternalSslConnections()) {
-      LOG(INFO) << "Enabling SSL for backend";
-      RETURN_IF_ERROR((*be_server)->EnableSsl(FLAGS_ssl_server_certificate,
-          FLAGS_ssl_private_key, FLAGS_ssl_private_key_password_cmd));
-    }
-
-    LOG(INFO) << "ImpalaInternalService listening on " << be_port;
-  }
   if (impala_server != NULL) *impala_server = handler.get();
 
   return Status::OK();
@@ -1927,11 +1887,14 @@ shared_ptr<ImpalaServer::QueryExecState> ImpalaServer::GetQueryExecState(
   }
 }
 
-void ImpalaServer::UpdateFilter(TUpdateFilterResult& result,
-    const TUpdateFilterParams& params) {
-  shared_ptr<QueryExecState> query_exec_state = GetQueryExecState(params.query_id, false);
+void ImpalaServer::UpdateFilter(
+    const UpdateFilterRequestPB* params, UpdateFilterResponsePB* response) {
+  TUniqueId query_id;
+  query_id.lo = params->query_id().lo();
+  query_id.hi = params->query_id().hi();
+  shared_ptr<QueryExecState> query_exec_state = GetQueryExecState(query_id, false);
   if (query_exec_state.get() == NULL) {
-    LOG(INFO) << "Could not find query exec state: " << params.query_id;
+    LOG(INFO) << "Could not find query exec state: " << query_id;
     return;
   }
   query_exec_state->coord()->UpdateFilter(params);

@@ -51,6 +51,8 @@ class TSlotDescriptor;
 class TTable;
 class TTupleDescriptor;
 
+namespace rpc { class RowBatchPB; }
+
 /// A path into a table schema (e.g. a vector of ColumnTypes) pointing to a particular
 /// column/field. The i-th element of the path is the ordinal position of the column/field
 /// of the schema at level i. For example, the path [0] would be the first column of the
@@ -533,6 +535,9 @@ class RowDescriptor {
 
   /// Populate row_tuple_ids with our ids.
   void ToThrift(std::vector<TTupleId>* row_tuple_ids);
+
+  /// TODO(KRPC): Pass in the vector?
+  void ToProto(rpc::RowBatchPB* row_batch);
 
   /// Return true if the tuple ids of this descriptor are a prefix
   /// of the tuple ids of other_desc.

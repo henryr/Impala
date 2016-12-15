@@ -36,11 +36,12 @@
 
 namespace impala {
 
+namespace rpc { class RowBatchPB; }
+
 class DescriptorTbl;
 class DataStreamRecvr;
 class RowBatch;
 class RuntimeState;
-class TRowBatch;
 
 /// Singleton class which manages all incoming data streams at a backend node. It
 /// provides both producer and consumer functionality for each data stream.
@@ -89,7 +90,7 @@ class DataStreamMgr {
   /// so that a single sender can't flood the buffer and stall everybody else.
   /// Returns OK if successful, error status otherwise.
   Status AddData(const TUniqueId& fragment_instance_id, PlanNodeId dest_node_id,
-                 const TRowBatch& thrift_batch, int sender_id);
+      const rpc::RowBatchPB& proto_batch, int sender_id);
 
   /// Notifies the recvr associated with the fragment/node id that the specified
   /// sender has closed.

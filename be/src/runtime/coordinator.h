@@ -60,7 +60,6 @@ class ExecEnv;
 class TUpdateCatalogRequest;
 class TQueryExecRequest;
 class TReportExecStatusParams;
-class TRowBatch;
 class TPlanExecRequest;
 class TRuntimeProfileTree;
 class RuntimeProfile;
@@ -70,6 +69,10 @@ class QueryResultSet;
 class MemTracker;
 class PlanRootSink;
 class FragmentInstanceState;
+
+namespace rpc {
+class UpdateFilterRequestPB;
+}
 
 struct DebugOptions;
 
@@ -207,7 +210,7 @@ class Coordinator { // NOLINT: The member variables could be re-ordered to save 
   /// with others for the same filter ID into a global filter. If all updates for that
   /// filter ID have been received (may be 1 or more per filter), broadcast the global
   /// filter to fragment instances.
-  void UpdateFilter(const TUpdateFilterParams& params);
+  void UpdateFilter(const rpc::UpdateFilterRequestPB* request);
 
   /// Called once the query is complete to tear down any remaining state.
   void TearDown();

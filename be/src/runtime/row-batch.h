@@ -37,10 +37,11 @@ template <typename K, typename V> class FixedSizeHashTable;
 class MemTracker;
 class RowBatchSerializeTest;
 class RuntimeState;
-class TRowBatch;
 class Tuple;
 class TupleRow;
 class TupleDescriptor;
+
+namespace rpc { class RowBatchPB; }
 
 /// A RowBatch encapsulates a batch of rows, each composed of a number of tuples.
 /// The maximum number of rows is fixed at the time of construction.
@@ -54,7 +55,7 @@ class TupleDescriptor;
 ///      the data is in an io buffer that may not be attached to this row batch.  The
 ///      creator of that row batch has to make sure that the io buffer is not recycled
 ///      until all batches that reference the memory have been consumed.
-/// In order to minimize memory allocations, RowBatches and TRowBatches that have been
+/// In order to minimize memory allocations, RowBatches and RowBatchPBs that have been
 /// serialized and sent over the wire should be reused (this prevents compression_scratch_
 /// from being needlessly reallocated).
 //
@@ -92,7 +93,7 @@ class RowBatch {
   /// in the data back into pointers.
   /// TODO: figure out how to transfer the data from input_batch to this RowBatch
   /// (so that we don't need to make yet another copy)
-  RowBatch(const RowDescriptor& row_desc, const TRowBatch& input_batch,
+  RowBatch(const RowDescriptor& row_desc, const rpc::RowBatchPB& input_batch,
       MemTracker* tracker);
 
   /// Releases all resources accumulated at this row batch.  This includes
@@ -298,10 +299,10 @@ class RowBatch {
   /// larger than the uncompressed data. Use output_batch.is_compressed to determine
   /// whether tuple_data is compressed. If an in-flight row is present in this row batch,
   /// it is ignored. This function does not Reset().
-  Status Serialize(TRowBatch* output_batch);
+  Status Serialize(rpc::RowBatchPB* output_batch);
 
   /// Utility function: returns total size of batch.
-  static int GetBatchSize(const TRowBatch& batch);
+  static int GetBatchSize(const rpc::RowBatchPB& batch);
 
   int ALWAYS_INLINE num_rows() const { return num_rows_; }
   int ALWAYS_INLINE capacity() const { return capacity_; }
@@ -347,7 +348,7 @@ class RowBatch {
   bool UseFullDedup();
 
   /// Overload for testing that allows the test to force the deduplication level.
-  Status Serialize(TRowBatch* output_batch, bool full_dedup);
+  Status Serialize(rpc::RowBatchPB* output_batch, bool full_dedup);
 
   typedef FixedSizeHashTable<Tuple*, int> DedupMap;
 
@@ -359,7 +360,7 @@ class RowBatch {
   int64_t TotalByteSize(DedupMap* distinct_tuples);
 
   void SerializeInternal(int64_t size, DedupMap* distinct_tuples,
-      TRowBatch* output_batch);
+      rpc::RowBatchPB* output_batch);
 
   /// All members below need to be handled in RowBatch::AcquireState()
 
@@ -425,12 +426,12 @@ class RowBatch {
   std::vector<BufferedBlockMgr::Block*> blocks_;
 
   /// String to write compressed tuple data to in Serialize().
-  /// This is a string so we can swap() with the string in the TRowBatch we're serializing
-  /// to (we don't compress directly into the TRowBatch in case the compressed data is
-  /// longer than the uncompressed data). Swapping avoids copying data to the TRowBatch and
-  /// avoids excess memory allocations: since we reuse RowBatchs and TRowBatchs, and
-  /// assuming all row batches are roughly the same size, all strings will eventually be
-  /// allocated to the right size.
+  /// This is a string so we can swap() with the string in the RowBatchPB we're
+  /// serializing to (we don't compress directly into the RowBatchPB in case the
+  /// compressed data is longer than the uncompressed data). Swapping avoids copying data
+  /// to the RowBatchPB and avoids excess memory allocations: since we reuse RowBatches
+  /// and RowBatchPBs, and assuming all row batches are roughly the same size, all strings
+  /// will eventually be allocated to the right size.
   std::string compression_scratch_;
 };
 }

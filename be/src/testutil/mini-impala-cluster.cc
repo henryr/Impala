@@ -60,7 +60,6 @@ int main(int argc, char** argv) {
   InitFeSupport();
 
   int base_be_port = FLAGS_be_port;
-  int base_subscriber_port = 21500;
   int base_webserver_port = 25000;
 
   int beeswax_port = 21000;
@@ -74,8 +73,7 @@ int main(int argc, char** argv) {
   for (int i = 0; i < FLAGS_num_backends; ++i) {
     impala_servers.push_back(
         new InProcessImpalaServer(FLAGS_hostname, base_be_port + i,
-                                  base_subscriber_port + i, base_webserver_port + i,
-                                  FLAGS_hostname, 23000));
+                                  base_webserver_port + i, FLAGS_hostname, 23000));
     // First server in the list runs client servers
     if (i == 0) {
       ABORT_IF_ERROR(impala_servers[i]->StartWithClientServers(beeswax_port, hs2_port,

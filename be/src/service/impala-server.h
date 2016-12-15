@@ -27,13 +27,18 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
-#include "gen-cpp/ImpalaService.h"
+#include "common/status.h"
+#include "gen-cpp/Frontend_types.h"
 #include "gen-cpp/ImpalaHiveServer2Service.h"
-#include "gen-cpp/ImpalaInternalService.h"
+#include "gen-cpp/ImpalaService.h"
 #include "gen-cpp/Frontend_types.h"
 #include "rpc/thrift-server.h"
-#include "common/status.h"
+#include "runtime/coordinator.h"
+#include "runtime/runtime-state.h"
+#include "runtime/timestamp-value.h"
+#include "runtime/types.h"
 #include "service/frontend.h"
+#include "service/impala_internal_service.pb.h"
 #include "service/query-options.h"
 #include "util/metrics.h"
 #include "util/runtime-profile.h"
@@ -41,10 +46,6 @@
 #include "util/thread-pool.h"
 #include "util/time.h"
 #include "util/uid-util.h"
-#include "runtime/coordinator.h"
-#include "runtime/runtime-state.h"
-#include "runtime/timestamp-value.h"
-#include "runtime/types.h"
 #include "statestore/statestore-subscriber.h"
 
 namespace impala {
@@ -58,10 +59,6 @@ class TCatalogUpdate;
 class TPlanExecRequest;
 class TPlanExecParams;
 class TInsertResult;
-class TReportExecStatusArgs;
-class TReportExecStatusResult;
-class TTransmitDataArgs;
-class TTransmitDataResult;
 class TNetworkAddress;
 class TClientRequest;
 class TExecRequest;
@@ -233,10 +230,8 @@ class ImpalaServer : public ImpalaServiceIf, public ImpalaHiveServer2ServiceIf,
   /// ImpalaInternalService rpcs
   void ReportExecStatus(TReportExecStatusResult& return_val,
       const TReportExecStatusParams& params);
-  void TransmitData(TTransmitDataResult& return_val,
-      const TTransmitDataParams& params);
-  void UpdateFilter(TUpdateFilterResult& return_val,
-      const TUpdateFilterParams& params);
+  void UpdateFilter(
+      const rpc::UpdateFilterRequestPB* request, rpc::UpdateFilterResponsePB* response);
 
   /// Generates a unique id for this query and sets it in the given query context.
   /// Prepares the given query context by populating fields required for evaluating
@@ -942,20 +937,18 @@ class ImpalaServer : public ImpalaServiceIf, public ImpalaHiveServer2ServiceIf,
 };
 
 /// Create an ImpalaServer and Thrift servers.
-/// If beeswax_port != 0 (and fe_server != NULL), creates a ThriftServer exporting
+/// If beeswax_port != 0 (and beeswax_server != NULL), creates a ThriftServer exporting
 /// ImpalaService (Beeswax) on beeswax_port (returned via beeswax_server).
 /// If hs2_port != 0 (and hs2_server != NULL), creates a ThriftServer exporting
 /// ImpalaHiveServer2Service on hs2_port (returned via hs2_server).
-/// If be_port != 0 (and be_server != NULL), create a ThriftServer exporting
-/// ImpalaInternalService on be_port (returned via be_server).
-/// Returns created ImpalaServer. The caller owns fe_server and be_server.
+/// Returns created ImpalaServer. The caller owns beeswax_server and hs2_server.
 /// The returned ImpalaServer is referenced by both of these via shared_ptrs and will be
 /// deleted automatically.
 /// Returns OK unless there was some error creating the servers, in
 /// which case none of the output parameters can be assumed to be valid.
 Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port,
-    int be_port, ThriftServer** beeswax_server, ThriftServer** hs2_server,
-    ThriftServer** be_server, ImpalaServer** impala_server);
+    ThriftServer** beeswax_server, ThriftServer** hs2_server,
+    ImpalaServer** impala_server);
 
 }
 

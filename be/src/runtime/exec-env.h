@@ -57,8 +57,8 @@ class ExecEnv {
  public:
   ExecEnv();
 
-  ExecEnv(const std::string& hostname, int backend_port, int subscriber_port,
-          int webserver_port, const std::string& statestore_host, int statestore_port);
+  ExecEnv(const std::string& hostname, int backend_port,
+      int webserver_port, const std::string& statestore_host, int statestore_port);
 
   /// Returns the first created exec env instance. In a normal impalad, this is
   /// the only instance. In test setups with multiple ExecEnv's per process,
@@ -76,9 +76,6 @@ class ExecEnv {
   }
 
   DataStreamMgr* stream_mgr() { return stream_mgr_.get(); }
-  ImpalaBackendClientCache* impalad_client_cache() {
-    return impalad_client_cache_.get();
-  }
   CatalogServiceClientCache* catalogd_client_cache() {
     return catalogd_client_cache_.get();
   }
@@ -127,7 +124,6 @@ class ExecEnv {
   boost::scoped_ptr<DataStreamMgr> stream_mgr_;
   boost::scoped_ptr<Scheduler> scheduler_;
   boost::scoped_ptr<StatestoreSubscriber> statestore_subscriber_;
-  boost::scoped_ptr<ImpalaBackendClientCache> impalad_client_cache_;
   boost::scoped_ptr<CatalogServiceClientCache> catalogd_client_cache_;
   boost::scoped_ptr<HBaseTableFactory> htable_factory_;
   boost::scoped_ptr<DiskIoMgr> disk_io_mgr_;
@@ -154,9 +150,6 @@ class ExecEnv {
 
   /// Address of the Impala backend server instance
   TNetworkAddress backend_address_;
-
-  /// Address of statestore subscriber service.
-  TNetworkAddress subscriber_address_;
 
   /// fs.defaultFs value set in core-site.xml
   std::string default_fs_;

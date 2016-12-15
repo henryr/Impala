@@ -537,34 +537,6 @@ struct TCancelPlanFragmentResult {
   1: optional Status.TStatus status
 }
 
-
-// TransmitData
-
-struct TTransmitDataParams {
-  1: required ImpalaInternalServiceVersion protocol_version
-
-  // required in V1
-  2: optional Types.TUniqueId dest_fragment_instance_id
-
-  // Id of this fragment in its role as a sender.
-  3: optional i32 sender_id
-
-  // required in V1
-  4: optional Types.TPlanNodeId dest_node_id
-
-  // required in V1
-  5: optional Results.TRowBatch row_batch
-
-  // if set to true, indicates that no more row batches will be sent
-  // for this dest_node_id
-  6: optional bool eos
-}
-
-struct TTransmitDataResult {
-  // required in V1
-  1: optional Status.TStatus status
-}
-
 // Parameters for RequestPoolService.resolveRequestPool()
 struct TResolveRequestPoolParams {
   // User to resolve to a pool via the allocation placement policy and
@@ -617,75 +589,4 @@ struct TPoolConfig {
 
   // Default query options that are applied to requests mapped to this pool.
   5: required string default_query_options;
-}
-
-struct TBloomFilter {
-  // Log_2 of the heap space required for this filter. See BloomFilter::BloomFilter() for
-  // details.
-  1: required i32 log_heap_space
-
-  // List of buckets representing the Bloom Filter contents, laid out contiguously in one
-  // string for efficiency of (de)serialisation. See BloomFilter::Bucket and
-  // BloomFilter::directory_.
-  2: binary directory
-
-  // If true, this filter allows all elements to pass (i.e. its selectivity is 1). If
-  // true, 'directory' and 'log_heap_space' are not meaningful.
-  4: required bool always_true
-}
-
-struct TUpdateFilterResult {
-
-}
-
-struct TUpdateFilterParams {
-  // Filter ID, unique within a query.
-  1: required i32 filter_id
-
-  // Query that this filter is for.
-  2: required Types.TUniqueId query_id
-
-  3: required TBloomFilter bloom_filter
-}
-
-struct TPublishFilterResult {
-
-}
-
-struct TPublishFilterParams {
-  // Filter ID to update
-  1: required i32 filter_id
-
-  // ID of fragment to receive this filter
-  2: required Types.TUniqueId dst_instance_id
-
-  // Actual bloom_filter payload
-  3: required TBloomFilter bloom_filter
-}
-
-service ImpalaInternalService {
-  // Called by coord to start asynchronous execution of plan fragment in backend.
-  // Returns as soon as all incoming data streams have been set up.
-  TExecPlanFragmentResult ExecPlanFragment(1:TExecPlanFragmentParams params);
-
-  // Periodically called by backend to report status of plan fragment execution
-  // back to coord; also called when execution is finished, for whatever reason.
-  TReportExecStatusResult ReportExecStatus(1:TReportExecStatusParams params);
-
-  // Called by coord to cancel execution of a single plan fragment, which this
-  // coordinator initiated with a prior call to ExecPlanFragment.
-  // Cancellation is asynchronous.
-  TCancelPlanFragmentResult CancelPlanFragment(1:TCancelPlanFragmentParams params);
-
-  // Called by sender to transmit single row batch. Returns error indication
-  // if params.fragmentId or params.destNodeId are unknown or if data couldn't be read.
-  TTransmitDataResult TransmitData(1:TTransmitDataParams params);
-
-  // Called by fragment instances that produce local runtime filters to deliver them to
-  // the coordinator for aggregation and broadcast.
-  TUpdateFilterResult UpdateFilter(1:TUpdateFilterParams params);
-
-  // Called by the coordinator to deliver global runtime filters to fragment instances for
-  // application at plan nodes.
-  TPublishFilterResult PublishFilter(1:TPublishFilterParams params);
 }

@@ -18,37 +18,37 @@
 #ifndef IMPALA_SERVICE_IMPALA_INTERNAL_SERVICE_H
 #define IMPALA_SERVICE_IMPALA_INTERNAL_SERVICE_H
 
-#include "gen-cpp/ImpalaInternalService.h"
-#include "gen-cpp/ImpalaInternalService_types.h"
-
 namespace impala {
 
-class ImpalaServer;
-class QueryExecMgr;
+#include "service/impala_internal_service.pb.h"
+#include "service/impala_internal_service.service.h"
 
-/// Proxies Thrift RPC requests onto their implementing objects for the
+/// Proxies RPC requests onto their implementing objects for the
 /// ImpalaInternalService service.
-class ImpalaInternalService : public ImpalaInternalServiceIf {
+class ImpalaInternalServiceImpl : public rpc::ImpalaInternalServiceIf {
  public:
-  ImpalaInternalService();
-  virtual void ExecPlanFragment(TExecPlanFragmentResult& return_val,
-      const TExecPlanFragmentParams& params);
-  virtual void CancelPlanFragment(TCancelPlanFragmentResult& return_val,
-      const TCancelPlanFragmentParams& params);
-  virtual void ReportExecStatus(TReportExecStatusResult& return_val,
-      const TReportExecStatusParams& params);
-  virtual void TransmitData(TTransmitDataResult& return_val,
-      const TTransmitDataParams& params);
-  virtual void UpdateFilter(TUpdateFilterResult& return_val,
-      const TUpdateFilterParams& params);
-  virtual void PublishFilter(TPublishFilterResult& return_val,
-      const TPublishFilterParams& params);
+  ImpalaInternalServiceImpl(const scoped_refptr<kudu::MetricEntity>& entity,
+      const scoped_refptr<kudu::rpc::ResultTracker> tracker)
+    : ImpalaInternalServiceIf(entity, tracker) {}
 
- private:
-  ImpalaServer* impala_server_;
-  QueryExecMgr* query_exec_mgr_;
+  virtual void TransmitData(const rpc::TransmitDataRequestPB* request,
+      rpc::TransmitDataResponsePB* response, kudu::rpc::RpcContext* context);
+
+  virtual void PublishFilter(const rpc::PublishFilterRequestPB* request,
+      rpc::PublishFilterResponsePB* response, kudu::rpc::RpcContext* context);
+
+  virtual void UpdateFilter(const rpc::UpdateFilterRequestPB* request,
+      rpc::UpdateFilterResponsePB* response, kudu::rpc::RpcContext* context);
+
+  virtual void ExecPlanFragment(const rpc::ExecPlanFragmentRequestPB* request,
+      rpc::ExecPlanFragmentResponsePB* response, kudu::rpc::RpcContext* context);
+
+  virtual void ReportExecStatus(const rpc::ReportExecStatusRequestPB* request,
+      rpc::ReportExecStatusResponsePB* response, kudu::rpc::RpcContext* context);
+
+  virtual void CancelPlanFragment(const rpc::CancelPlanFragmentRequestPB* request,
+      rpc::CancelPlanFragmentResponsePB* response, kudu::rpc::RpcContext* context);
 };
-
 }
 
 #endif

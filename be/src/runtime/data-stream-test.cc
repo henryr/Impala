@@ -24,7 +24,7 @@
 #include "codegen/llvm-codegen.h"
 #include "exprs/slot-ref.h"
 #include "rpc/auth-provider.h"
-#include "rpc/thrift-server.h"
+#include "rpc/rpc-mgr.h"
 #include "runtime/row-batch.h"
 #include "runtime/runtime-state.h"
 #include "runtime/data-stream-mgr.h"
@@ -32,8 +32,6 @@
 #include "runtime/data-stream-sender.h"
 #include "runtime/data-stream-recvr.h"
 #include "runtime/descriptors.h"
-#include "runtime/client-cache.h"
-#include "runtime/backend-client.h"
 #include "runtime/mem-tracker.h"
 #include "runtime/raw-value.inline.h"
 #include "service/fe-support.h"
@@ -45,19 +43,20 @@
 #include "util/mem-info.h"
 #include "util/test-info.h"
 #include "util/tuple-row-compare.h"
-#include "gen-cpp/ImpalaInternalService.h"
 #include "gen-cpp/ImpalaInternalService_types.h"
 #include "gen-cpp/Types_types.h"
 #include "gen-cpp/Descriptors_types.h"
 #include "service/fe-support.h"
+#include "service/impala_internal_service.service.h"
+#include "service/impala_internal_service.proxy.h"
+
+#include "kudu/rpc/rpc_controller.h"
 
 #include <iostream>
 
 #include "common/names.h"
 
 using namespace impala;
-using namespace apache::thrift;
-using namespace apache::thrift::protocol;
 
 DEFINE_int32(port, 20001, "port on which to run Impala test backend");
 DECLARE_string(principal);
@@ -73,38 +72,62 @@ static const int PER_ROW_DATA = 8;
 static const int TOTAL_DATA_SIZE = 8 * 1024;
 static const int NUM_BATCHES = TOTAL_DATA_SIZE / BATCH_CAPACITY / PER_ROW_DATA;
 
+using kudu::rpc::RpcContext;
 
 namespace impala {
 
-class ImpalaTestBackend : public ImpalaInternalServiceIf {
+using rpc::ImpalaInternalServiceProxy;
+using rpc::ExecPlanFragmentRequestPB;
+using rpc::ExecPlanFragmentResponsePB;
+using rpc::ReportExecStatusRequestPB;
+using rpc::ReportExecStatusResponsePB;
+using rpc::CancelPlanFragmentRequestPB;
+using rpc::CancelPlanFragmentResponsePB;
+using rpc::TransmitDataRequestPB;
+using rpc::TransmitDataResponsePB;
+using rpc::PublishFilterRequestPB;
+using rpc::PublishFilterResponsePB;
+using rpc::UpdateFilterRequestPB;
+using rpc::UpdateFilterResponsePB;
+
+class ImpalaTestBackend : public rpc::ImpalaInternalServiceIf {
  public:
-  ImpalaTestBackend(DataStreamMgr* stream_mgr): mgr_(stream_mgr) {}
+  ImpalaTestBackend(const scoped_refptr<kudu::MetricEntity>& entity,
+      const scoped_refptr<kudu::rpc::ResultTracker> tracker): ImpalaInternalServiceIf(entity, tracker) {}
+
+  void set_datastream_mgr(DataStreamMgr* mgr) { mgr_ = mgr; }
   virtual ~ImpalaTestBackend() {}
 
   virtual void ExecPlanFragment(
-      TExecPlanFragmentResult& return_val, const TExecPlanFragmentParams& params) {}
+      const ExecPlanFragmentRequestPB* request, ExecPlanFragmentResponsePB* response, RpcContext* context) {}
 
   virtual void ReportExecStatus(
-      TReportExecStatusResult& return_val, const TReportExecStatusParams& params) {}
+      const ReportExecStatusRequestPB* request, ReportExecStatusResponsePB* response, RpcContext* context) {}
 
   virtual void CancelPlanFragment(
-      TCancelPlanFragmentResult& return_val, const TCancelPlanFragmentParams& params) {}
+      const CancelPlanFragmentRequestPB* request, CancelPlanFragmentResponsePB* response, RpcContext* context) {}
 
-  virtual void UpdateFilter(
-      TUpdateFilterResult& return_val, const TUpdateFilterParams& params) {}
+  virtual void TransmitData(const TransmitDataRequestPB* request, TransmitDataResponsePB* response, RpcContext* context) {
+    TUniqueId id;
+    id.__set_hi(request->dest_fragment_instance_id().hi());
+    id.__set_lo(request->dest_fragment_instance_id().lo());
 
-  virtual void PublishFilter(
-      TPublishFilterResult& return_val, const TPublishFilterParams& params) {}
-
-  virtual void TransmitData(
-      TTransmitDataResult& return_val, const TTransmitDataParams& params) {
-    if (!params.eos) {
-      mgr_->AddData(params.dest_fragment_instance_id, params.dest_node_id,
-                    params.row_batch, params.sender_id).SetTStatus(&return_val);
+    if (!request->eos()) {
+      mgr_->AddData(id, request->dest_node_id(),
+          request->row_batch(), request->sender_id()).ToProto(response->mutable_status());
     } else {
-      mgr_->CloseSender(params.dest_fragment_instance_id, params.dest_node_id,
-          params.sender_id).SetTStatus(&return_val);
+      mgr_->CloseSender(id, request->dest_node_id(),
+          request->sender_id()).ToProto(response->mutable_status());
     }
+    context->RespondSuccess();
+  }
+
+  virtual void PublishFilter(const PublishFilterRequestPB* request, PublishFilterResponsePB* response, RpcContext* context) {
+
+  }
+
+  virtual void UpdateFilter(const UpdateFilterRequestPB* request, UpdateFilterResponsePB* response, RpcContext* context) {
+
   }
 
  private:
@@ -175,7 +198,6 @@ class DataStreamTest : public testing::Test {
   virtual void TearDown() {
     lhs_slot_ctx_->Close(NULL);
     rhs_slot_ctx_->Close(NULL);
-    exec_env_.impalad_client_cache()->TestShutdown();
     StopBackend();
   }
 
@@ -202,7 +224,7 @@ class DataStreamTest : public testing::Test {
 
   // receiving node
   DataStreamMgr* stream_mgr_;
-  ThriftServer* server_;
+  unique_ptr<ImpalaTestBackend> backend_;
 
   // sending node(s)
   TDataStreamSink broadcast_sink_;
@@ -450,16 +472,15 @@ class DataStreamTest : public testing::Test {
 
   // Start backend in separate thread.
   void StartBackend() {
-    boost::shared_ptr<ImpalaTestBackend> handler(new ImpalaTestBackend(stream_mgr_));
-    boost::shared_ptr<TProcessor> processor(new ImpalaInternalServiceProcessor(handler));
-    server_ = new ThriftServer("DataStreamTest backend", processor, FLAGS_port, NULL);
-    server_->Start();
+    ImpalaTestBackend* backend;
+    ExecEnv::GetInstance()->rpc_mgr()->Start(FLAGS_port);
+    ExecEnv::GetInstance()->rpc_mgr()->RegisterService(&backend);
+    backend->set_datastream_mgr(stream_mgr_);
   }
 
   void StopBackend() {
     VLOG_QUERY << "stop backend\n";
-    server_->StopForTesting();
-    delete server_;
+    ExecEnv::GetInstance()->rpc_mgr()->UnregisterServices();
   }
 
   void StartSender(TPartitionType::type partition_type = TPartitionType::UNPARTITIONED,
@@ -617,20 +638,21 @@ TEST_F(DataStreamTest, CloseRecvrWhileReferencesRemain) {
   // Send an eos RPC to the receiver. Not required for tear-down, but confirms that the
   // RPC does not cause an error (the receiver will still be called, since it is only
   // Close()'d, not deleted from the data stream manager).
-  Status rpc_status;
-  ImpalaBackendConnection client(exec_env_.impalad_client_cache(),
-      MakeNetworkAddress("localhost", FLAGS_port), &rpc_status);
-  EXPECT_OK(rpc_status);
-  TTransmitDataParams params;
-  params.protocol_version = ImpalaInternalServiceVersion::V1;
-  params.__set_eos(true);
-  params.__set_dest_fragment_instance_id(instance_id);
-  params.__set_dest_node_id(DEST_NODE_ID);
-  TUniqueId dummy_id;
-  params.__set_sender_id(0);
+  unique_ptr<ImpalaInternalServiceProxy> proxy;
+  EXPECT_TRUE(ExecEnv::GetInstance()->rpc_mgr()->GetProxy(MakeNetworkAddress("localhost", FLAGS_port),
+          &proxy).ok());
+  TransmitDataRequestPB request;
+  request.set_eos(true);
+  request.mutable_dest_fragment_instance_id()->set_hi(instance_id.hi);
+  request.mutable_dest_fragment_instance_id()->set_lo(instance_id.lo);
+  request.set_dest_node_id(DEST_NODE_ID);
+  request.set_sender_id(0);
 
-  TTransmitDataResult result;
-  rpc_status = client.DoRpc(&ImpalaBackendClient::TransmitData, params, &result);
+  TransmitDataResponsePB response;
+  using kudu::rpc::RpcController;
+  RpcController controller;
+  kudu::Status rpc_status = proxy->TransmitData(request, &response, &controller);
+  EXPECT_OK(FromKuduStatus(controller.status()));
 
   // Finally, stream_recvr destructor happens here. Before fix for IMPALA-2931, this
   // would have resulted in a crash.

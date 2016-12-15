@@ -26,18 +26,18 @@
 #include "runtime/data-stream-recvr.h"
 #include "runtime/raw-value.inline.h"
 #include "runtime/runtime-state.h"
+#include "service/impala_internal_service.pb.h"
 #include "util/debug-util.h"
 #include "util/periodic-counter-updater.h"
 #include "util/runtime-profile-counters.h"
 #include "util/uid-util.h"
 
-#include "gen-cpp/ImpalaInternalService.h"
-#include "gen-cpp/ImpalaInternalService_types.h"
+#include "service/impala_internal_service.pb.h"
 
 #include "common/names.h"
 
-using namespace apache::thrift;
 using std::boolalpha;
+using impala::rpc::RowBatchPB;
 
 DEFINE_int32(datastream_sender_timeout_ms, 120000, "(Advanced) The time, in ms, that can "
     "elapse  before a plan fragment will time-out trying to send the initial row batch.");
@@ -166,10 +166,10 @@ shared_ptr<DataStreamRecvr> DataStreamMgr::FindRecvr(
 }
 
 Status DataStreamMgr::AddData(const TUniqueId& fragment_instance_id,
-    PlanNodeId dest_node_id, const TRowBatch& thrift_batch, int sender_id) {
+    PlanNodeId dest_node_id, const RowBatchPB& proto_batch, int sender_id) {
   VLOG_ROW << "AddData(): fragment_instance_id=" << fragment_instance_id
            << " node=" << dest_node_id
-           << " size=" << RowBatch::GetBatchSize(thrift_batch);
+           << " size=" << RowBatch::GetBatchSize(proto_batch);
   bool already_unregistered;
   shared_ptr<DataStreamRecvr> recvr = FindRecvrOrWait(fragment_instance_id, dest_node_id,
       &already_unregistered);
@@ -186,7 +186,7 @@ Status DataStreamMgr::AddData(const TUniqueId& fragment_instance_id,
         Status(TErrorCode::DATASTREAM_SENDER_TIMEOUT, PrintId(fragment_instance_id));
   }
   DCHECK(!already_unregistered);
-  recvr->AddBatch(thrift_batch, sender_id);
+  recvr->AddBatch(proto_batch, sender_id);
   return Status::OK();
 }
 
