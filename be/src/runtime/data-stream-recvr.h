@@ -24,9 +24,10 @@
 #include "common/object-pool.h"
 #include "common/status.h"
 #include "gen-cpp/Types_types.h"   // for TUniqueId
-#include "gen-cpp/Results_types.h" // for TRowBatch
 #include "runtime/descriptors.h"
 #include "util/tuple-row-compare.h"
+
+namespace kudu { namespace rpc { class RpcContext; } }
 
 namespace impala {
 
@@ -34,6 +35,7 @@ class DataStreamMgr;
 class SortedRunMerger;
 class MemTracker;
 class RowBatch;
+class TransmitDataCtx;
 class RuntimeProfile;
 
 /// Single receiver of an m:n data stream.
@@ -93,6 +95,8 @@ class DataStreamRecvr {
   const RowDescriptor& row_desc() const { return row_desc_; }
   MemTracker* mem_tracker() const { return mem_tracker_.get(); }
 
+  void ReplyToPendingSenders();
+
  private:
   friend class DataStreamMgr;
   class SenderQueue;
@@ -104,7 +108,7 @@ class DataStreamRecvr {
 
   /// Add a new batch of rows to the appropriate sender queue, blocking if the queue is
   /// full. Called from DataStreamMgr.
-  void AddBatch(const TRowBatch& thrift_batch, int sender_id);
+  void AddBatch(const TransmitDataCtx& payload);
 
   /// Indicate that a particular sender is done. Delegated to the appropriate
   /// sender queue. Called from DataStreamMgr.

@@ -45,6 +45,7 @@ class ExprContext;
 class LlvmBuilder;
 class LlvmCodeGen;
 class ObjectPool;
+class RowBatchPb;
 class RuntimeState;
 class TDescriptorTable;
 class TSlotDescriptor;
@@ -533,6 +534,9 @@ class RowDescriptor {
 
   /// Populate row_tuple_ids with our ids.
   void ToThrift(std::vector<TTupleId>* row_tuple_ids);
+
+  /// Serialize to the row_tuples field of a RowBatchPb.
+  void ToProto(RowBatchPb* row_batch);
 
   /// Return true if the tuple ids of this descriptor are a prefix
   /// of the tuple ids of other_desc.

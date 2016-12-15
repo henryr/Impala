@@ -41,7 +41,6 @@ class DataSink;
 class DataStreamMgr;
 class RuntimeProfile;
 class RuntimeState;
-class TRowBatch;
 class TPlanExecRequest;
 class TPlanFragment;
 class TPlanExecParams;
