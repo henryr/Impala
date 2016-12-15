@@ -15,19 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#include "runtime/row-batch.h"
 #include "common/init.h"
-#include "testutil/gtest-util.h"
-#include "runtime/collection-value.h"
 #include "runtime/collection-value-builder.h"
+#include "runtime/collection-value.h"
 #include "runtime/mem-tracker.h"
 #include "runtime/raw-value.h"
 #include "runtime/raw-value.inline.h"
-#include "runtime/row-batch.h"
 #include "runtime/tuple-row.h"
 #include "service/fe-support.h"
 #include "service/frontend.h"
-#include "util/stopwatch.h"
+#include "service/data_stream_service.pb.h"
 #include "testutil/desc-tbl-builder.h"
+#include "testutil/gtest-util.h"
+#include "util/stopwatch.h"
 
 #include "common/names.h"
 
@@ -65,10 +66,10 @@ class RowBatchSerializeTest : public testing::Test {
       bool full_dedup = false) {
     if (print_batches) cout << PrintBatch(batch) << endl;
 
-    TRowBatch trow_batch;
-    EXPECT_OK(batch->Serialize(&trow_batch, full_dedup));
+    ProtoRowBatch pbrow_batch;
+    EXPECT_OK(batch->Serialize(&pbrow_batch, full_dedup));
 
-    RowBatch deserialized_batch(row_desc, trow_batch, tracker_.get());
+    RowBatch deserialized_batch(row_desc, pbrow_batch, tracker_.get());
     if (print_batches) cout << PrintBatch(&deserialized_batch) << endl;
 
     EXPECT_EQ(batch->num_rows(), deserialized_batch.num_rows());
@@ -485,14 +486,14 @@ void RowBatchSerializeTest::TestDupRemoval(bool full_dedup) {
   vector<Tuple*> tuples;
   CreateTuples(tuple_desc, batch->tuple_data_pool(), num_distinct_tuples, 0, 10, &tuples);
   AddTuplesToRowBatch(num_rows, tuples, repeats, batch);
-  TRowBatch trow_batch;
-  EXPECT_OK(batch->Serialize(&trow_batch, full_dedup));
+  ProtoRowBatch pbrow_batch;
+  EXPECT_OK(batch->Serialize(&pbrow_batch, full_dedup));
   // Serialized data should only have one copy of each tuple.
   int64_t total_byte_size = 0; // Total size without duplication
   for (int i = 0; i < tuples.size(); ++i) {
     total_byte_size += tuples[i]->TotalByteSize(tuple_desc);
   }
-  EXPECT_EQ(total_byte_size, trow_batch.uncompressed_size);
+  EXPECT_EQ(total_byte_size, pbrow_batch.header.uncompressed_size());
   TestRowBatch(row_desc, batch, false, full_dedup);
 }
 
@@ -622,15 +623,16 @@ TEST_F(RowBatchSerializeTest, DedupPathologicalFull) {
   // Full dedup should be automatically enabled because of row batch structure.
   EXPECT_TRUE(UseFullDedup(batch));
   LOG(INFO) << "Serializing row batch";
-  TRowBatch trow_batch;
-  EXPECT_OK(batch->Serialize(&trow_batch));
-  LOG(INFO) << "Serialized batch size: " << trow_batch.tuple_data.size();
-  LOG(INFO) << "Serialized batch uncompressed size: " << trow_batch.uncompressed_size;
+  ProtoRowBatch pbrow_batch;
+  EXPECT_OK(batch->Serialize(&pbrow_batch));
+  LOG(INFO) << "Serialized batch size: " << pbrow_batch.tuple_data.size();
+  LOG(INFO) << "Serialized batch uncompressed size: "
+            << pbrow_batch.header.uncompressed_size();
   LOG(INFO) << "Serialized batch expected size: " << total_byte_size;
   // Serialized data should only have one copy of each tuple.
-  EXPECT_EQ(total_byte_size, trow_batch.uncompressed_size);
+  EXPECT_EQ(total_byte_size, pbrow_batch.header.uncompressed_size());
   LOG(INFO) << "Deserializing row batch";
-  RowBatch deserialized_batch(row_desc, trow_batch, tracker_.get());
+  RowBatch deserialized_batch(row_desc, pbrow_batch, tracker_.get());
   LOG(INFO) << "Verifying row batch";
   // Need to do special verification: comparing all duplicate strings is too slow.
   EXPECT_EQ(batch->num_rows(), deserialized_batch.num_rows());
