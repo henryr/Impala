@@ -64,6 +64,9 @@ class RpcMgr {
   /// kudu::rpc::GeneratedServiceIf). Only one service of each type may be registered.
   template <typename T>
   Status RegisterService(T** service = nullptr) {
+    if (messenger_ == nullptr) {
+      return Status("Could not start service: RpcMgr::Start() not called");
+    }
     T* service_ptr = new T(messenger_->metric_entity(), tracker_);
     if (service != nullptr) *service = service_ptr;
     return RegisterServiceImpl(service_ptr->service_name(), service_ptr);

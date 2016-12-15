@@ -213,7 +213,7 @@ Status StatestoreSubscriber::Start() {
 
     // Backend must be started before registration
     StatestoreSubscriberImpl* impl;
-    rpc_mgr_->RegisterService<StatestoreSubscriberImpl>(&impl);
+    RETURN_IF_ERROR(rpc_mgr_->RegisterService<StatestoreSubscriberImpl>(&impl));
     impl->set_subscriber(this);
 
     LOG(INFO) << "Registering with statestore";
