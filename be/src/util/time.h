@@ -26,6 +26,10 @@
 /// Utilities for collecting timings.
 namespace impala {
 
+#define MICROS_PER_MILLI     1000ll
+#define MICROS_PER_SEC    1000000ll
+#define NANOS_PER_SEC  1000000000ll
+
 /// Returns a value representing a point in time that is unaffected by daylight savings or
 /// manual adjustments to the system clock. This should not be assumed to be a Unix
 /// time. Typically the value corresponds to elapsed time since the system booted. See
