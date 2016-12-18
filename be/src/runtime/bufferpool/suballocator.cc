@@ -83,7 +83,8 @@ Status Suballocator::Allocate(int64_t bytes, unique_ptr<Suballocation>* result) 
 }
 
 int Suballocator::ComputeListIndex(int64_t bytes) const {
-  return Bits::Log2CeilingNonZero64(bytes) - LOG_MIN_ALLOCATION_BYTES;
+  // TODO(KRPC): Re-add non-zero version?
+  return Bits::Log2Ceiling64(bytes) - LOG_MIN_ALLOCATION_BYTES;
 }
 
 Status Suballocator::AllocateBuffer(int64_t bytes, unique_ptr<Suballocation>* result) {

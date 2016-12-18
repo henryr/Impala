@@ -221,14 +221,15 @@ TEST(BitUtil, ByteSwap) {
 TEST(BitUtil, Log2) {
   // We use gutil's implementation in place of an older custom implementation in BitUtil.
   // We leave this test here to ensure no test coverage is lost.
-  EXPECT_EQ(Bits::Log2CeilingNonZero64(1), 0);
-  EXPECT_EQ(Bits::Log2CeilingNonZero64(2), 1);
-  EXPECT_EQ(Bits::Log2CeilingNonZero64(3), 2);
-  EXPECT_EQ(Bits::Log2CeilingNonZero64(4), 2);
-  EXPECT_EQ(Bits::Log2CeilingNonZero64(5), 3);
-  EXPECT_EQ(Bits::Log2CeilingNonZero64(INT_MAX), 31);
-  EXPECT_EQ(Bits::Log2CeilingNonZero64(UINT_MAX), 32);
-  EXPECT_EQ(Bits::Log2CeilingNonZero64(ULLONG_MAX), 64);
+  // TODO(KRPC): Re-add NonZero version
+  EXPECT_EQ(Bits::Log2Ceiling64(1), 0);
+  EXPECT_EQ(Bits::Log2Ceiling64(2), 1);
+  EXPECT_EQ(Bits::Log2Ceiling64(3), 2);
+  EXPECT_EQ(Bits::Log2Ceiling64(4), 2);
+  EXPECT_EQ(Bits::Log2Ceiling64(5), 3);
+  EXPECT_EQ(Bits::Log2Ceiling64(INT_MAX), 31);
+  EXPECT_EQ(Bits::Log2Ceiling64(UINT_MAX), 32);
+  EXPECT_EQ(Bits::Log2Ceiling64(ULLONG_MAX), 64);
 }
 
 TEST(BitUtil, RoundUpToPowerOf2) {
