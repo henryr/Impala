@@ -21,7 +21,6 @@
 #include "kudu/rpc/result_tracker.h"
 #include "kudu/rpc/rpc_controller.h"
 #include "kudu/rpc/service_if.h"
-#include "kudu/rpc/service_pool.h"
 
 #include "common/names.h"
 #include "service/impala_internal_service.service.h"
@@ -51,6 +50,7 @@ Status RpcMgr::RegisterServiceImpl(const string& name, ServiceIf* service) {
       new ServicePool(std::move(service_ptr), messenger_->metric_entity(), 50);
   messenger_->RegisterService(name, service_pool);
   service_pool->Init(64);
+  service_pools_.push_back(service_pool);
   LOG(INFO) << "Service '" << name << "' is listening";
   return Status::OK();
 }
@@ -63,13 +63,12 @@ Status RpcMgr::Start(int32_t port) {
   bld.Build(&messenger_);
 
   shared_ptr<AcceptorPool> acceptor_pool;
-
-  // TODO(KRPC): Return statuses
   HostPort hostport(FLAGS_hostname, port);
   vector<Sockaddr> addresses;
-  hostport.ResolveAddresses(&addresses); // TODO check return status
+  RETURN_IF_ERROR(FromKuduStatus(hostport.ResolveAddresses(&addresses)));
   DCHECK_GE(addresses.size(), 1);
-  messenger_->AddAcceptorPool(addresses[0], &acceptor_pool);
-  acceptor_pool->Start(2);
+  RETURN_IF_ERROR(
+      FromKuduStatus(messenger_->AddAcceptorPool(addresses[0], &acceptor_pool)));
+  RETURN_IF_ERROR(FromKuduStatus(acceptor_pool->Start(2)));
   return Status::OK();
 }

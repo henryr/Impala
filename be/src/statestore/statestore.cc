@@ -362,14 +362,16 @@ Status Statestore::OfferUpdate(const ScheduledSubscriberUpdate& update,
     ThreadPool<ScheduledSubscriberUpdate>* threadpool) {
   if (threadpool->GetQueueSize() >= STATESTORE_MAX_SUBSCRIBERS
       || !threadpool->Offer(update)) {
-    stringstream ss;
-    ss << "Maximum subscriber limit reached: " << STATESTORE_MAX_SUBSCRIBERS;
+    if (ShouldExit()) return Status("Statestore is shutting down");
+
     lock_guard<mutex> l(subscribers_lock_);
     SubscriberMap::iterator subscriber_it = subscribers_.find(update.second);
     DCHECK(subscriber_it != subscribers_.end());
     subscribers_.erase(subscriber_it);
-    LOG(ERROR) << ss.str();
-    return Status(ss.str());
+    const string err =
+        Substitute("Maximum subscriber limit reached: $0", STATESTORE_MAX_SUBSCRIBERS);
+    LOG(ERROR) << err;
+    return Status(err);
   }
 
   return Status::OK();
@@ -615,6 +617,7 @@ void Statestore::SetExitFlag() {
   lock_guard<mutex> l(exit_flag_lock_);
   exit_flag_ = true;
   subscriber_topic_update_threadpool_.Shutdown();
+  subscriber_heartbeat_threadpool_.Shutdown();
 }
 
 Status Statestore::SendHeartbeat(Subscriber* subscriber) {
@@ -740,7 +743,7 @@ void Statestore::DoSubscriberUpdate(bool is_heartbeat, int thread_id,
   }
   // Schedule the next message.
   VLOG(3) << "Next " << (is_heartbeat ? "heartbeat" : "update") << " deadline for: "
-          << subscriber->id() << " is in " << (deadline_ms - MonotonicMillis()) << "ms";
+          << subscriber->id() << " is in " << (deadline_ms - UnixMillis()) << "ms";
   OfferUpdate(make_pair(deadline_ms, subscriber->id()), is_heartbeat ?
       &subscriber_heartbeat_threadpool_ : &subscriber_topic_update_threadpool_);
 }
@@ -772,6 +775,7 @@ void Statestore::UnregisterSubscriber(Subscriber* subscriber) {
 
 Status Statestore::MainLoop() {
   subscriber_topic_update_threadpool_.Join();
+  subscriber_heartbeat_threadpool_.Join();
   rpc_mgr_->UnregisterServices();
   return Status::OK();
 }

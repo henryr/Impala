@@ -233,13 +233,26 @@ Status StatestoreSubscriber::Start() {
   return status;
 }
 
+void StatestoreSubscriber::Shutdown() {
+  {
+    lock_guard<mutex> l(lock_);
+    is_shutdown_ = true;
+  }
+  recovery_mode_thread_->Join();
+}
+
+bool StatestoreSubscriber::IsShutdown() {
+  lock_guard<mutex> l(lock_);
+  return is_shutdown_;
+}
+
 void StatestoreSubscriber::RecoveryModeChecker() {
   failure_detector_->UpdateHeartbeat(STATESTORE_ID, true);
 
   // Every few seconds, wake up and check if the failure detector has determined
   // that the statestore has failed from our perspective. If so, enter recovery
   // mode and try to reconnect, followed by reregistering all subscriptions.
-  while (true) {
+  while (!IsShutdown()) {
     if (failure_detector_->GetPeerState(STATESTORE_ID) == FailureDetector::FAILED) {
       // When entering recovery mode, the class-wide lock_ is taken to
       // ensure mutual exclusion with any operations in flight.

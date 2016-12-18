@@ -113,6 +113,7 @@ class StatestoreSubscriber {
   //
   /// Returns OK unless some error occurred, like a failure to connect.
   Status Start();
+  void Shutdown();
 
   const std::string& id() const { return subscriber_id_; }
 
@@ -213,6 +214,8 @@ class StatestoreSubscriber {
   /// Current registration ID, in string form.
   StringProperty* registration_id_metric_;
 
+  bool is_shutdown_ = false;
+
   /// Subscriber service implementation, needs to access UpdateState
   friend class StatestoreSubscriberImpl;
 
@@ -250,7 +253,9 @@ class StatestoreSubscriber {
   /// During recovery mode, any public methods that are started will block on lock_, which
   /// is only released when recovery finishes. In practice, all registrations are made
   /// early in the life of an impalad before the statestore could be detected as failed.
-  [[noreturn]] void RecoveryModeChecker();
+  void RecoveryModeChecker();
+
+  bool IsShutdown();
 
   /// Creates a client of the remote statestore and sends a list of
   /// topics to register for. Returns OK unless there is some problem

@@ -20,6 +20,7 @@
 
 #include "kudu/rpc/messenger.h"
 #include "kudu/rpc/rpc_context.h"
+#include "kudu/rpc/service_pool.h"
 #include "kudu/util/net/net_util.h"
 #include "kudu/util/net/sockaddr.h"
 
@@ -89,6 +90,9 @@ class RpcMgr {
   /// Unregisters all previously registered services. The RPC layer continues to run.
   void UnregisterServices() {
     if (messenger_.get() == nullptr) return;
+    for (auto pool: service_pools_) {
+      pool->Shutdown();
+    }
     messenger_->UnregisterAllServices();
   }
 
@@ -98,6 +102,7 @@ class RpcMgr {
   kudu::MetricRegistry registry_;
 
   std::shared_ptr<kudu::rpc::Messenger> messenger_;
+  std::vector<scoped_refptr<kudu::rpc::ServicePool>> service_pools_;
 
   const scoped_refptr<kudu::rpc::ResultTracker> tracker_;
 };

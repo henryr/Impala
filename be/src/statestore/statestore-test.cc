@@ -47,7 +47,6 @@ class StatestoreTest : public testing::Test {
     webserver_.reset(new Webserver());
     webserver_->Start();
     StartThreadInstrumentation(metrics_.get(), webserver_.get());
-    rpc_mgr_.Start(FLAGS_state_store_port  + 10);
     statestore_.reset(new Statestore(metrics_.get()));
     statestore_->RegisterWebpages(webserver_.get());
   }
@@ -55,30 +54,22 @@ class StatestoreTest : public testing::Test {
   virtual void TearDown() {
     statestore_->SetExitFlag();
     statestore_->MainLoop();
-    rpc_mgr_.UnregisterServices();
   }
 };
 
 TEST_F(StatestoreTest, SmokeTest) {
-  // All allocations done by 'new' to avoid problems shutting down Thrift servers
-  // gracefully.
-  // InProcessStatestore* ips = InProcessStatestore::StartWithEphemeralPorts();
-  // ASSERT_TRUE(ips != NULL) << "Could not start Statestore";
-  // // Port already in use
-  // InProcessStatestore* statestore_wont_start =
-  //     new InProcessStatestore(ips->port(), ips->port() + 10);
-  // ASSERT_FALSE(statestore_wont_start->Start().ok());
+  rpc_mgr_.Start(FLAGS_state_store_port  + 10);
 
-  StatestoreSubscriber* sub_will_start = new StatestoreSubscriber("sub1",
+  StatestoreSubscriber sub_will_start("sub1",
       MakeNetworkAddress("localhost", FLAGS_state_store_port + 10),
       MakeNetworkAddress("localhost", FLAGS_state_store_port), &rpc_mgr_, metrics_.get());
-  ASSERT_OK(sub_will_start->Start());
+  ASSERT_OK(sub_will_start.Start());
 
-  // Confirm that a subscriber trying to use an in-use port will fail to start.
-  // StatestoreSubscriber* sub_will_not_start = new StatestoreSubscriber("sub2",
-  //     MakeNetworkAddress("localhost", subscriber_port),
-  //     MakeNetworkAddress("localhost", FLAGS_state_store_port), &rpc_mgr_, metrics_.get());
-  // ASSERT_FALSE(sub_will_not_start->Start().ok());
+
+
+  sub_will_start.Shutdown();
+
+  rpc_mgr_.UnregisterServices();
 }
 
 // TEST(StatestoreSslTest, SmokeTest) {
