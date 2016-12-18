@@ -18,10 +18,10 @@
 #ifndef IMPALA_SERVICE_IMPALA_INTERNAL_SERVICE_H
 #define IMPALA_SERVICE_IMPALA_INTERNAL_SERVICE_H
 
-namespace impala {
-
 #include "service/impala_internal_service.pb.h"
 #include "service/impala_internal_service.service.h"
+
+namespace impala {
 
 /// Proxies RPC requests onto their implementing objects for the
 /// ImpalaInternalService service.

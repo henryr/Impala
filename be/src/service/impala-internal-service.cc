@@ -20,9 +20,11 @@
 #include "gen-cpp/ImpalaInternalService_types.h"
 #include "kudu/rpc/rpc_context.h"
 #include "rpc/thrift-util.h"
+#include "runtime/query-exec-mgr.h"
+#include "runtime/query-state.h"
+#include "runtime/fragment-instance-state.h"
 #include "runtime/data-stream-mgr.h"
 #include "runtime/exec-env.h"
-#include "service/fragment-mgr.h"
 #include "service/impala-server.h"
 #include "service/impala_internal_service.pb.h"
 
@@ -33,6 +35,8 @@ using impala::rpc::TransmitDataRequestPB;
 using impala::rpc::TransmitDataResponsePB;
 using impala::rpc::PublishFilterRequestPB;
 using impala::rpc::PublishFilterResponsePB;
+
+using boost::lexical_cast;
 
 using namespace impala::rpc; // TODO - > decide if this a hack.
 
@@ -71,7 +75,18 @@ void ImpalaInternalServiceImpl::TransmitData(const TransmitDataRequestPB* reques
 
 void ImpalaInternalServiceImpl::PublishFilter(const PublishFilterRequestPB* request,
     PublishFilterResponsePB* response, RpcContext* context) {
-  ExecEnv::GetInstance()->fragment_mgr()->PublishFilter(request, response);
+  TUniqueId finst_id;
+  finst_id.__set_lo(request->dst_instance_id().lo());
+  finst_id.__set_hi(request->dst_instance_id().hi());
+
+  QueryState::ScopedRef qs(GetQueryId(finst_id));
+  if (qs.get() != nullptr) {
+    FragmentInstanceState* fis = qs->GetFInstanceState(finst_id);
+    if (fis != nullptr) {
+      fis->PublishFilter(request->filter_id(), request->bloom_filter());
+    }
+  }
+
   context->RespondSuccess();
 }
 
@@ -89,7 +104,7 @@ void ImpalaInternalServiceImpl::ExecPlanFragment(const ExecPlanFragmentRequestPB
       reinterpret_cast<const uint8_t*>(request->thrift_struct().data()), &len, true,
       &thrift_request);
   TExecPlanFragmentResult return_val;
-  ExecEnv::GetInstance()->query_exec_mgr()->StartFInstance(params_.SetTStatus(&return_val);
+  ExecEnv::GetInstance()->query_exec_mgr()->StartFInstance(thrift_request).SetTStatus(&return_val);
   SerializeThriftToProtoWrapper(&return_val, true, response);
   context->RespondSuccess();
 }
@@ -123,6 +138,7 @@ void ImpalaInternalServiceImpl::CancelPlanFragment(
       reinterpret_cast<const uint8_t*>(request->thrift_struct().data()), &len, true,
       &thrift_request);
 
+  TCancelPlanFragmentResult return_val;
   QueryState::ScopedRef qs(GetQueryId(thrift_request.fragment_instance_id));
   if (qs.get() == nullptr) {
     SetUnknownIdError("query", GetQueryId(thrift_request.fragment_instance_id), &return_val);
@@ -133,12 +149,11 @@ void ImpalaInternalServiceImpl::CancelPlanFragment(
     SetUnknownIdError("instance", thrift_request.fragment_instance_id, &return_val);
     return;
   }
-  Status status = fis->Cancel();
-  status.SetTStatus(&return_val);
+  fis->Cancel().SetTStatus(&return_val);
 
   SerializeThriftToProtoWrapper(&return_val, true, response);
   context->RespondSuccess();
 
 }
->>>>>>> [KRPC] Port ImpalaInternalService to KRPC
+
 }

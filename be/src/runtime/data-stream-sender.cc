@@ -28,6 +28,7 @@
 #include "rpc/thrift-client.h"
 #include "rpc/thrift-util.h"
 #include "runtime/descriptors.h"
+#include "runtime/exec-env.h"
 #include "runtime/mem-tracker.h"
 #include "runtime/raw-value.inline.h"
 #include "runtime/row-batch.h"

@@ -30,6 +30,7 @@
 #include "runtime/runtime-filter-bank.h"
 #include "service/impala_internal_service.pb.h"
 #include "util/bloom-filter.h"
+#include "service/impala_internal_service.pb.h"
 
 #include "kudu/util/net/net_util.h"
 #include "service/impala_internal_service.proxy.h"
@@ -146,7 +147,7 @@ void FragmentInstanceState::ReportStatusCb(
   // }
 }
 
-void FragmentMgr::FragmentExecState::PublishFilter(
+void FragmentInstanceState::PublishFilter(
     int32_t filter_id, const BloomFilterPB& bloom_filter_pb) {
   // Defensively protect against blocking forever in case there's some problem with
   // Prepare().

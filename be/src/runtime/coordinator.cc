@@ -49,6 +49,7 @@
 #include "gen-cpp/PlanNodes_types.h"
 #include "kudu/util/net/net_util.h"
 #include "rpc/rpc-mgr.h"
+#include "rpc/thrift-util.h"
 #include "runtime/data-stream-mgr.h"
 #include "runtime/data-stream-sender.h"
 #include "runtime/exec-env.h"
