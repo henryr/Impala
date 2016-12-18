@@ -644,8 +644,9 @@ Status InitAuth(const string& appname) {
     // created to ensure that Kudu doesn't init SASL first, and this returns an error if
     // Kudu has already initialized SASL.
     if (impala::KuduIsAvailable()) {
-      KUDU_RETURN_IF_ERROR(kudu::client::DisableSaslInitialization(),
-          "Unable to disable Kudu SASL initialization.");
+      // TODO(KRPC): Where has this gone?
+      // KUDU_RETURN_IF_ERROR(kudu::client::DisableSaslInitialization(),
+      //     "Unable to disable Kudu SASL initialization.");
     }
 
     // Add our auxprop plugin, which gives us a hook before authentication
