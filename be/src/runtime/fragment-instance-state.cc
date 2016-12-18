@@ -35,9 +35,7 @@
 #include "service/impala_internal_service.proxy.h"
 
 #include "runtime/exec-env.h"
-#include "runtime/backend-client.h"
 #include "runtime/runtime-filter-bank.h"
-#include "runtime/client-cache.h"
 #include "runtime/runtime-state.h"
 #include "runtime/query-state.h"
 #include "gen-cpp/ImpalaInternalService_types.h"
