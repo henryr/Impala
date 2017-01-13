@@ -293,6 +293,7 @@ set (IMPALA_LINK_LIBS
   Rpc
   Runtime
   Scheduling
+  security
   Service
   Statestore
   TestUtil
@@ -314,6 +315,7 @@ if (BUILD_SHARED_LIBS)
     Exprs
     Rpc
     Service
+    security
     Statestore
     Scheduling
     Catalog
@@ -444,6 +446,7 @@ add_subdirectory(src/codegen)
 add_subdirectory(src/common)
 add_subdirectory(src/exec)
 add_subdirectory(src/exprs)
+add_subdirectory(src/kudu/security)
 add_subdirectory(src/kudu/util)
 add_subdirectory(src/runtime)
 add_subdirectory(src/scheduling)
