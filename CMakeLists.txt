@@ -329,6 +329,11 @@ include_directories(SYSTEM ${CRCUTIL_INCLUDE_DIR})
 ADD_THIRDPARTY_LIB(crcutil
   STATIC_LIB "${CRCUTIL_STATIC_LIB}")
 
+find_package(Kerberos REQUIRED)
+include_directories(${KERBEROS_INCLUDE_DIR})
+ADD_THIRDPARTY_LIB(krb5
+  SHARED_LIB "${KERBEROS_LIBRARY}")
+
 ###################################################################
 
 # KuduClient can use GLOG
