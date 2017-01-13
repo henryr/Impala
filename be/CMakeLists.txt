@@ -328,10 +328,12 @@ set (IMPALA_LINK_LIBS
   Rpc
   Runtime
   Scheduling
+  security
   Service
   Statestore
   TestUtil
   ThriftSaslTransport
+  token_proto
   Udf
   Util
   ${WL_END_GROUP}
@@ -349,6 +351,7 @@ if (BUILD_SHARED_LIBS)
     Exprs
     Rpc
     Service
+    security
     Statestore
     Scheduling
     Catalog
@@ -374,6 +377,7 @@ set (IMPALA_DEPENDENCIES
   gutil
   glogstatic
   gflagsstatic
+  krb5
   pprofstatic
   breakpad
   ${HDFS_LIB}
@@ -479,6 +483,7 @@ add_subdirectory(src/codegen)
 add_subdirectory(src/common)
 add_subdirectory(src/exec)
 add_subdirectory(src/exprs)
+add_subdirectory(src/kudu/security)
 add_subdirectory(src/kudu/util)
 add_subdirectory(src/runtime)
 add_subdirectory(src/scheduling)
