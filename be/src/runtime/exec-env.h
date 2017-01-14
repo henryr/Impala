@@ -45,6 +45,7 @@ class MetricGroup;
 class QueryResourceMgr;
 class RequestPoolService;
 class ReservationTracker;
+class RpcMgr;
 class Scheduler;
 class StatestoreSubscriber;
 class TestExecEnv;
@@ -99,6 +100,7 @@ class ExecEnv {
   PoolMemTrackerRegistry* pool_mem_trackers() { return pool_mem_trackers_.get(); }
   ReservationTracker* buffer_reservation() { return buffer_reservation_.get(); }
   BufferPool* buffer_pool() { return buffer_pool_.get(); }
+  RpcMgr* rpc_mgr() { return rpc_mgr_.get(); }
 
   void set_enable_webserver(bool enable) { enable_webserver_ = enable; }
 
@@ -151,6 +153,8 @@ class ExecEnv {
   boost::scoped_ptr<ReservationTracker> buffer_reservation_;
   boost::scoped_ptr<BufferPool> buffer_pool_;
 
+  boost::scoped_ptr<RpcMgr> rpc_mgr_;
+
   /// Not owned by this class
   ImpalaServer* impala_server_;
 
@@ -164,6 +168,9 @@ class ExecEnv {
 
   /// Address of the Impala backend server instance
   TNetworkAddress backend_address_;
+
+  /// Address of statestore subscriber service.
+  TNetworkAddress subscriber_address_;
 
   /// fs.defaultFs value set in core-site.xml
   std::string default_fs_;
