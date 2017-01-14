@@ -28,6 +28,7 @@
 #include "common/object-pool.h"
 #include "exec/kudu-util.h"
 #include "gen-cpp/ImpalaInternalService.h"
+#include "rpc/rpc-mgr.h"
 #include "runtime/backend-client.h"
 #include "runtime/bufferpool/buffer-pool.h"
 #include "runtime/bufferpool/reservation-tracker.h"
@@ -83,6 +84,8 @@ DECLARE_int32(be_port);
 DECLARE_string(mem_limit);
 DECLARE_bool(is_coordinator);
 DECLARE_int32(webserver_port);
+DECLARE_int32(num_acceptor_threads);
+DECLARE_int32(num_reactor_threads);
 
 // TODO: Remove the following RM-related flags in Impala 3.0.
 DEFINE_bool_hidden(enable_rm, false, "Deprecated");
@@ -132,7 +135,6 @@ ExecEnv::ExecEnv()
   : ExecEnv(FLAGS_hostname, FLAGS_be_port, FLAGS_state_store_subscriber_port,
         FLAGS_webserver_port, FLAGS_state_store_host, FLAGS_state_store_port) {}
 
-// TODO: Need refactor to get rid of duplicated code.
 ExecEnv::ExecEnv(const string& hostname, int backend_port, int subscriber_port,
     int webserver_port, const string& statestore_host, int statestore_port)
   : obj_pool_(new ObjectPool),
@@ -159,6 +161,9 @@ ExecEnv::ExecEnv(const string& hostname, int backend_port, int subscriber_port,
         FLAGS_coordinator_rpc_threads, numeric_limits<int32_t>::max())),
     async_rpc_pool_(new CallableThreadPool("rpc-pool", "async-rpc-sender", 8, 10000)),
     query_exec_mgr_(new QueryExecMgr()),
+    buffer_reservation_(nullptr),
+    buffer_pool_(nullptr),
+    rpc_mgr_(new RpcMgr()),
     enable_webserver_(FLAGS_enable_webserver && webserver_port > 0),
     backend_address_(MakeNetworkAddress(hostname, backend_port)) {
   request_pool_service_.reset(new RequestPoolService(metrics_.get()));
@@ -240,6 +245,8 @@ Status ExecEnv::StartServices() {
   RETURN_IF_ERROR(RegisterMemoryMetrics(
       metrics_.get(), true, buffer_reservation_.get(), buffer_pool_.get()));
 
+  RETURN_IF_ERROR(rpc_mgr_->Init(FLAGS_num_acceptor_threads));
+
   // Limit of -1 means no memory limit.
   mem_tracker_.reset(new MemTracker(
       AggregateMemoryMetric::TOTAL_USED, bytes_limit > 0 ? bytes_limit : -1, "Process"));
@@ -308,6 +315,10 @@ Status ExecEnv::StartServices() {
     }
   }
 
+  // Do this last of all - now RPCs may arrive so all services should be up to handle
+  // them.
+  RETURN_IF_ERROR(
+      rpc_mgr_->StartServices(subscriber_address_.port, FLAGS_num_acceptor_threads));
   return Status::OK();
 }
 
