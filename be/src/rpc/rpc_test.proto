@@ -14,29 +14,18 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+//
+package impala;
 
-#ifndef IMPALA_RUNTIME_CLIENT_CACHE_DECLS_H
-#define IMPALA_RUNTIME_CLIENT_CACHE_DECLS_H
+// Definitions for service used for rpc-mgr-test.
 
-namespace impala {
+import "rpc/common.proto";
 
-/// Forward declarations for client cache types to avoid including the full class
-/// declaration indirectly in many places where it is not needed.
-template<class T>
-class ClientCache;
+message PingRequestPb {}
 
-template<class T>
-class ClientConnection;
+message PingResponsePb { required int32 int_response = 1; }
 
-/// Common cache / connection types
-class ImpalaBackendClient;
-typedef ClientCache<ImpalaBackendClient> ImpalaBackendClientCache;
-typedef ClientConnection<ImpalaBackendClient> ImpalaBackendConnection;
-
-class CatalogServiceClientWrapper;
-typedef ClientCache<CatalogServiceClientWrapper> CatalogServiceClientCache;
-typedef ClientConnection<CatalogServiceClientWrapper> CatalogServiceConnection;
-
+service PingService {
+  rpc Ping(PingRequestPb) returns (PingResponsePb);
+  rpc PingThrift(ThriftWrapperPb) returns (ThriftWrapperPb);
 }
-
-#endif

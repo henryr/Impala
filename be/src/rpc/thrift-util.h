@@ -28,6 +28,8 @@
 #include <thrift/transport/TBufferTransports.h>
 #include <thrift/transport/TTransportException.h>
 
+#include "kudu/util/faststring.h"
+
 #include "common/status.h"
 
 namespace impala {
@@ -89,6 +91,25 @@ class ThriftSerializer {
     return Status::OK();
   }
 
+  template <class T>
+  Status Serialize(T* obj, kudu::faststring* result) {
+    try {
+      mem_buffer_->resetBuffer();
+      obj->write(protocol_.get());
+    } catch (std::exception& e) {
+      std::stringstream msg;
+      msg << "Couldn't serialize thrift object:\n" << e.what();
+      return Status(msg.str());
+    }
+
+    uint8_t* buf;
+    uint32_t size;
+    mem_buffer_->getBuffer(&buf, &size);
+    result->resize(size);
+    memcpy(result->data(), buf, size);
+    return Status::OK();
+  }
+
  private:
   boost::shared_ptr<apache::thrift::transport::TMemoryBuffer> mem_buffer_;
   boost::shared_ptr<apache::thrift::protocol::TProtocol> protocol_;
@@ -134,6 +155,24 @@ Status DeserializeThriftMsg(const uint8_t* buf, uint32_t* len, bool compact,
   uint32_t bytes_left = tmem_transport->available_read();
   *len = *len - bytes_left;
   return Status::OK();
+}
+
+/// Serialize a Thrift structure to a Protobuf. The Protobuf must contain a field called
+/// 'thrift_struct' of type bytes. Returns an error if serialization fails.
+template <class T, class P>
+Status SerializeThriftToProtoWrapper(T* thrift, P* proto) {
+  ThriftSerializer serializer(true);
+  return serializer.Serialize(thrift, proto->mutable_thrift_struct());
+}
+
+/// Deserialize a Thrift structure from a Protobuf, which must contain a field called
+/// 'thrift_struct' of type bytes. Returns an error if deserialization fails.
+template <class T, class P>
+Status DeserializeThriftFromProtoWrapper(const P& proto, T* deserialized_msg) {
+  uint32_t len = proto.thrift_struct().size();
+  return DeserializeThriftMsg(
+      reinterpret_cast<const uint8_t*>(proto.thrift_struct().data()), &len, true,
+      deserialized_msg);
 }
 
 /// Redirects all Thrift logging to VLOG(1)

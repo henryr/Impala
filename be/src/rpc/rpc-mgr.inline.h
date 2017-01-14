@@ -15,28 +15,31 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#ifndef IMPALA_RUNTIME_CLIENT_CACHE_DECLS_H
-#define IMPALA_RUNTIME_CLIENT_CACHE_DECLS_H
+#ifndef IMPALA_RPC_RPC_MGR_INLINE_H
+#define IMPALA_RPC_RPC_MGR_INLINE_H
+
+#include "kudu/rpc/messenger.h"
+#include "kudu/rpc/rpc_header.pb.h"
+#include "kudu/rpc/service_pool.h"
+#include "kudu/util/net/net_util.h"
+#include "kudu/util/net/sockaddr.h"
+
+#include "exec/kudu-util.h"
+
+#include "rpc/rpc-mgr.h"
 
 namespace impala {
 
-/// Forward declarations for client cache types to avoid including the full class
-/// declaration indirectly in many places where it is not needed.
-template<class T>
-class ClientCache;
-
-template<class T>
-class ClientConnection;
-
-/// Common cache / connection types
-class ImpalaBackendClient;
-typedef ClientCache<ImpalaBackendClient> ImpalaBackendClientCache;
-typedef ClientConnection<ImpalaBackendClient> ImpalaBackendConnection;
-
-class CatalogServiceClientWrapper;
-typedef ClientCache<CatalogServiceClientWrapper> CatalogServiceClientCache;
-typedef ClientConnection<CatalogServiceClientWrapper> CatalogServiceConnection;
-
+template <typename P>
+Status RpcMgr::GetProxy(const TNetworkAddress& address, std::unique_ptr<P>* proxy) {
+  DCHECK(proxy != nullptr);
+  DCHECK(is_inited()) << "Must call Init() before GetProxy()";
+  kudu::Sockaddr addr;
+  KUDU_RETURN_IF_ERROR(addr.ParseString(address.hostname, address.port),
+      "Couldn't parse resolved address");
+  proxy->reset(new P(messenger_, addr));
+  return Status::OK();
+}
 }
 
 #endif
