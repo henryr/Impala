@@ -41,6 +41,7 @@ class MemTracker;
 class MetricGroup;
 class QueryResourceMgr;
 class RequestPoolService;
+class RpcMgr;
 class Scheduler;
 class StatestoreSubscriber;
 class TestExecEnv;
@@ -97,6 +98,7 @@ class ExecEnv {
   RequestPoolService* request_pool_service() { return request_pool_service_.get(); }
   CallableThreadPool* rpc_pool() { return async_rpc_pool_.get(); }
   QueryExecMgr* query_exec_mgr() { return query_exec_mgr_.get(); }
+  RpcMgr* rpc_mgr() { return rpc_mgr_.get(); }
 
   void set_enable_webserver(bool enable) { enable_webserver_ = enable; }
 
@@ -139,6 +141,7 @@ class ExecEnv {
   boost::scoped_ptr<CallableThreadPool> fragment_exec_thread_pool_;
   boost::scoped_ptr<CallableThreadPool> async_rpc_pool_;
   boost::scoped_ptr<QueryExecMgr> query_exec_mgr_;
+  boost::scoped_ptr<RpcMgr> rpc_mgr_;
 
   /// Not owned by this class
   ImpalaServer* impala_server_;
@@ -151,6 +154,9 @@ class ExecEnv {
 
   /// Address of the Impala backend server instance
   TNetworkAddress backend_address_;
+
+  /// Address of statestore subscriber service.
+  TNetworkAddress subscriber_address_;
 
   /// fs.defaultFs value set in core-site.xml
   std::string default_fs_;

@@ -27,7 +27,7 @@ add_library(BufferPool
   reservation-tracker.cc
   suballocator.cc
 )
-add_dependencies(BufferPool thrift-deps)
+add_dependencies(BufferPool generated-deps)
 
 ADD_BE_TEST(buffer-pool-test)
 ADD_BE_TEST(reservation-tracker-test)
