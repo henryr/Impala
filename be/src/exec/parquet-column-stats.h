@@ -103,8 +103,8 @@ class ColumnStats : public ColumnStatsBase {
       min_value_ = v;
       max_value_ = v;
     } else {
-      min_value_ = min(min_value_, v);
-      max_value_ = max(max_value_, v);
+      min_value_ = std::min(min_value_, v);
+      max_value_ = std::max(max_value_, v);
     }
   }
 
@@ -117,8 +117,8 @@ class ColumnStats : public ColumnStatsBase {
       min_value_ = cs->min_value_;
       max_value_ = cs->max_value_;
     } else {
-      min_value_ = min(min_value_, cs->min_value_);
-      max_value_ = max(max_value_, cs->max_value_);
+      min_value_ = std::min(min_value_, cs->min_value_);
+      max_value_ = std::max(max_value_, cs->max_value_);
     }
   }
 
