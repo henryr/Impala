@@ -25,6 +25,8 @@
 #include "runtime/string-value.inline.h"
 #include "testutil/gtest-util.h"
 
+#include "common/names.h"
+
 // TODO: IMPALA-3658: complete CHAR unit tests.
 // TODO: IMPALA-3658: complete VARCHAR unit tests.
 
