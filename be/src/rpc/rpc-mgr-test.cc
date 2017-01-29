@@ -391,6 +391,78 @@ TEST_F(RpcTlsTest, WorksWithThrift) {
 
 }
 
+namespace {
+string IMPALA_HOME(getenv("IMPALA_HOME"));
+const string& SERVER_CERT =
+    Substitute("$0/be/src/testutil/server-cert.pem", IMPALA_HOME);
+const string& PRIVATE_KEY =
+    Substitute("$0/be/src/testutil/server-key.pem", IMPALA_HOME);
+const string& BAD_SERVER_CERT =
+    Substitute("$0/be/src/testutil/bad-cert.pem", IMPALA_HOME);
+const string& BAD_PRIVATE_KEY =
+    Substitute("$0/be/src/testutil/bad-key.pem", IMPALA_HOME);
+const string& PASSWORD_PROTECTED_PRIVATE_KEY =
+    Substitute("$0/be/src/testutil/server-key-password.pem", IMPALA_HOME);
+}
+
+TEST_F(RpcTlsTest, SslTest) {
+  RpcMgr ssl_mgr;
+  ssl_mgr.InitWithSsl(4, SERVER_CERT, PRIVATE_KEY, SERVER_CERT);
+  unique_ptr<ServiceIf> impl(
+      new PingServiceImpl(rpc_mgr_.metric_entity(), rpc_mgr_.result_tracker()));
+  ASSERT_OK(ssl_mgr.RegisterService(1, 1, move(impl)));
+  ssl_mgr.StartServices(SERVICE_PORT, 2);
+
+  auto rpc  = Rpc<PingServiceProxy>::Make(MakeNetworkAddress("localhost", SERVICE_PORT),
+      &ssl_mgr);
+
+  PingRequestPb request;
+  PingResponsePb response;
+  ASSERT_OK(rpc.Execute(&PingServiceProxy::Ping, request, &response));
+
+  auto non_ssl_rpc = Rpc<PingServiceProxy>::Make(MakeNetworkAddress("localhost", SERVICE_PORT),
+      &rpc_mgr_);
+
+  ASSERT_FALSE(non_ssl_rpc.Execute(&PingServiceProxy::Ping, request, &response).ok());
+
+  ssl_mgr.UnregisterServices();
+
+}
+
+TEST_F(RpcTlsTest, SslMissingCert) {
+  RpcMgr ssl_mgr;
+  ASSERT_FALSE(ssl_mgr.InitWithSsl(4, SERVER_CERT, PRIVATE_KEY, "unknown").ok());
+}
+
+TEST_F(RpcTlsTest, BlankFields) {
+  RpcMgr ssl_mgr;
+  ASSERT_FALSE(ssl_mgr.InitWithSsl(1, "", PRIVATE_KEY, SERVER_CERT).ok());
+  ASSERT_FALSE(ssl_mgr.InitWithSsl(1, SERVER_CERT, "", SERVER_CERT).ok());
+  ASSERT_FALSE(ssl_mgr.InitWithSsl(1, SERVER_CERT, PRIVATE_KEY, "").ok());
+}
+
+// TEST_F(RpcTlsTest, SslCertHasPwProtectedPrivateKey) {
+//   RpcMgr ssl_mgr;
+//   ASSERT_FALSE(ssl_mgr.InitWithSsl(4, SERVER_CERT, PASSWORD_PROTECTED_PRIVATE_KEY, SERVER_CERT).ok());
+// }
+
+TEST_F(RpcTlsTest, SslWrongClientCert) {
+  RpcMgr ssl_mgr;
+  ASSERT_OK(ssl_mgr.InitWithSsl(4, SERVER_CERT, PRIVATE_KEY, BAD_SERVER_CERT));
+  unique_ptr<ServiceIf> impl(
+      new PingServiceImpl(rpc_mgr_.metric_entity(), rpc_mgr_.result_tracker()));
+  ASSERT_OK(ssl_mgr.RegisterService(1, 1, move(impl)));
+  ssl_mgr.StartServices(SERVICE_PORT, 2);
+
+  auto rpc  = Rpc<PingServiceProxy>::Make(MakeNetworkAddress("localhost", SERVICE_PORT),
+      &ssl_mgr);
+
+  PingRequestPb request;
+  PingResponsePb response;
+  ASSERT_FALSE(rpc.Execute(&PingServiceProxy::Ping, request, &response).ok());
+  ssl_mgr.UnregisterServices();
+}
+
 }
 
 IMPALA_TEST_MAIN();
