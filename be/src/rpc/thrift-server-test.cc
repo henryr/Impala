@@ -104,7 +104,7 @@ TEST(SslTest, Connectivity) {
   // destruction. See IMPALA-2283.
   ThriftServer* server =
       new ThriftServer("DummyBeeswax", MakeProcessor(), port, NULL, NULL, 5);
-  ASSERT_OK(server->EnableSsl(SERVER_CERT, PRIVATE_KEY, "echo password"));
+  ASSERT_OK(server->EnableSsl(SERVER_CERT, PRIVATE_KEY, ""));
   ASSERT_OK(server->Start());
 
   FLAGS_ssl_client_ca_certificate = SERVER_CERT;
@@ -119,6 +119,27 @@ TEST(SslTest, Connectivity) {
   EXPECT_THROW(non_ssl_client.iface()->query(resp, Query()), TTransportException);
 }
 
+TEST(SslTest, WorksWithKRPC) {
+  int port = GetServerPort();
+  // Start a server using SSL and confirm that an SSL client can connect, while a non-SSL
+  // client cannot.
+  // Here and elsewhere - allocate ThriftServers on the heap to avoid race during
+  // destruction. See IMPALA-2283.
+  ThriftServer* server =
+      new ThriftServer("DummyBeeswax", MakeProcessor(), port, NULL, NULL, 5);
+  ASSERT_OK(server->EnableSsl(SERVER_CERT, PRIVATE_KEY, ""));
+  ASSERT_OK(server->Start());
+
+  RpcMgr ssl_mgr;
+  ASSERT_OK(ssl_mgr.InitWithSsl(4, SERVER_CERT, PRIVATE_KEY, SERVER_CERT));
+
+  FLAGS_ssl_client_ca_certificate = SERVER_CERT;
+  ThriftClient<BeeswaxServiceClient> ssl_client("localhost", port, "", NULL, true);
+  ASSERT_OK(ssl_client.Open());
+  QueryHandle resp;
+  EXPECT_NO_THROW({ ssl_client.iface()->query(resp, Query()); });
+}
+
 TEST(SslTest, BadCertificate) {
   FLAGS_ssl_client_ca_certificate = "unknown";
   int port = GetServerPort();
@@ -127,7 +148,7 @@ TEST(SslTest, BadCertificate) {
 
   ThriftServer* server =
       new ThriftServer("DummyBeeswaxg", MakeProcessor(), port, NULL, NULL, 5);
-  ASSERT_OK(server->EnableSsl(SERVER_CERT, PRIVATE_KEY, "echo password"));
+  ASSERT_OK(server->EnableSsl(SERVER_CERT, PRIVATE_KEY));
   ASSERT_OK(server->Start());
 
   // Check that client does not recover from failure to create socket.

@@ -81,6 +81,11 @@ DEFINE_int32(statestore_svc_queue_depth, 1024, "The number of pending RPC reques
 DECLARE_int32(num_acceptor_threads);
 DECLARE_int32(num_reactor_threads);
 
+DECLARE_string(ssl_server_certificate);
+DECLARE_string(ssl_client_ca_certificate);
+DECLARE_string(ssl_private_key);
+DECLARE_string(ssl_private_key_password_cmd);
+
 // If this value is set too low, it's possible that UpdateState() might timeout during a
 // working invocation, and only a restart of the statestore with a change in value would
 // allow progress to be made. If set too high, a hung subscriber will waste an update
@@ -763,7 +768,13 @@ void Statestore::UnregisterSubscriber(Subscriber* subscriber) {
 }
 
 Status Statestore::Start() {
-  RETURN_IF_ERROR(rpc_mgr_.Init(FLAGS_num_reactor_threads));
+  if (FLAGS_ssl_server_certificate.empty()) {
+    RETURN_IF_ERROR(rpc_mgr_.Init(FLAGS_num_reactor_threads));
+  } else {
+    RETURN_IF_ERROR(rpc_mgr_.InitWithSsl(FLAGS_num_acceptor_threads,
+        FLAGS_ssl_server_certificate, FLAGS_ssl_private_key,
+        FLAGS_ssl_client_ca_certificate));
+  }
   if (FLAGS_statestore_num_svc_threads < 1) {
     return Status("--statestore_num_svc_threads must be a positive integer.");
   }

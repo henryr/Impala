@@ -44,6 +44,10 @@ using kudu::MetricEntity;
 
 DECLARE_string(hostname);
 
+DECLARE_string(rpc_ssl_server_certificate);
+DECLARE_string(rpc_ssl_private_key);
+DECLARE_string(rpc_ssl_certificate_authority);
+
 DEFINE_int32(num_acceptor_threads, 2, "Number of threads dedicated to accepting "
                                       "connection requests for RPC services");
 
@@ -61,6 +65,32 @@ Status RpcMgr::Init(int32_t num_reactor_threads) {
   bld.set_num_reactors(num_reactor_threads).set_metric_entity(entity);
   KUDU_RETURN_IF_ERROR(bld.Build(&messenger_), "Could not build messenger");
   return Status::OK();
+}
+
+namespace {
+template<typename T>
+struct ScopedFlagSetter {
+  T* flag;
+  T old_val;
+  ScopedFlagSetter(T* f, T new_val) {
+    flag = f;
+    old_val = *f;
+    *f = new_val;
+  }
+
+  ~ScopedFlagSetter() {
+    *flag = old_val;
+  }
+};
+}
+
+
+Status RpcMgr::InitWithSsl(int32_t num_reactor_threads,
+    const string& server_cert, const string& private_key, const string& cert_auth) {
+  ScopedFlagSetter<string> server_cert_flag(&FLAGS_rpc_ssl_server_certificate, server_cert);
+  ScopedFlagSetter<string> private_key_flag(&FLAGS_rpc_ssl_private_key, private_key);
+  ScopedFlagSetter<string> cert_auth_flag(&FLAGS_rpc_ssl_certificate_authority, cert_auth);
+  return Init(num_reactor_threads);
 }
 
 Status RpcMgr::RegisterService(int32_t num_service_threads, int32_t service_queue_depth,

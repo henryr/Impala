@@ -52,6 +52,10 @@ DECLARE_string(hostname);
 DECLARE_bool(compact_catalog_topic);
 DECLARE_int32(num_acceptor_threads);
 DECLARE_int32(num_reactor_threads);
+DECLARE_string(ssl_server_certificate);
+DECLARE_string(ssl_client_ca_certificate);
+DECLARE_string(ssl_private_key);
+DECLARE_string(ssl_private_key_password_cmd);
 
 string CatalogServer::IMPALA_CATALOG_TOPIC = "catalog-update";
 
@@ -220,7 +224,13 @@ Status CatalogServer::Start() {
   TNetworkAddress server_address = MakeNetworkAddress(FLAGS_hostname,
       FLAGS_catalog_service_port);
 
-  RETURN_IF_ERROR(rpc_mgr_.Init(FLAGS_num_acceptor_threads));
+  if (FLAGS_ssl_server_certificate.empty()) {
+    RETURN_IF_ERROR(rpc_mgr_.Init(FLAGS_num_reactor_threads));
+  } else {
+    RETURN_IF_ERROR(rpc_mgr_.InitWithSsl(FLAGS_num_acceptor_threads,
+        FLAGS_ssl_server_certificate, FLAGS_ssl_private_key,
+        FLAGS_ssl_client_ca_certificate));
+  }
 
   // This will trigger a full Catalog metadata load.
   catalog_.reset(new Catalog());
