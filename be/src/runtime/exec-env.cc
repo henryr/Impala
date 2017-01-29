@@ -104,7 +104,11 @@ DEFINE_int32(resource_broker_recv_timeout, 0, "Deprecated");
 DEFINE_int32(coordinator_rpc_threads, 12, "(Advanced) Number of threads available to "
     "start fragments on remote Impala daemons.");
 
+DECLARE_string(ssl_server_certificate);
 DECLARE_string(ssl_client_ca_certificate);
+DECLARE_string(ssl_private_key);
+DECLARE_string(ssl_private_key_password_cmd);
+
 
 DEFINE_int32(backend_client_connection_num_retries, 3, "Retry backend connections.");
 // When network is unstable, TCP will retry and sending could take longer time.
@@ -292,7 +296,13 @@ Status ExecEnv::StartServices() {
   catalogd_client_cache_->InitMetrics(metrics_.get(), "catalog.server");
   RETURN_IF_ERROR(RegisterMemoryMetrics(metrics_.get(), true));
 
-  RETURN_IF_ERROR(rpc_mgr_->Init(FLAGS_num_acceptor_threads));
+  if (FLAGS_ssl_server_certificate.empty()) {
+    RETURN_IF_ERROR(rpc_mgr_->Init(FLAGS_num_acceptor_threads));
+  } else {
+    RETURN_IF_ERROR(rpc_mgr_->InitWithSsl(FLAGS_num_acceptor_threads,
+        FLAGS_ssl_server_certificate, FLAGS_ssl_private_key,
+        FLAGS_ssl_client_ca_certificate));
+  }
 
 #ifndef ADDRESS_SANITIZER
   // Limit of -1 means no memory limit.

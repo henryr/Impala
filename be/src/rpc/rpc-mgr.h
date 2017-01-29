@@ -94,6 +94,9 @@ class RpcMgr {
   /// Initialises the reactor threads, and prepares for sending outbound RPC requests.
   Status Init(int32_t num_reactor_threads);
 
+  Status InitWithSsl(int32_t num_reactor_threads, const std::string& server_cert, const std::string& private_key,
+      const std::string& cert_auth);
+
   bool is_inited() const { return messenger_.get() != nullptr; }
 
   /// Start the acceptor threads, making RPC services available. Before this method is
