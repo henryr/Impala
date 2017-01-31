@@ -18,6 +18,7 @@
 #include "rpc/impala-service-pool.h"
 
 #include "kudu/util/blocking_queue.h"
+#include "kudu/util/trace.h"
 #include "kudu/rpc/inbound_call.h"
 #include "gutil/strings/substitute.h"
 
@@ -52,6 +53,9 @@ ImpalaServicePool::ImpalaServicePool(
 
   string name = Substitute("$0-queue-time", service_->service_name());
   incoming_queue_time_.reset(new HistogramMetric(
+          MakeTMetricDef(name, TMetricKind::HISTOGRAM, TUnit::TIME_MS),
+          30000, 3));
+  request_handle_time_.reset(new HistogramMetric(
           MakeTMetricDef(name, TMetricKind::HISTOGRAM, TUnit::TIME_MS),
           30000, 3));
 }
@@ -100,10 +104,10 @@ void ImpalaServicePool::RunThread() {
     MonoTime now = MonoTime::Now();
     int total_time = (now - incoming->GetTimeReceived()).ToMilliseconds();
     incoming_queue_time_->Update(total_time);
-    // ADOPT_TRACE(incoming->trace());
+    ADOPT_TRACE(incoming->trace());
 
     if (PREDICT_FALSE(incoming->ClientTimedOut())) {
-      // TRACE_TO(incoming->trace(), "Skipping call since client already timed out");
+      TRACE_TO(incoming->trace(), "Skipping call since client already timed out");
       rpcs_timed_out_in_queue_.Add(1);
 
       // Respond as a failure, even though the client will probably ignore
@@ -118,11 +122,13 @@ void ImpalaServicePool::RunThread() {
       continue;
     }
 
-    // TRACE_TO(incoming->trace(), "Handling call");
+    TRACE_TO(incoming->trace(), "Handling call");
 
     // Release the InboundCall pointer -- when the call is responded to,
     // it will get deleted at that point.
     service_->Handle(incoming.release());
+    total_time = (MonoTime::Now() - now).ToMilliseconds();
+    request_handle_time_->Update(total_time);
   }
 }
 
@@ -166,7 +172,7 @@ kudu::Status ImpalaServicePool::QueueInboundCall(gscoped_ptr<InboundCall> call) 
     return kudu::Status::NotSupported("call requires unsupported application feature flags");
   }
 
-  // TRACE_TO(c->trace(), "Inserting onto call queue");
+  TRACE_TO(c->trace(), "Inserting onto call queue");
 
   // Queue message on service queue
   boost::optional<InboundCall*> evicted;
@@ -208,9 +214,13 @@ void ImpalaServicePool::ToJson(Value* value, Document* document) {
   value->AddMember("max_queue_size", service_queue_.max_size(), document->GetAllocator());
   value->AddMember("rpcs_timed_out_in_queue", rpcs_timed_out_in_queue_.Load(), document->GetAllocator());
   value->AddMember("rpcs_queue_overflow", rpcs_queue_overflow_.Load(), document->GetAllocator());
-  Value histogram(kObjectType);
-  incoming_queue_time_->ToJson(document, &histogram);
-  value->AddMember("rpc_queue_time_histogram", histogram, document->GetAllocator());
+  Value queuing_histogram(kObjectType);
+  incoming_queue_time_->ToJson(document, &queuing_histogram);
+  value->AddMember("rpc_queue_time_histogram", queuing_histogram, document->GetAllocator());
+
+  Value handling_histogram(kObjectType);
+  request_handle_time_->ToJson(document, &handling_histogram);
+  value->AddMember("rpc_handle_time_histogram", handling_histogram, document->GetAllocator());
 }
 
 }

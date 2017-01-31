@@ -58,6 +58,7 @@ class ImpalaServicePool : public kudu::rpc::RpcService {
   std::unique_ptr<kudu::rpc::ServiceIf> service_;
   std::vector<std::unique_ptr<Thread>> threads_;
 
+  std::unique_ptr<HistogramMetric> request_handle_time_;
   std::unique_ptr<HistogramMetric> incoming_queue_time_;
   AtomicInt32 rpcs_timed_out_in_queue_;
   AtomicInt32 rpcs_queue_overflow_;

@@ -64,6 +64,7 @@ using kudu::rpc::RpcContext;
 DEFINE_int32(port, 20001, "port on which to run Impala test backend");
 DECLARE_string(principal);
 DECLARE_int32(datastream_sender_timeout_ms);
+DECLARE_int32(num_reactor_threads);
 
 // We reserve contiguous memory for senders in SetUp. If a test uses more
 // senders, a DCHECK will fail and you should increase this value.
@@ -457,7 +458,7 @@ class DataStreamTest : public testing::Test {
   // Start backend in separate thread.
   void StartBackend() {
     RpcMgr* rpc_mgr = ExecEnv::GetInstance()->rpc_mgr();
-    rpc_mgr->Init();
+    rpc_mgr->Init(FLAGS_num_reactor_threads);
     unique_ptr<ServiceIf> backend(new ImpalaTestBackend(
         rpc_mgr->metric_entity(), rpc_mgr->result_tracker(), stream_mgr_));
     rpc_mgr->StartServices(FLAGS_port, 2);
