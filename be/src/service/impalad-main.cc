@@ -81,7 +81,7 @@ int ImpaladMain(int argc, char** argv) {
   ExecEnv* exec_env = new ExecEnv();
   exec_env->Init();
   StartThreadInstrumentation(exec_env->metrics(), exec_env->webserver());
-  InitRpcEventTracing(exec_env->webserver());
+  InitRpcEventTracing(exec_env->webserver(), exec_env->rpc_mgr());
 
   boost::shared_ptr<ImpalaServer> impala_server(new ImpalaServer(exec_env));
   ABORT_IF_ERROR(impala_server->Init(FLAGS_be_port, FLAGS_beeswax_port, FLAGS_hs2_port));
