@@ -134,7 +134,7 @@ class RpcMgr {
   }
 
   ~RpcMgr() {
-    DCHECK_EQ(service_pools_.size(), 0)
+    DCHECK(messenger_.get() == nullptr || messenger_->closing())
         << "Must call UnregisterServices() before destroying RpcMgr";
   }
 
