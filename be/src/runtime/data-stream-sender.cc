@@ -24,7 +24,6 @@
 #include "exprs/expr-context.h"
 #include "exprs/expr.h"
 #include "gutil/strings/substitute.h"
-#include "runtime/client-cache.h"
 #include "runtime/descriptors.h"
 #include "runtime/exec-env.h"
 #include "runtime/mem-tracker.h"

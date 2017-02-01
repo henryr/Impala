@@ -92,7 +92,7 @@ RowBatch::RowBatch(
   if (input_batch.compression_type() != THdfsCompression::NONE) {
     // Decompress tuple data into data pool
     uint8_t* compressed_data =
-        reinterpret_cast<uint8_t*>(input_batch.tuple_data().c_str());
+        reinterpret_cast<uint8_t*>(const_cast<char*>(input_batch.tuple_data().c_str()));
     size_t compressed_size = input_batch.tuple_data().size();
 
     scoped_ptr<Codec> decompressor;
@@ -115,7 +115,7 @@ RowBatch::RowBatch(
 
   // Convert input_batch.tuple_offsets into pointers
   int tuple_idx = 0;
-  for (int32_t offset : input_batch.tuple_offsets) {
+  for (int32_t offset : input_batch.tuple_offsets()) {
     if (offset == -1) {
       tuple_ptrs_[tuple_idx++] = nullptr;
     } else {
