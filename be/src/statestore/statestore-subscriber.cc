@@ -42,7 +42,9 @@
 
 using boost::posix_time::seconds;
 using namespace strings;
+using kudu::Slice;
 using kudu::rpc::RpcContext;
+using kudu::rpc::RpcSidecar;
 using kudu::rpc::ServiceIf;
 
 DEFINE_int32(statestore_subscriber_timeout_seconds, 30, "The amount of time (in seconds)"
@@ -85,7 +87,9 @@ class StatestoreSubscriberService : public StatestoreSubscriberIf {
   virtual void UpdateState(
       const ThriftWrapperPb* request, ThriftWrapperPb* response, RpcContext* context) {
     TUpdateStateRequest thrift_request;
-    Status status = DeserializeThriftFromProtoWrapper(*request, &thrift_request);
+    Status status =
+        DeserializeFromSidecar(context, request->sidecar_idx(), &thrift_request);
+
     TUpdateStateResponse thrift_response;
     if (status.ok()) {
       status = subscriber_->UpdateState(thrift_request.topic_deltas,
@@ -95,20 +99,22 @@ class StatestoreSubscriberService : public StatestoreSubscriberIf {
     }
 
     status.ToThrift(&thrift_response.status);
-    SerializeThriftToProtoWrapper(&thrift_response, response);
+    SerializeToSidecar(context, &thrift_response, response);
     context->RespondSuccess();
   }
 
   virtual void Heartbeat(
       const ThriftWrapperPb* request, ThriftWrapperPb* response, RpcContext* context) {
     THeartbeatRequest thrift_request;
-    Status status = DeserializeThriftFromProtoWrapper(*request, &thrift_request);
+    Status status =
+        DeserializeFromSidecar(context, request->sidecar_idx(), &thrift_request);
+
     if (status.ok()) {
       subscriber_->Heartbeat(thrift_request.registration_id);
     }
 
     THeartbeatResponse thrift_response;
-    SerializeThriftToProtoWrapper(&thrift_response, response);
+    SerializeToSidecar(context, &thrift_response, response);
     context->RespondSuccess();
   }
 
