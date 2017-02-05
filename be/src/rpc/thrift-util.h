@@ -27,6 +27,8 @@
 #include <thrift/protocol/TDebugProtocol.h>
 #include <thrift/transport/TBufferTransports.h>
 
+#include "kudu/util/faststring.h"
+
 #include "common/status.h"
 
 namespace impala {
@@ -85,6 +87,25 @@ class ThriftSerializer {
       return Status(msg.str());
     }
     *result = mem_buffer_->getBufferAsString();
+    return Status::OK();
+  }
+
+  template <class T>
+  Status Serialize(T* obj, kudu::faststring* result) {
+    try {
+      mem_buffer_->resetBuffer();
+      obj->write(protocol_.get());
+    } catch (std::exception& e) {
+      std::stringstream msg;
+      msg << "Couldn't serialize thrift object:\n" << e.what();
+      return Status(msg.str());
+    }
+
+    uint8_t* buf;
+    uint32_t size;
+    mem_buffer_->getBuffer(&buf, &size);
+    result->resize(size);
+    memcpy(result->data(), buf, size);
     return Status::OK();
   }
 
