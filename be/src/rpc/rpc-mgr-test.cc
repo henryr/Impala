@@ -26,6 +26,8 @@
 #include "testutil/gtest-util.h"
 #include "util/counting-barrier.h"
 #include "util/network-util.h"
+#include "util/pretty-printer.h"
+#include "util/thread.h"
 #include "util/promise.h"
 
 #include <functional>
@@ -325,6 +327,29 @@ TEST_F(RpcTest, VeryLargePayloadTest) {
   ASSERT_OK(Rpc<PingServiceProxy>::Make(
           MakeNetworkAddress("localhost", SERVICE_PORT), &rpc_mgr_)
       .Execute(&PingServiceProxy::Ping, request, &response));
+}
+
+TEST_F(RpcTest, LookupTest) {
+  auto tfunc = [this]() {
+    for (int i = 0; i < 10000; ++i) {
+      for (int j = 1; j < 20; ++j) {
+        string hostname = Substitute("d24$0$1.halxg.cloudera.com", j < 10 ? "0" : "", j);
+        unique_ptr<PingServiceProxy> proxy;
+        ASSERT_OK(rpc_mgr_.GetProxy(MakeNetworkAddress(hostname, SERVICE_PORT), &proxy));
+      }
+    }
+  };
+
+  vector<unique_ptr<Thread>> threads;
+  int now = MonotonicMillis();
+  for (int i = 0; i < 8; ++i) {
+    threads.push_back(make_unique<Thread>("catagore", "name" + i, tfunc));
+  }
+  for (int i = 0; i < 8; ++i) {
+    threads[i]->Join();
+  }
+
+  LOG(INFO) << "PERFORMED 200000 lookups in " << PrettyPrinter::Print(MonotonicMillis() - now, TUnit::TIME_MS);
 }
 
 }

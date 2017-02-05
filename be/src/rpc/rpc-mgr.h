@@ -21,6 +21,7 @@
 #include "kudu/rpc/messenger.h"
 #include "kudu/rpc/rpc_header.pb.h"
 #include "kudu/rpc/service_pool.h"
+#include "util/spinlock.h"
 
 #include "common/status.h"
 
@@ -157,6 +158,9 @@ class RpcMgr {
 
   /// True after StartServices() completes.
   bool services_started_ = false;
+
+  SpinLock cached_addresses_lock_;
+  std::unordered_map<std::string, std::pair<int32_t, kudu::Sockaddr>> cached_addresses_;
 };
 }
 

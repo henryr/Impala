@@ -27,6 +27,9 @@
 #include "exec/kudu-util.h"
 
 #include "rpc/rpc-mgr.h"
+#include "util/time.h"
+
+#include <boost/thread/lock_guard.hpp>
 
 namespace impala {
 
@@ -34,12 +37,35 @@ template <typename P>
 Status RpcMgr::GetProxy(const TNetworkAddress& address, std::unique_ptr<P>* proxy) {
   DCHECK(proxy != nullptr);
   DCHECK(is_inited()) << "Must call Init() before GetProxy()";
-  std::vector<kudu::Sockaddr> addresses;
-  KUDU_RETURN_IF_ERROR(
-      kudu::HostPort(address.hostname, address.port).ResolveAddresses(&addresses),
-      "Couldn't resolve addresses");
-  DCHECK_GT(addresses.size(), 0);
-  proxy->reset(new P(messenger_, addresses[0]));
+
+  const int64_t TTL = 300;
+
+  int64_t now = MonotonicSeconds();
+  bool needs_lookup = false;
+  kudu::Sockaddr kudu_addr;
+  {
+    boost::lock_guard<SpinLock> l(cached_addresses_lock_);
+    auto cached = cached_addresses_.find(address.hostname);
+    if (cached == cached_addresses_.end() || (now - cached->second.first > TTL)) {
+      needs_lookup = true;
+    } else {
+      kudu_addr = cached->second.second;
+    }
+  }
+
+  if (needs_lookup) {
+    std::vector<kudu::Sockaddr> addresses;
+    KUDU_RETURN_IF_ERROR(
+        kudu::HostPort(address.hostname, address.port).ResolveAddresses(&addresses),
+        "Couldn't resolve addresses");
+    DCHECK_GT(addresses.size(), 0);
+    kudu_addr = addresses[0];
+    {
+      boost::lock_guard<SpinLock> l(cached_addresses_lock_);
+      cached_addresses_.insert(std::make_pair(address.hostname, std::make_pair(now, kudu_addr)));
+    }
+  }
+  proxy->reset(new P(messenger_, kudu_addr));
   return Status::OK();
 }
 }
