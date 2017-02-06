@@ -111,7 +111,10 @@ void FragmentInstanceState::ReportStatusCb(
         insert_status.__set_per_partition_status(*runtime_state->per_partition_status());
       }
 
-      params.__set_insert_exec_status(insert_status);
+      if (runtime_state->hdfs_files_to_move()->size() > 0 ||
+          runtime_state->per_partition_status()->size() > 0) {
+        params.__set_insert_exec_status(insert_status);
+      }
     }
 
     // Send new errors to coordinator

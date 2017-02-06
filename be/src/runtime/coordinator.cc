@@ -379,7 +379,6 @@ Coordinator::Coordinator(const QuerySchedule& schedule, ExecEnv* exec_env,
     has_called_wait_(false),
     returned_all_results_(false),
     query_state_(nullptr),
-    num_remaining_fragment_instances_(0),
     obj_pool_(new ObjectPool()),
     query_events_(events),
     filter_routing_table_complete_(false),
@@ -584,7 +583,7 @@ void Coordinator::StartFInstances() {
 
   fragment_instance_states_.resize(num_fragment_instances);
   exec_complete_barrier_.reset(new CountingBarrier(num_fragment_instances));
-  num_remaining_fragment_instances_ = num_fragment_instances;
+  num_remaining_fragment_instances_.Store( num_fragment_instances );
 
   DebugOptions debug_options;
   ProcessQueryOptions(schedule_.query_options(), &debug_options);
@@ -1052,20 +1051,25 @@ Status Coordinator::FinalizeQuery() {
 }
 
 Status Coordinator::WaitForAllInstances() {
-  unique_lock<mutex> l(lock_);
-  while (num_remaining_fragment_instances_ > 0 && query_status_.ok()) {
-    VLOG_QUERY << "Coordinator waiting for fragment instances to finish, "
-               << num_remaining_fragment_instances_ << " remaining";
-    instance_completion_cv_.wait(l);
-  }
-  if (query_status_.ok()) {
-    VLOG_QUERY << "All fragment instances finished successfully.";
-  } else {
-    VLOG_QUERY << "All fragment instances finished due to one or more errors. "
-               << query_status_.GetDetail();
+  {
+    std::unique_lock<SpinLock> l(instance_completion_lock_);
+    while (num_remaining_fragment_instances_.Load() > 0 && query_status_.ok()) {
+      VLOG_QUERY << "Coordinator waiting for fragment instances to finish, "
+                 << num_remaining_fragment_instances_.Load() << " remaining";
+      instance_completion_cv_.wait(l);
+    }
   }
 
-  return query_status_;
+  {
+    lock_guard<mutex> l(lock_);
+    if (query_status_.ok()) {
+      VLOG_QUERY << "All fragment instances finished successfully.";
+    } else {
+      VLOG_QUERY << "All fragment instances finished due to one or more errors. "
+                 << query_status_.GetDetail();
+    }
+    return query_status_;
+  }
 }
 
 Status Coordinator::Wait() {
@@ -1546,26 +1550,28 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
   }
 
   if (params.done) {
-    lock_guard<mutex> l(lock_);
     exec_state->stopwatch()->Stop();
-    DCHECK_GT(num_remaining_fragment_instances_, 0);
+    int32_t num_remaining = num_remaining_fragment_instances_.Load();
+    DCHECK_GT(num_remaining, 0);
     VLOG_QUERY << "Fragment instance completed:"
         << " id=" << PrintId(exec_state->fragment_instance_id())
         << " host=" << exec_state->impalad_address()
-        << " remaining=" << num_remaining_fragment_instances_ - 1;
-    if (VLOG_QUERY_IS_ON && num_remaining_fragment_instances_ > 1) {
-      // print host/port info for the first backend that's still in progress as a
-      // debugging aid for backend deadlocks
-      for (InstanceState* exec_state: fragment_instance_states_) {
-        lock_guard<mutex> l2(*exec_state->lock());
-        if (!exec_state->done()) {
-          VLOG_QUERY << "query_id=" << query_id_ << ": first in-progress backend: "
-                     << exec_state->impalad_address();
-          break;
-        }
-      }
-    }
-    if (--num_remaining_fragment_instances_ == 0) {
+        << " remaining=" << num_remaining - 1;
+    // if (VLOG_QUERY_IS_ON && num_remaining > 1) {
+    //   lock_guard<mutex> l(lock_);
+    //   // print host/port info for the first backend that's still in progress as a
+    //   // debugging aid for backend deadlocks
+    //   for (InstanceState* exec_state: fragment_instance_states_) {
+    //     lock_guard<mutex> l2(*exec_state->lock());
+    //     if (!exec_state->done()) {
+    //       VLOG_QUERY << "query_id=" << query_id_ << ": first in-progress backend: "
+    //                  << exec_state->impalad_address();
+    //       break;
+    //     }
+    //   }
+    // }
+    if (num_remaining_fragment_instances_.Add(-1) == 0) {
+      std::lock_guard<SpinLock> sl(instance_completion_lock_);
       instance_completion_cv_.notify_all();
     }
   }
