@@ -18,6 +18,7 @@
 #ifndef IMPALA_RUNTIME_COORDINATOR_H
 #define IMPALA_RUNTIME_COORDINATOR_H
 
+#include <condition_variable>
 #include <vector>
 #include <string>
 #include <boost/scoped_ptr.hpp>
@@ -332,11 +333,12 @@ class Coordinator { // NOLINT: The member variables could be re-ordered to save 
   /// If there is no coordinator fragment, Wait() simply waits until all
   /// backends report completion by notifying on instance_completion_cv_.
   /// Tied to lock_.
-  boost::condition_variable instance_completion_cv_;
+  SpinLock instance_completion_lock_;
+  std::condition_variable_any instance_completion_cv_;
 
   /// Count of the number of backends for which done != true. When this
   /// hits 0, any Wait()'ing thread is notified
-  int num_remaining_fragment_instances_;
+  AtomicInt32 num_remaining_fragment_instances_;
 
   /// The following two structures, partition_row_counts_ and files_to_move_ are filled in
   /// as the query completes, and track the results of INSERT queries that alter the
