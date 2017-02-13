@@ -1528,10 +1528,11 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
               << "\n" << s.str();
   }
 
-  // for now, abort the query if we see any error except if the error is cancelled
-  // and returned_all_results_ is true.
-  // (UpdateStatus() initiates cancellation, if it hasn't already been)
-  if (!(returned_all_results_ && status.IsCancelled()) && !status.ok()) {
+  // If all results are returned, we don't need to take any further notice of this
+  // instance's status. Similarly, we don't need to call UpdateStatus() (which takes a
+  // lock) if status is ok(), which would be a no-op. Otherwise, call UpdateStatus() which
+  // will start instance cancellation.
+  if (!returned_all_results_ && !status.ok()) {
     UpdateStatus(status, exec_state->fragment_instance_id(),
         TNetworkAddressToString(exec_state->impalad_address()));
     return Status::OK();
@@ -1564,6 +1565,11 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
     }
   }
 
+  // If all results have been returned, return a cancelled status to force the fragment
+  // instance to stop executing.
+  if (!params.done && returned_all_results_) {
+    return Status::CANCELLED;
+  }
   return Status::OK();
 }
 
