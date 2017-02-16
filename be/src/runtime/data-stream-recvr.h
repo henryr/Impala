@@ -191,8 +191,13 @@ class DataStreamRecvr {
   /// Wall time senders spend waiting for the recv buffer to have capacity.
   RuntimeProfile::Counter* buffer_full_wall_timer_;
 
+  RuntimeProfile::Counter* num_rejected_batches_;
+  RuntimeProfile::Counter* num_accepted_batches_;
+
   /// Total time spent waiting for data to arrive in the recv buffer
   RuntimeProfile::Counter* data_arrival_timer_;
+  RuntimeProfile::Counter* inactive_timer_;
+  RuntimeProfile::Counter* queue_get_batch_time_;
 };
 
 }
