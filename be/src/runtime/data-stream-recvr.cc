@@ -121,6 +121,7 @@ DataStreamRecvr::SenderQueue::SenderQueue(DataStreamRecvr* parent_recvr, int num
 }
 
 Status DataStreamRecvr::SenderQueue::GetBatch(RowBatch** next_batch) {
+  SCOPED_TIMER(recvr_->queue_get_batch_time_);
   unique_lock<mutex> l(lock_);
   // wait until something shows up or we know we're done
   while (!is_cancelled_ && batch_queue_.empty() && num_remaining_senders_ > 0) {
@@ -128,6 +129,7 @@ Status DataStreamRecvr::SenderQueue::GetBatch(RowBatch** next_batch) {
              << " node=" << recvr_->dest_node_id();
     // Don't count time spent waiting on the sender as active time.
     CANCEL_SAFE_SCOPED_TIMER(recvr_->data_arrival_timer_, &is_cancelled_);
+    CANCEL_SAFE_SCOPED_TIMER(recvr_->inactive_timer_, &is_cancelled_);
     CANCEL_SAFE_SCOPED_TIMER(
         received_first_batch_ ? NULL : recvr_->first_batch_wait_total_timer_,
         &is_cancelled_);
@@ -197,9 +199,10 @@ void DataStreamRecvr::SenderQueue::AddBatch(const TransmitDataCtx& payload) {
 
     // Enqueue pending sender, return.
     pending_senders_.push(payload);
+    COUNTER_ADD(recvr_->num_rejected_batches_, 1);
     return;
   }
-
+  COUNTER_ADD(recvr_->num_accepted_batches_, 1);
   RowBatch* batch = NULL;
   {
     SCOPED_TIMER(recvr_->deserialize_row_batch_timer_);
@@ -337,8 +340,12 @@ DataStreamRecvr::DataStreamRecvr(DataStreamMgr* stream_mgr, MemTracker* parent_t
       ADD_TIMER(profile_, "DeserializeRowBatchTimer");
   buffer_full_wall_timer_ = ADD_TIMER(profile_, "SendersBlockedTimer");
   buffer_full_total_timer_ = ADD_TIMER(profile_, "SendersBlockedTotalTimer(*)");
-  data_arrival_timer_ = profile_->inactive_timer();
+  inactive_timer_ = profile_->inactive_timer();
+  data_arrival_timer_ = ADD_TIMER(profile_, "DataArrivalTimer");
+  queue_get_batch_time_ = ADD_TIMER(profile_, "TotalDSRGetBatchTime");
   first_batch_wait_total_timer_ = ADD_TIMER(profile_, "FirstBatchArrivalWaitTime");
+  num_rejected_batches_ = ADD_COUNTER(profile_, "NumBatchesRejected", TUnit::UNIT);
+  num_accepted_batches_ = ADD_COUNTER(profile_, "NumBatchesAccepted", TUnit::UNIT);
 }
 
 Status DataStreamRecvr::GetNext(RowBatch* output_batch, bool* eos) {

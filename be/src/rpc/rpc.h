@@ -379,6 +379,7 @@ class Rpc {
       // Create a new task that retries the execution from a reactor thread.
       auto reactor_task = [ rpc, func, req, resp, cb = std::move(cb), num_attempts ](
           const kudu::Status& status) {
+        LOG(INFO) << "Retrying rpc, attempt " << num_attempts;
         // Here 'status' refers to the success of scheduling on the reactor thread itself,
         // which typically does not fail.
         if (!status.ok()) {
