@@ -382,6 +382,9 @@ Status Statestore::RegisterSubscriber(const SubscriberId& subscriber_id,
     const vector<TTopicRegistration>& topic_registrations, TUniqueId* registration_id) {
   if (subscriber_id.empty()) return Status("Subscriber ID cannot be empty string");
 
+  TNetworkAddress resolved_address;
+  RETURN_IF_ERROR(ResolveAddr(location, &resolved_address));
+
   // Create any new topics first, so that when the subscriber is first sent a topic update
   // by the worker threads its topics are guaranteed to exist.
   {
@@ -405,8 +408,8 @@ Status Statestore::RegisterSubscriber(const SubscriberId& subscriber_id,
     }
 
     UUIDToTUniqueId(subscriber_uuid_generator_(), registration_id);
-    shared_ptr<Subscriber> current_registration(
-        new Subscriber(subscriber_id, *registration_id, location, topic_registrations));
+    shared_ptr<Subscriber> current_registration(new Subscriber(
+            subscriber_id, *registration_id, resolved_address, topic_registrations));
     subscribers_.insert(make_pair(subscriber_id, current_registration));
     failure_detector_->UpdateHeartbeat(
         PrintId(current_registration->registration_id()), true);

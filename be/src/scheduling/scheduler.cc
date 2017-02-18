@@ -385,11 +385,13 @@ void Scheduler::ComputeFragmentExecParams(const TPlanExecInfo& plan_exec_info,
   const TPlanFragment& fragment = fragment_params->fragment;
   // case 1: single instance executed at coordinator
   if (fragment.partition.type == TPartitionType::UNPARTITIONED) {
-    const TNetworkAddress& coord = local_backend_descriptor_.address;
+    const TNetworkAddress& coord =
+        MakeNetworkAddress(local_backend_descriptor_.ip_address, local_backend_descriptor_.address.port);
     // make sure that the coordinator instance ends up with instance idx 0
     TUniqueId instance_id = fragment_params->is_coord_fragment
         ? schedule->query_id()
         : schedule->GetNextInstanceId();
+    DCHECK(IsResolvedAddress(coord));
     fragment_params->instance_exec_params.emplace_back(
         instance_id, coord, 0, *fragment_params);
     FInstanceExecParams& instance_params = fragment_params->instance_exec_params.back();
@@ -451,7 +453,8 @@ void Scheduler::CreateUnionInstances(
   // create a single instance per host
   // TODO-MT: figure out how to parallelize Union
   int per_fragment_idx = 0;
-  for (const TNetworkAddress& host : hosts) {
+  for (const TNetworkAddress& host: hosts) {
+    DCHECK(IsResolvedAddress(host));
     fragment_params->instance_exec_params.emplace_back(
         schedule->GetNextInstanceId(), host, per_fragment_idx++, *fragment_params);
     // assign all scan ranges
@@ -470,8 +473,11 @@ void Scheduler::CreateScanInstances(PlanNodeId leftmost_scan_id,
 
   if (fragment_params->scan_range_assignment.empty()) {
     // this scan doesn't have any scan ranges: run a single instance on the coordinator
-    fragment_params->instance_exec_params.emplace_back(schedule->GetNextInstanceId(),
-        local_backend_descriptor_.address, 0, *fragment_params);
+    TNetworkAddress resolved =
+        MakeNetworkAddress(local_backend_descriptor_.ip_address, local_backend_descriptor_.address.port);
+    DCHECK(IsResolvedAddress(resolved));
+    fragment_params->instance_exec_params.emplace_back(
+        schedule->GetNextInstanceId(), resolved, 0, *fragment_params);
     return;
   }
 
@@ -505,6 +511,7 @@ void Scheduler::CreateScanInstances(PlanNodeId leftmost_scan_id,
     int64_t total_assigned_bytes = 0;
     int params_idx = 0; // into params_list
     for (int i = 0; i < num_instances; ++i) {
+      DCHECK(IsResolvedAddress(host));
       fragment_params->instance_exec_params.emplace_back(schedule->GetNextInstanceId(),
           host, per_fragment_instance_idx++, *fragment_params);
       FInstanceExecParams& instance_params = fragment_params->instance_exec_params.back();
@@ -549,8 +556,10 @@ void Scheduler::CreateCollocatedInstances(
   int per_fragment_instance_idx = 0;
   for (const FInstanceExecParams& input_instance_params :
       input_fragment_params->instance_exec_params) {
-    fragment_params->instance_exec_params.emplace_back(schedule->GetNextInstanceId(),
-        input_instance_params.host, per_fragment_instance_idx++, *fragment_params);
+    DCHECK(IsResolvedAddress(input_instance_params.host));
+    fragment_params->instance_exec_params.emplace_back(
+        schedule->GetNextInstanceId(), input_instance_params.host,
+        per_fragment_instance_idx++, *fragment_params);
   }
 }
 
@@ -743,7 +752,8 @@ void Scheduler::GetScanHosts(TPlanNodeId scan_id, const FragmentExecParams& para
     // TODO: we'll need to revisit this strategy once we can partition joins
     // (in which case this fragment might be executing a right outer join
     // with a large build table)
-    scan_hosts->push_back(local_backend_descriptor_.address);
+    scan_hosts->push_back(MakeNetworkAddress(local_backend_descriptor_.ip_address,
+        local_backend_descriptor_.address.port));
     return;
   }
 }
@@ -938,8 +948,9 @@ void Scheduler::AssignmentCtx::RecordScanRangeAssignment(
     if (!remote_read) total_local_assignments_->Increment(1);
   }
 
+  TNetworkAddress local = MakeNetworkAddress(backend.ip_address, backend.address.port);
   PerNodeScanRanges* scan_ranges =
-      FindOrInsert(assignment, backend.address, PerNodeScanRanges());
+      FindOrInsert(assignment, local, PerNodeScanRanges());
   vector<TScanRangeParams>* scan_range_params_list =
       FindOrInsert(scan_ranges, node_id, vector<TScanRangeParams>());
   // Add scan range.
