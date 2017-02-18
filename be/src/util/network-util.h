@@ -34,6 +34,13 @@ typedef std::string IpAddr;
 /// otherwise OK. Even if OK is returned, addresses may still be of zero length.
 Status HostnameToIpAddr(const Hostname& hostname, IpAddr* ip);
 
+/// Returns true if 'addr' is a fully resolved IP address, rather than a fqdn + port.
+bool IsResolvedAddress(const TNetworkAddress& addr);
+
+/// Resolves 'addr' to an IP address, and puts the result in *output. Returns !ok() if
+/// there was some error performing the lookup.
+Status ResolveAddr(const TNetworkAddress& addr, TNetworkAddress* output);
+
 /// Finds the first non-localhost IP address in the given list. Returns
 /// true if such an address was found, false otherwise.
 bool FindFirstNonLocalhost(const std::vector<std::string>& addresses, std::string* addr);

@@ -841,7 +841,7 @@ void ImpalaServer::PrepareQueryContext(TQueryCtx* query_ctx) {
   query_ctx->__set_pid(getpid());
   query_ctx->__set_now_string(TimestampValue::LocalTime().DebugString());
   query_ctx->__set_start_unix_millis(UnixMillis());
-  query_ctx->__set_coord_address(MakeNetworkAddress(FLAGS_hostname, FLAGS_be_port));
+  query_ctx->__set_coord_address(ExecEnv::GetInstance()->scheduler()->resolved_address());
 
   // Creating a random_generator every time is not free, but
   // benchmarks show it to be slightly cheaper than contending for a
@@ -1475,7 +1475,9 @@ void ImpalaServer::MembershipCallback(
     TUpdateMembershipRequest update_req;
     bool any_changes = !delta.topic_entries.empty() || !delta.is_delta;
     for (const BackendDescriptorMap::value_type& backend: known_backends_) {
-      current_membership.insert(backend.second.address);
+      TNetworkAddress resolved =
+          MakeNetworkAddress(backend.second.ip_address, backend.second.address.port);
+      current_membership.insert(resolved);
       if (any_changes) {
         update_req.hostnames.insert(backend.second.address.hostname);
         update_req.ip_addresses.insert(backend.second.ip_address);
