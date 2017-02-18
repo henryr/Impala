@@ -645,7 +645,8 @@ TEST_F(DataStreamTest, CloseRecvrWhileReferencesRemain) {
   request.set_sender_id(0);
 
   EndDataStreamResponsePb response;
-  TNetworkAddress remote = MakeNetworkAddress("localhost", FLAGS_port);
+  TNetworkAddress remote;
+  EXPECT_OK(ResolveAddr(MakeNetworkAddress("localhost", FLAGS_port), &remote));
   EXPECT_OK(Rpc<DataStreamServiceProxy>::Make(remote, ExecEnv::GetInstance()->rpc_mgr())
                 .Execute(&DataStreamServiceProxy::EndDataStream, request, &response));
 

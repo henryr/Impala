@@ -101,6 +101,8 @@ class Scheduler {
   /// returning.
   Status Schedule(QuerySchedule* schedule);
 
+  const TNetworkAddress resolved_address() { return MakeNetworkAddress(local_backend_descriptor_.ip_address, local_backend_descriptor_.address.port); }
+
  private:
   /// Map from a host's IP address to the next backend to be round-robin scheduled for
   /// that host (needed for setups with multiple backends on a single host)
