@@ -52,8 +52,12 @@ static int32_t SERVICE_PORT = FindUnusedEphemeralPort();
 class RpcTest : public testing::Test {
  protected:
   RpcMgr rpc_mgr_;
+  TNetworkAddress localhost_;
 
-  virtual void SetUp() { ASSERT_OK(rpc_mgr_.Init(FLAGS_num_reactor_threads)); }
+  virtual void SetUp() {
+    ASSERT_OK(rpc_mgr_.Init(FLAGS_num_reactor_threads));
+    ASSERT_OK(ResolveAddr(MakeNetworkAddress("localhost", SERVICE_PORT), &localhost_));
+  }
 
   virtual void TearDown() { rpc_mgr_.UnregisterServices(); }
 };
@@ -98,7 +102,7 @@ TEST_F(RpcTest, ServiceSmokeTest) {
 
   unique_ptr<PingServiceProxy> proxy;
   ASSERT_OK(rpc_mgr_.GetProxy<PingServiceProxy>(
-      MakeNetworkAddress("localhost", SERVICE_PORT), &proxy));
+      localhost_, &proxy));
 
   PingRequestPb request;
   PingResponsePb response;
@@ -123,7 +127,7 @@ TEST_F(RpcTest, RetryPolicyTest) {
   rpc_mgr_.StartServices(SERVICE_PORT, 2);
 
   auto rpc = Rpc<PingServiceProxy>::Make(
-      MakeNetworkAddress("localhost", SERVICE_PORT), &rpc_mgr_);
+      localhost_, &rpc_mgr_);
 
   PingRequestPb request;
   PingResponsePb response;
@@ -160,7 +164,7 @@ TEST_F(RpcTest, RetryAsyncTest) {
   rpc_mgr_.StartServices(SERVICE_PORT, 2);
 
   auto rpc = Rpc<PingServiceProxy>::Make(
-      MakeNetworkAddress("localhost", SERVICE_PORT), &rpc_mgr_);
+      localhost_, &rpc_mgr_);
 
   PingRequestPb request;
   PingResponsePb response;
@@ -213,7 +217,7 @@ TEST_F(RpcTest, TimeoutTest) {
   rpc_mgr_.StartServices(SERVICE_PORT, 2);
 
   auto rpc = Rpc<PingServiceProxy>::Make(
-      MakeNetworkAddress("localhost", SERVICE_PORT), &rpc_mgr_);
+      localhost_, &rpc_mgr_);
 
   PingRequestPb request;
   PingResponsePb response;
@@ -256,7 +260,7 @@ TEST_F(RpcTest, FullServiceQueueTest) {
   ASSERT_OK(rpc_mgr_.RegisterService(NUM_SVC_THREADS, QUEUE_DEPTH, move(impl)));
   rpc_mgr_.StartServices(SERVICE_PORT, 2);
 
-  const TNetworkAddress remote = MakeNetworkAddress("localhost", SERVICE_PORT);
+  const TNetworkAddress remote = localhost_;
   vector<unique_ptr<PingServiceProxy>> proxies;
   // Start NUM_RPCS RPCS concurrently so that they consume all service threads and then
   // fill the service queue.
@@ -277,7 +281,7 @@ TEST_F(RpcTest, FullServiceQueueTest) {
 
   // Queue should be full. Try another RPC and check that it fails due to backpressure.
   auto rpc = Rpc<PingServiceProxy>::Make(
-      MakeNetworkAddress("localhost", SERVICE_PORT), &rpc_mgr_)
+      localhost_, &rpc_mgr_)
        .SetTimeout(kudu::MonoDelta::FromSeconds(60))
        .SetRetryInterval(10)
        .SetMaxAttempts(10);
@@ -308,7 +312,7 @@ TEST_F(RpcTest, ThriftWrapperTest) {
   rpc_mgr_.StartServices(SERVICE_PORT, 2);
 
   auto rpc = Rpc<PingServiceProxy>::Make(
-      MakeNetworkAddress("localhost", SERVICE_PORT), &rpc_mgr_);
+      localhost_, &rpc_mgr_);
 
   Status status = rpc.ExecuteWithThriftArgs(&PingServiceProxy::PingThrift, &addr, &addr);
   ASSERT_TRUE(status.ok());
@@ -326,7 +330,7 @@ TEST_F(RpcTest, VeryLargePayloadTest) {
 
   PingResponsePb response;
   ASSERT_OK(Rpc<PingServiceProxy>::Make(
-          MakeNetworkAddress("localhost", SERVICE_PORT), &rpc_mgr_)
+          localhost_, &rpc_mgr_)
       .Execute(&PingServiceProxy::Ping, request, &response));
 }
 

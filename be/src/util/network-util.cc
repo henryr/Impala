@@ -27,6 +27,7 @@
 #include <vector>
 #include <boost/algorithm/string.hpp>
 
+#include "kudu/util/net/sockaddr.h"
 #include "util/debug-util.h"
 #include "util/error-util.h"
 #include <util/string-parser.h>
@@ -58,6 +59,11 @@ Status GetHostname(string* hostname) {
   }
   *hostname = string(name);
   return Status::OK();
+}
+
+bool IsResolvedAddress(const TNetworkAddress& addr) {
+  kudu::Sockaddr sock;
+  return sock.ParseString(addr.hostname, addr.port).ok();
 }
 
 Status HostnameToIpAddr(const Hostname& hostname, IpAddr* ip){
@@ -155,6 +161,12 @@ TBackendDescriptor MakeBackendDescriptor(const Hostname& hostname, const IpAddr&
   be_desc.address = MakeNetworkAddress(hostname, port);
   be_desc.ip_address = ip;
   return be_desc;
+}
+
+Status ResolveAddr(const TNetworkAddress& addr, TNetworkAddress* output) {
+  RETURN_IF_ERROR(HostnameToIpAddr(addr.hostname, &output->hostname));
+  output->port = addr.port;
+  return Status::OK();
 }
 
 bool IsWildcardAddress(const string& ipaddress) {
