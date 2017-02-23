@@ -175,6 +175,7 @@ set(UTIL_SRCS
   rw_mutex.cc
   rwc_lock.cc
   ${SEMAPHORE_CC}
+  signal.cc
   slice.cc
   spinlock_profiling.cc
   status.cc
@@ -276,10 +277,8 @@ ADD_EXPORTABLE_LIBRARY(kudu_util_compression
 
 if(NOT NO_TESTS)
   add_library(kudu_test_util
-    test_util.cc
-    curl_util.cc)
+    test_util.cc)
   target_link_libraries(kudu_test_util
-    ${CURL_LIBRARIES}
     gflags
     glog
     gmock
@@ -289,6 +288,17 @@ if(NOT NO_TESTS)
     target_link_libraries(kudu_test_util
       vmem)
   endif()
+
+#######################################
+# kudu_curl_util
+#######################################
+  add_library(kudu_curl_util
+    curl_util.cc)
+  target_link_libraries(kudu_curl_util
+    security
+    ${CURL_LIBRARIES}
+    glog
+    gutil)
 
 #######################################
 # kudu_test_main
@@ -406,6 +416,7 @@ PROTOBUF_GENERATE_CPP(
   PROTO_FILES jsonwriter_test.proto)
 add_library(jsonwriter_test_proto ${JSONWRITER_TEST_PROTO_SRCS} ${JSONWRITER_TEST_PROTO_HDRS})
 target_link_libraries(jsonwriter_test_proto
+  pb_util_proto
   protobuf)
 
 #######################################

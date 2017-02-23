@@ -20,12 +20,13 @@
 #include <unordered_set>
 
 #include "kudu/gutil/map-util.h"
+#include "kudu/gutil/strings/substitute.h"
 #include "kudu/util/flag_tags.h"
 #include "kudu/util/flags.h"
+#include "kudu/util/logging.h"
 #include "kudu/util/logging_test_util.h"
 #include "kudu/util/test_util.h"
 
-DECLARE_bool(log_redact_user_data);
 DECLARE_bool(never_fsync);
 
 DEFINE_int32(flag_with_no_tags, 0, "test flag that has no tags");
@@ -42,6 +43,9 @@ TAG_FLAG(test_unsafe_flag, unsafe);
 
 DEFINE_bool(test_experimental_flag, false, "an experimental flag");
 TAG_FLAG(test_experimental_flag, experimental);
+
+DEFINE_bool(test_sensitive_flag, false, "a sensitive flag");
+TAG_FLAG(test_sensitive_flag, sensitive);
 
 using std::string;
 using std::unordered_set;
@@ -110,6 +114,14 @@ TEST_F(FlagTagsTest, TestUnlockFlags) {
     ASSERT_EQ(1, sink.logged_msgs().size());
     ASSERT_STR_CONTAINS(sink.logged_msgs()[0],
                         "Enabled experimental flag: --test_experimental_flag");
+  }
+}
+
+TEST_F(FlagTagsTest, TestSensitiveFlags) {
+  // Setting a sensitive flag should return a redacted value.
+  {
+    ASSERT_STR_CONTAINS(CommandlineFlagsIntoString(EscapeMode::NONE), strings::Substitute(
+                        "--test_sensitive_flag=$0", kRedactionMessage));
   }
 }
 

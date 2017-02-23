@@ -23,24 +23,33 @@
 #include <unordered_set>
 #include <vector>
 
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include <gflags/gflags.h>
 #include <gperftools/heap-profiler.h>
 
 #include "kudu/gutil/strings/join.h"
+#include "kudu/gutil/strings/split.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/util/flag_tags.h"
+#include "kudu/util/logging.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/os-util.h"
 #include "kudu/util/path_util.h"
+#include "kudu/util/string_case.h"
 #include "kudu/util/url-coding.h"
 #include "kudu/util/version_info.h"
 
 using google::CommandLineFlagInfo;
+
 using std::cout;
 using std::endl;
 using std::string;
 using std::stringstream;
 using std::unordered_set;
+
+using strings::Substitute;
 
 // Because every binary initializes its flags here, we use it as a convenient place
 // to offer some global flags as well.
@@ -65,6 +74,31 @@ DEFINE_bool(disable_core_dumps, false, "Disable core dumps when this process cra
 TAG_FLAG(disable_core_dumps, advanced);
 TAG_FLAG(disable_core_dumps, evolving);
 
+DEFINE_string(umask, "077",
+              "The umask that will be used when creating files and directories. "
+              "Permissions of top-level data directories will also be modified at "
+              "start-up to conform to the given umask. Changing this value may "
+              "enable unauthorized local users to read or modify data stored by Kudu.");
+TAG_FLAG(umask, advanced);
+
+static bool ValidateUmask(const char* /*flagname*/, const string& value) {
+  uint32_t parsed;
+  if (!safe_strtou32_base(value.c_str(), &parsed, 8)) {
+    LOG(ERROR) << "Invalid umask: must be an octal string";
+    return false;
+  }
+
+  // Verify that the umask doesn't restrict the permissions of the owner.
+  // If it did, we'd end up creating files that we can't read.
+  if ((parsed & 0700) != 0) {
+    LOG(ERROR) << "Invalid umask value: must not restrict owner permissions";
+    return false;
+  }
+  return true;
+}
+
+DEFINE_validator(umask, &ValidateUmask);
+
 DEFINE_bool(unlock_experimental_flags, false,
             "Unlock flags marked as 'experimental'. These flags are not guaranteed to "
             "be maintained across releases of Kudu, and may enable features or behavior "
@@ -79,6 +113,65 @@ DEFINE_bool(unlock_unsafe_flags, false,
 TAG_FLAG(unlock_unsafe_flags, advanced);
 TAG_FLAG(unlock_unsafe_flags, stable);
 
+DEFINE_string(redact, "all",
+              "Comma-separated list of redactions. Supported redactions are 'flag', "
+              "'log' and 'all'. If 'flag' is specified, configuration flags which may "
+              "include sensitive data will be redacted whenever server configuration "
+              "is emitted. If 'log' is specified, row data will be redacted from log "
+              "and error messages. If 'all' is specified, all of above will be redacted.");
+TAG_FLAG(redact, advanced);
+TAG_FLAG(redact, evolving);
+
+static bool ValidateRedact(const char* /*flagname*/, const string& value) {
+  // Empty value is valid.
+  if (value.empty()) {
+    kudu::g_should_redact_log = false;
+    kudu::g_should_redact_flag = false;
+    return true;
+  }
+
+  // Flag value is case insensitive
+  string redact_flags;
+  kudu::ToUpperCase(value, &redact_flags);
+  // "ALL" is valid, "ALL, LOG" is not valid
+  if (redact_flags.compare("ALL") == 0) {
+    kudu::g_should_redact_log = true;
+    kudu::g_should_redact_flag = true;
+    return true;
+  }
+
+  // If use specific flag value, it can only be "FLAG"
+  // or "LOG".
+  vector<string> enabled_redact_types = strings::Split(redact_flags, ",",
+                                                       strings::SkipEmpty());
+  vector<string>::const_iterator iter;
+  bool is_valid = true;
+  bool enabled_redact_log = false;
+  bool enabled_redact_flag = false;
+  for (const auto& t : enabled_redact_types) {
+    if (t.compare("LOG") == 0) {
+      enabled_redact_log = true;
+    } else {
+      if (t.compare("FLAG") == 0) {
+        enabled_redact_flag = true;
+      } else {
+        is_valid = false;
+      }
+    }
+  }
+  if (!is_valid) {
+    LOG(ERROR) << Substitute("Invalid redaction type: $0. Available types are 'flag', "
+                             "'log', 'all'.", value);
+  } else {
+    // If the value of --redact flag is valid, set
+    // g_should_redact_log and g_should_redact_flag accordingly.
+    kudu::g_should_redact_log = enabled_redact_log;
+    kudu::g_should_redact_flag = enabled_redact_flag;
+  }
+  return is_valid;
+}
+
+DEFINE_validator(redact, &ValidateRedact);
 // Tag a bunch of the flags that we inherit from glog/gflags.
 
 //------------------------------------------------------------
@@ -228,6 +321,10 @@ DECLARE_bool(version);
 TAG_FLAG(version, stable);
 
 namespace kudu {
+
+// After flags have been parsed, the umask value is filled in here.
+uint32_t g_parsed_umask = -1;
+
 namespace {
 
 void AppendXMLTag(const char* tag, const string& txt, string* r) {
@@ -320,6 +417,36 @@ void CheckFlagsAllowed() {
   }
 }
 
+// Redact the flag tagged as 'sensitive', if --redact is set
+// with 'flag'. Otherwise, return its value as-is. If EscapeMode
+// is set to HTML, return HTML escaped string.
+string CheckFlagAndRedact(const CommandLineFlagInfo& flag, EscapeMode mode) {
+  string ret_value;
+  unordered_set<string> tags;
+  GetFlagTags(flag.name, &tags);
+
+  if (ContainsKey(tags, "sensitive") && g_should_redact_flag) {
+    ret_value = kRedactionMessage;
+  } else {
+    ret_value = flag.current_value;
+  }
+  if (mode == EscapeMode::HTML) {
+    ret_value = EscapeForHtmlToString(ret_value);
+  }
+  return ret_value;
+}
+
+void SetUmask() {
+  // We already validated with a nice error message using the ValidateUmask
+  // FlagValidator above.
+  CHECK(safe_strtou32_base(FLAGS_umask.c_str(), &g_parsed_umask, 8));
+  uint32_t old_mask = umask(g_parsed_umask);
+  if (old_mask != g_parsed_umask) {
+    VLOG(2) << "Changed umask from " << StringPrintf("%03o", old_mask) << " to "
+            << StringPrintf("%03o", g_parsed_umask);
+  }
+}
+
 } // anonymous namespace
 
 int ParseCommandLineFlags(int* argc, char*** argv, bool remove_flags) {
@@ -350,11 +477,32 @@ void HandleCommonFlags() {
     DisableCoreDumps();
   }
 
+  SetUmask();
+
 #ifdef TCMALLOC_ENABLED
   if (FLAGS_enable_process_lifetime_heap_profiling) {
     HeapProfilerStart(FLAGS_heap_profile_path.c_str());
   }
 #endif
+}
+
+string CommandlineFlagsIntoString(EscapeMode mode) {
+  string ret_value;
+  vector<CommandLineFlagInfo> flags;
+  GetAllFlags(&flags);
+
+  for (const auto& f : flags) {
+    ret_value += "--";
+    if (mode == EscapeMode::HTML) {
+      ret_value += EscapeForHtmlToString(f.name);
+    } else if (mode == EscapeMode::NONE) {
+      ret_value += f.name;
+    }
+    ret_value += "=";
+    ret_value += CheckFlagAndRedact(f, mode);
+    ret_value += "\n";
+  }
+  return ret_value;
 }
 
 string GetNonDefaultFlags(const GFlagsMap& default_flags) {
@@ -374,7 +522,11 @@ string GetNonDefaultFlags(const GFlagsMap& default_flags) {
         if (!args.str().empty()) {
           args << '\n';
         }
-        args << "--" << flag.name << '=' << flag.current_value;
+
+        // Redact the flags tagged as sensitive, if --redact is set
+        // with 'flag'.
+        string flag_value = CheckFlagAndRedact(flag, EscapeMode::NONE);
+        args << "--" << flag.name << '=' << flag_value;
       }
     }
   }
