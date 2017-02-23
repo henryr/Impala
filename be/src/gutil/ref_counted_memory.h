@@ -8,9 +8,9 @@
 #include <string>
 #include <vector>
 
-#include "kudu/gutil/macros.h"
-#include "kudu/gutil/ref_counted.h"
-#include "kudu/gutil/port.h"
+#include "gutil/macros.h"
+#include "gutil/ref_counted.h"
+#include "gutil/port.h"
 
 #ifndef BASE_EXPORT
 #define BASE_EXPORT

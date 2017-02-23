@@ -7,10 +7,10 @@
 
 #include <memory>
 
-#include "kudu/gutil/atomicops.h"
-#include "kudu/gutil/port.h"
-#include "kudu/gutil/macros.h"
- 
+#include "gutil/atomicops.h"
+#include "gutil/macros.h"
+#include "gutil/port.h"
+
 #ifndef BASE_EXPORT
 #define BASE_EXPORT
 #endif

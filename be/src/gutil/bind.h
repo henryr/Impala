@@ -10,14 +10,14 @@
 #ifndef GUTIL_BIND_H_
 #define GUTIL_BIND_H_
 
-#include "kudu/gutil/bind_internal.h"
-#include "kudu/gutil/callback_internal.h"
+#include "gutil/bind_internal.h"
+#include "gutil/callback_internal.h"
 
 // -----------------------------------------------------------------------------
 // Usage documentation
 // -----------------------------------------------------------------------------
 //
-// See kudu/gutil/callback.h for documentation.
+// See gutil/callback.h for documentation.
 //
 //
 // -----------------------------------------------------------------------------
@@ -25,7 +25,7 @@
 // -----------------------------------------------------------------------------
 //
 // If you're reading the implementation, before proceeding further, you should
-// read the top comment of kudu/gutil/bind_internal.h for a definition of common
+// read the top comment of gutil/bind_internal.h for a definition of common
 // terms and concepts.
 //
 // RETURN TYPES

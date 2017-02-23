@@ -7,7 +7,7 @@
 
 #include <type_traits>
 
-#include "kudu/gutil/ref_counted.h"
+#include "gutil/ref_counted.h"
 
 // It is dangerous to post a task with a T* argument where T is a subtype of
 // RefCounted(Base|ThreadSafeBase), since by the time the parameter is used, the

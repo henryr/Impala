@@ -5,7 +5,7 @@ $$
 $$ http://code.google.com/p/googletest/wiki/PumpManual
 $$
 
-$$ See comment for MAX_ARITY in kudu/gutil/bind.h.pump.
+$$ See comment for MAX_ARITY in gutil/bind.h.pump.
 $var MAX_ARITY = 7
 
 // Copyright (c) 2012 The Chromium Authors. All rights reserved.
@@ -15,12 +15,12 @@ $var MAX_ARITY = 7
 #ifndef GUTIL_CALLBACK_H_
 #define GUTIL_CALLBACK_H_
 
-#include "kudu/gutil/callback_forward.h"
-#include "kudu/gutil/callback_internal.h"
-#include "kudu/gutil/template_util.h"
+#include "gutil/callback_forward.h"
+#include "gutil/callback_internal.h"
+#include "gutil/template_util.h"
 
 // NOTE: Header files that do not require the full definition of Callback or
-// Closure should #include "kudu/gutil/callback_forward.h" instead of this file.
+// Closure should #include "gutil/callback_forward.h" instead of this file.
 
 // -----------------------------------------------------------------------------
 // Introduction
@@ -285,7 +285,7 @@ $var MAX_ARITY = 7
 // To change this behavior, we introduce a set of argument wrappers
 // (e.g., Unretained(), and ConstRef()).  These are simple container templates
 // that are passed by value, and wrap a pointer to argument.  See the
-// file-level comment in kudu/gutil/bind_helpers.h for more info.
+// file-level comment in gutil/bind_helpers.h for more info.
 //
 // These types are passed to the Unwrap() functions, and the MaybeRefcount()
 // functions respectively to modify the behavior of Bind().  The Unwrap()

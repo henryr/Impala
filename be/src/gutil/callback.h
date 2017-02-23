@@ -10,12 +10,12 @@
 #ifndef GUTIL_CALLBACK_H_
 #define GUTIL_CALLBACK_H_
 
-#include "kudu/gutil/callback_forward.h"
-#include "kudu/gutil/callback_internal.h"
-#include "kudu/gutil/template_util.h"
+#include "gutil/callback_forward.h"
+#include "gutil/callback_internal.h"
+#include "gutil/template_util.h"
 
 // NOTE: Header files that do not require the full definition of Callback or
-// Closure should #include "kudu/gutil/callback_forward.h" instead of this file.
+// Closure should #include "gutil/callback_forward.h" instead of this file.
 
 // -----------------------------------------------------------------------------
 // Introduction
@@ -280,7 +280,7 @@
 // To change this behavior, we introduce a set of argument wrappers
 // (e.g., Unretained(), and ConstRef()).  These are simple container templates
 // that are passed by value, and wrap a pointer to argument.  See the
-// file-level comment in kudu/gutil/bind_helpers.h for more info.
+// file-level comment in gutil/bind_helpers.h for more info.
 //
 // These types are passed to the Unwrap() functions, and the MaybeRefcount()
 // functions respectively to modify the behavior of Bind().  The Unwrap()

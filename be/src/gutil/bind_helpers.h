@@ -4,7 +4,7 @@
 
 // This defines a set of argument wrappers and related factory methods that
 // can be used specify the refcounting and reference semantics of arguments
-// that are bound by the Bind() function in kudu/gutil/bind.h.
+// that are bound by the Bind() function in gutil/bind.h.
 //
 // It also defines a set of simple functions and utilities that people want
 // when using Callback<> and Bind().
@@ -145,9 +145,9 @@
 
 #include <assert.h>
 
-#include "kudu/gutil/basictypes.h"
-#include "kudu/gutil/callback.h"
-#include "kudu/gutil/template_util.h"
+#include "gutil/basictypes.h"
+#include "gutil/callback.h"
+#include "gutil/template_util.h"
 
 // Unneeded define from Chromium
 #define BASE_EXPORT

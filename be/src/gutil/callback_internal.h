@@ -10,8 +10,8 @@
 
 #include <stddef.h>
 
-#include "kudu/gutil/gscoped_ptr.h"
-#include "kudu/gutil/ref_counted.h"
+#include "gutil/gscoped_ptr.h"
+#include "gutil/ref_counted.h"
 
 template <typename T>
 class ScopedVector;
