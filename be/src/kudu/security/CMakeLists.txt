@@ -33,12 +33,12 @@ endif()
 # token_proto
 ##############################
 
-KRPC_GENERATE(
+PROTOBUF_GENERATE_CPP(
   TOKEN_PROTO_SRCS TOKEN_PROTO_HDRS TOKEN_PROTO_TGTS
   SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..
   BINARY_ROOT ${CMAKE_CURRENT_BINARY_DIR}/../..
   PROTO_FILES token.proto)
-set(TOKEN_PROTO_LIBS protobuf)
+set(TOKEN_PROTO_LIBS protobuf pb_util_proto)
 ADD_EXPORTABLE_LIBRARY(token_proto
   SRCS ${TOKEN_PROTO_SRCS}
   DEPS ${TOKEN_PROTO_LIBS}
@@ -58,10 +58,11 @@ set(SECURITY_SRCS
   ca/cert_management.cc
   cert.cc
   crypto.cc
+  kerberos_util.cc
   init.cc
   openssl_util.cc
   ${PORTED_X509_CHECK_HOST_CC}
-  server_cert_manager.cc
+  simple_acl.cc
   tls_context.cc
   tls_handshake.cc
   tls_socket.cc
@@ -92,7 +93,7 @@ if (NOT NO_TESTS)
   set(SECURITY_TEST_SRCS
     security-test-util.cc
     test/mini_kdc.cc
-    test/test_certs.cc)
+    test/test_certs.cc test/test_pass.cc)
 
   add_library(security-test ${SECURITY_TEST_SRCS})
   target_link_libraries(security-test
@@ -108,6 +109,7 @@ if (NOT NO_TESTS)
     ${KUDU_MIN_TEST_LIBS})
 
   ADD_KUDU_TEST(ca/cert_management-test)
+  ADD_KUDU_TEST(cert-test)
   ADD_KUDU_TEST(crypto-test)
   ADD_KUDU_TEST(test/mini_kdc-test)
   ADD_KUDU_TEST(tls_handshake-test)

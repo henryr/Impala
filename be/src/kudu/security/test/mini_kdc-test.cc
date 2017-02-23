@@ -17,6 +17,7 @@
 
 #include <string>
 
+#include <boost/optional.hpp>
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
@@ -27,8 +28,8 @@
 
 using std::string;
 
-DECLARE_string(keytab);
-DECLARE_string(kerberos_principal);
+DECLARE_string(keytab_file);
+DECLARE_string(principal);
 
 namespace kudu {
 
@@ -74,9 +75,32 @@ TEST_F(MiniKdcTest, TestBasicOperation) {
 
   // Test programmatic keytab login.
   kdc.SetKrb5Environment();
-  FLAGS_keytab = kt_path;
-  FLAGS_kerberos_principal = kSPN;
+  FLAGS_keytab_file = kt_path;
+  FLAGS_principal = kSPN;
   ASSERT_OK(security::InitKerberosForServer());
+  ASSERT_EQ("kudu/foo.example.com@KRBTEST.COM", *security::GetLoggedInPrincipalFromKeytab());
+
+  // Test principal canonicalization.
+  string princ = "foo";
+  ASSERT_OK(security::CanonicalizeKrb5Principal(&princ));
+  ASSERT_EQ("foo@KRBTEST.COM", princ);
+
+  // Test auth-to-local mapping for a user from the local realm as well as a remote realm.
+  {
+    string local_user;
+    ASSERT_OK(security::MapPrincipalToLocalName("foo@KRBTEST.COM", &local_user));
+    ASSERT_EQ("foo", local_user);
+
+    ASSERT_OK(security::MapPrincipalToLocalName("foo/host@KRBTEST.COM", &local_user));
+    ASSERT_EQ("foo", local_user);
+
+    // The Heimdal implementation in macOS does not correctly implement auth to
+    // local mapping (see init.cc).
+#ifndef __APPLE__
+    ASSERT_OK(security::MapPrincipalToLocalName("foo@OTHERREALM.COM", &local_user));
+    ASSERT_EQ("other-foo", local_user);
+#endif
+  }
 }
 
 // Regression test to ensure that dropping a stopped MiniKdc doesn't panic.

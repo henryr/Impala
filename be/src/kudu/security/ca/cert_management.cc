@@ -37,6 +37,7 @@
 
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/security/cert.h"
+#include "kudu/security/init.h"
 #include "kudu/security/openssl_util.h"
 #include "kudu/util/scoped_cleanup.h"
 #include "kudu/util/status.h"
@@ -55,9 +56,6 @@ template<> struct SslTypeTraits<ASN1_INTEGER> {
 };
 template<> struct SslTypeTraits<BIGNUM> {
   static constexpr auto free = &BN_free;
-};
-template<> struct SslTypeTraits<EVP_PKEY> {
-  static constexpr auto free = &EVP_PKEY_free;
 };
 
 namespace ca {
@@ -91,12 +89,10 @@ Status CertRequestGeneratorBase::GenerateRequest(const PrivateKey& key,
     } \
   } while (false)
 
-  CERT_SET_SUBJ_FIELD(config_.country, "C", "country");
-  CERT_SET_SUBJ_FIELD(config_.state, "ST", "state");
-  CERT_SET_SUBJ_FIELD(config_.locality, "L", "locality/city");
-  CERT_SET_SUBJ_FIELD(config_.org, "O", "organization");
-  CERT_SET_SUBJ_FIELD(config_.unit, "OU", "organizational unit");
-  CERT_SET_SUBJ_FIELD(config_.uuid, "CN", "common name");
+  CERT_SET_SUBJ_FIELD(config_.cn, "CN", "common name");
+  if (config_.user_id) {
+    CERT_SET_SUBJ_FIELD(*config_.user_id, "UID", "userId");
+  }
 #undef CERT_SET_SUBJ_FIELD
 
   // Set necessary extensions into the request.
@@ -111,9 +107,9 @@ Status CertRequestGeneratorBase::GenerateRequest(const PrivateKey& key,
 }
 
 Status CertRequestGeneratorBase::PushExtension(stack_st_X509_EXTENSION* st,
-                                               int32_t nid, const char* value) {
+                                               int32_t nid, StringPiece value) {
   auto ex = ssl_make_unique(
-      X509V3_EXT_conf_nid(nullptr, nullptr, nid, const_cast<char*>(value)));
+      X509V3_EXT_conf_nid(nullptr, nullptr, nid, const_cast<char*>(value.data())));
   if (!ex) {
     return Status::RuntimeError("error configuring extension");
   }
@@ -123,23 +119,15 @@ Status CertRequestGeneratorBase::PushExtension(stack_st_X509_EXTENSION* st,
 }
 
 CertRequestGenerator::CertRequestGenerator(Config config)
-    : CertRequestGeneratorBase(config),
-      extensions_(nullptr),
-      is_initialized_(false) {
+    : CertRequestGeneratorBase(config) {
 }
 
 Status CertRequestGenerator::Init() {
   InitializeOpenSSL();
 
-  lock_guard<simple_spinlock> guard(lock_);
   CHECK(!is_initialized_);
-  if (config_.uuid.empty()) {
-    return Status::InvalidArgument("missing end-entity UUID/name");
-  }
-  // Check that the config contain at least one entity (DNS name/IP address)
-  // to bind the generated certificate.
-  if (config_.hostnames.empty() && config_.ips.empty()) {
-    return Status::InvalidArgument("SAN: missing DNS names and IP addresses");
+  if (config_.cn.empty()) {
+    return Status::InvalidArgument("missing end-entity CN");
   }
 
   extensions_ = sk_X509_EXTENSION_new_null();
@@ -151,62 +139,38 @@ Status CertRequestGenerator::Init() {
 
   // The generated certificates are for using as TLS certificates for
   // both client and server.
-  RETURN_NOT_OK(PushExtension(extensions_, NID_key_usage,
-                              "critical,digitalSignature,keyEncipherment"));
+  string usage = "critical,digitalSignature,keyEncipherment";
+  if (for_self_signing_) {
+    // If we are generating a CSR for self-signing, then we need to
+    // add this keyUsage attribute. See https://s.apache.org/BFHk
+    usage += ",keyCertSign";
+  }
+
+  RETURN_NOT_OK(PushExtension(extensions_, NID_key_usage, usage));
   // The generated certificates should be good for authentication
   // of a server to a client and vice versa: the intended users of the
   // certificates are tablet servers which are going to talk to master
   // and other tablet servers via TLS channels.
   RETURN_NOT_OK(PushExtension(extensions_, NID_ext_key_usage,
                               "critical,serverAuth,clientAuth"));
+
   // The generated certificates are not intended to be used as CA certificates
   // (i.e. they cannot be used to sign/issue certificates).
   RETURN_NOT_OK(PushExtension(extensions_, NID_basic_constraints,
                               "critical,CA:FALSE"));
-  ostringstream san_hosts;
-  for (size_t i = 0; i < config_.hostnames.size(); ++i) {
-    const string& hostname = config_.hostnames[i];
-    if (hostname.empty()) {
-      // Basic validation: check for emptyness. Probably, more advanced
-      // validation is needed here.
-      return Status::InvalidArgument("SAN: an empty hostname");
-    }
-    if (i != 0) {
-      san_hosts << ",";
-    }
-    san_hosts << "DNS." << i << ":" << hostname;
+
+  if (config_.kerberos_principal) {
+    int nid = GetKuduKerberosPrincipalOidNid();
+    RETURN_NOT_OK(PushExtension(extensions_, nid,
+                                Substitute("ASN1:UTF8:$0", *config_.kerberos_principal)));
   }
-  ostringstream san_ips;
-  for (size_t i = 0; i < config_.ips.size(); ++i) {
-    const string& ip = config_.ips[i];
-    if (ip.empty()) {
-      // Basic validation: check for emptyness. Probably, more advanced
-      // validation is needed here.
-      return Status::InvalidArgument("SAN: an empty IP address");
-    }
-    if (i != 0) {
-      san_ips << ",";
-    }
-    san_ips << "IP." << i << ":" << ip;
-  }
-  // Encode hostname and IP address into the subjectAlternativeName attribute.
-  const string alt_name = san_hosts.str() +
-      ((!san_hosts.str().empty() && !san_ips.str().empty()) ? "," : "") +
-      san_ips.str();
-  RETURN_NOT_OK(PushExtension(extensions_, NID_subject_alt_name,
-                              alt_name.c_str()));
-  if (!config_.comment.empty()) {
-    // Add the comment if it's not empty.
-    RETURN_NOT_OK(PushExtension(extensions_, NID_netscape_comment,
-                                config_.comment.c_str()));
-  }
+
   is_initialized_ = true;
 
   return Status::OK();
 }
 
 bool CertRequestGenerator::Initialized() const {
-  lock_guard<simple_spinlock> guard(lock_);
   return is_initialized_;
 }
 
@@ -233,7 +197,7 @@ Status CaCertRequestGenerator::Init() {
   if (is_initialized_) {
     return Status::OK();
   }
-  if (config_.uuid.empty()) {
+  if (config_.cn.empty()) {
     return Status::InvalidArgument("missing CA service UUID/name");
   }
 
@@ -250,11 +214,6 @@ Status CaCertRequestGenerator::Init() {
   // The generated certificates are for the private CA service.
   RETURN_NOT_OK(PushExtension(extensions_, NID_basic_constraints,
                               "critical,CA:TRUE"));
-  if (!config_.comment.empty()) {
-    // Add the comment if it's not empty.
-    RETURN_NOT_OK(PushExtension(extensions_, NID_netscape_comment,
-                                config_.comment.c_str()));
-  }
   is_initialized_ = true;
 
   return Status::OK();
@@ -273,6 +232,7 @@ Status CaCertRequestGenerator::SetExtensions(X509_REQ* req) const {
 
 Status CertSigner::SelfSignCA(const PrivateKey& key,
                               CaCertRequestGenerator::Config config,
+                              int64_t cert_expiration_seconds,
                               Cert* cert) {
   // Generate a CSR for the CA.
   CertSignRequest ca_csr;
@@ -283,9 +243,30 @@ Status CertSigner::SelfSignCA(const PrivateKey& key,
   }
 
   // Self-sign the CA's CSR.
-  RETURN_NOT_OK(CertSigner(nullptr, &key).Sign(ca_csr, cert));
+  RETURN_NOT_OK(CertSigner(nullptr, &key)
+                .set_expiration_interval(
+                    MonoDelta::FromSeconds(cert_expiration_seconds))
+                .Sign(ca_csr, cert));
   return Status::OK();
 }
+
+Status CertSigner::SelfSignCert(const PrivateKey& key,
+                                CertRequestGenerator::Config config,
+                                Cert* cert) {
+  // Generate a CSR.
+  CertSignRequest csr;
+  {
+    CertRequestGenerator gen(std::move(config));
+    gen.enable_self_signing();
+    RETURN_NOT_OK(gen.Init());
+    RETURN_NOT_OK(gen.GenerateRequest(key, &csr));
+  }
+
+  // Self-sign the CSR with the key.
+  RETURN_NOT_OK(CertSigner(nullptr, &key).Sign(csr, cert));
+  return Status::OK();
+}
+
 
 CertSigner::CertSigner(const Cert* ca_cert,
                        const PrivateKey* ca_private_key)

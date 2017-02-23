@@ -24,7 +24,10 @@
 #include <string>
 #include <vector>
 
+#include <boost/optional.hpp>
+
 #include "kudu/gutil/macros.h"
+#include "kudu/gutil/strings/stringpiece.h"
 #include "kudu/security/crypto.h"
 #include "kudu/security/openssl_util.h"
 #include "kudu/util/locks.h"
@@ -51,18 +54,14 @@ namespace ca {
 // Base utility class for issuing X509 CSRs.
 class CertRequestGeneratorBase {
  public:
-  // Properties for the generated X509 CSR.  Using server UUID for the common
-  // name field.
+  // Properties for the generated X509 CSR.
   struct Config {
-    std::string country;  // subject field: C
-    std::string state;    // subject field: ST
-    std::string locality; // subject field: L
-    std::string org;      // subject field: O
-    std::string unit;     // subject field: OU
-    std::string uuid;     // subject field: CN
-    std::string comment;  // custom extension: Netscape Comment
-    std::vector<std::string> hostnames; // subjectAltName extension (DNS:)
-    std::vector<std::string> ips;       // subjectAltName extension (IP:)
+    // Common Name (CN)
+    std::string cn;
+    // userId (UID)
+    boost::optional<std::string> user_id;
+    // Our custom extension which stores the full Kerberos principal for IPKI certs.
+    boost::optional<std::string> kerberos_principal;
   };
 
   explicit CertRequestGeneratorBase(Config config);
@@ -73,12 +72,13 @@ class CertRequestGeneratorBase {
 
   // Generate X509 CSR using the specified key. To obtain the key,
   // call the GeneratePrivateKey() function.
-  Status GenerateRequest(const PrivateKey& key, CertSignRequest* ret) const;
+  Status GenerateRequest(const PrivateKey& key, CertSignRequest* ret) const WARN_UNUSED_RESULT;
 
  protected:
   // Push the specified extension into the stack provided.
-  static Status PushExtension(stack_st_X509_EXTENSION* st, int32_t nid,
-                              const char* value);
+  static Status PushExtension(stack_st_X509_EXTENSION* st,
+                              int32_t nid,
+                              StringPiece value) WARN_UNUSED_RESULT;
   // Set the certificate-specific extensions into the specified request.
   virtual Status SetExtensions(X509_REQ* req) const = 0;
 
@@ -92,24 +92,27 @@ class CertRequestGeneratorBase {
 // (a.k.a. X509 CSRs).
 class CertRequestGenerator : public CertRequestGeneratorBase {
  public:
-  // The CertRequestGenerator object is bound to the server UUID, hostnames
-  // and IP addresses specified by the 'config' parameter. The hostnames and
-  // IP addresses are put into the X509v3 SAN extension (subject alternative
-  // name, a.k.a. subjectAltName). The SAN can be used while verifying the
-  // generated certificates during TLS handshake.
+  // 'config' contains the properties to fill into the X509 attributes of the
+  // CSR.
   explicit CertRequestGenerator(Config config);
   ~CertRequestGenerator();
 
-  Status Init() override;
+  Status Init() override WARN_UNUSED_RESULT;
   bool Initialized() const override;
 
+  CertRequestGenerator& enable_self_signing() {
+    CHECK(!is_initialized_);
+    for_self_signing_ = true;
+    return *this;
+  }
+
  protected:
-  Status SetExtensions(X509_REQ* req) const override;
+  Status SetExtensions(X509_REQ* req) const override WARN_UNUSED_RESULT;
 
  private:
-  stack_st_X509_EXTENSION* extensions_;
-  mutable simple_spinlock lock_;
-  bool is_initialized_; // protected by lock_
+  stack_st_X509_EXTENSION* extensions_ = nullptr;
+  bool is_initialized_ = false;
+  bool for_self_signing_ = false;
 };
 
 // An utility class that facilitates issuing of root CA self-signed certificate
@@ -119,11 +122,11 @@ class CaCertRequestGenerator : public CertRequestGeneratorBase {
   explicit CaCertRequestGenerator(Config config);
   ~CaCertRequestGenerator();
 
-  Status Init() override;
+  Status Init() override WARN_UNUSED_RESULT;
   bool Initialized() const override;
 
  protected:
-  Status SetExtensions(X509_REQ* req) const override;
+  Status SetExtensions(X509_REQ* req) const override WARN_UNUSED_RESULT;
 
  private:
   stack_st_X509_EXTENSION* extensions_;
@@ -146,7 +149,14 @@ class CertSigner {
   // and CSR configuration.
   static Status SelfSignCA(const PrivateKey& key,
                            CaCertRequestGenerator::Config config,
-                           Cert* cert);
+                           int64_t cert_expiration_seconds,
+                           Cert* cert) WARN_UNUSED_RESULT;
+
+  // Generate a self-signed certificate using the given key and CSR
+  // configuration.
+  static Status SelfSignCert(const PrivateKey& key,
+                             CertRequestGenerator::Config config,
+                             Cert* cert) WARN_UNUSED_RESULT;
 
   // Create a CertSigner.
   //
@@ -165,16 +175,16 @@ class CertSigner {
     return *this;
   }
 
-  Status Sign(const CertSignRequest& req, Cert* ret) const;
+  Status Sign(const CertSignRequest& req, Cert* ret) const WARN_UNUSED_RESULT;
 
  private:
 
-  static Status CopyExtensions(X509_REQ* req, X509* x);
-  static Status FillCertTemplateFromRequest(X509_REQ* req, X509* tmpl);
-  static Status DigestSign(const EVP_MD* md, EVP_PKEY* pkey, X509* x);
-  static Status GenerateSerial(c_unique_ptr<ASN1_INTEGER>* ret);
+  static Status CopyExtensions(X509_REQ* req, X509* x) WARN_UNUSED_RESULT;
+  static Status FillCertTemplateFromRequest(X509_REQ* req, X509* tmpl) WARN_UNUSED_RESULT;
+  static Status DigestSign(const EVP_MD* md, EVP_PKEY* pkey, X509* x) WARN_UNUSED_RESULT;
+  static Status GenerateSerial(c_unique_ptr<ASN1_INTEGER>* ret) WARN_UNUSED_RESULT;
 
-  Status DoSign(const EVP_MD* digest, int32_t exp_seconds, X509 *ret) const;
+  Status DoSign(const EVP_MD* digest, int32_t exp_seconds, X509 *ret) const WARN_UNUSED_RESULT;
 
   // The expiration interval of certs signed by this signer.
   int32_t exp_interval_sec_ = 24 * 60 * 60;

@@ -17,40 +17,17 @@
 
 #pragma once
 
-#include "kudu/security/openssl_util.h"
-#include "kudu/util/net/socket.h"
-#include "kudu/util/status.h"
+#include <string>
 
-struct ssl_st;
-typedef ssl_st SSL;
+#include "kudu/util/status.h"
 
 namespace kudu {
 namespace security {
 
-class TlsSocket : public Socket {
- public:
-
-  ~TlsSocket() override;
-
-  Status Write(const uint8_t *buf, int32_t amt, int32_t *nwritten) override WARN_UNUSED_RESULT;
-
-  Status Writev(const struct ::iovec *iov,
-                int iov_len,
-                int32_t *nwritten) override WARN_UNUSED_RESULT;
-
-  Status Recv(uint8_t *buf, int32_t amt, int32_t *nread) override WARN_UNUSED_RESULT;
-
-  Status Close() override WARN_UNUSED_RESULT;
-
- private:
-
-  friend class TlsHandshake;
-
-  TlsSocket(int fd, c_unique_ptr<SSL> ssl);
-
-  // Owned SSL handle.
-  c_unique_ptr<SSL> ssl_;
-};
+// Creates .htpasswd for HTTP basic authentication in the format
+// of 'user:realm:digest', returning the path in '*passwd_file'.
+Status CreateTestHTPasswd(const std::string &dir,
+                          std::string *passwd_file);
 
 } // namespace security
 } // namespace kudu

@@ -17,6 +17,9 @@
 
 #include <utility>
 
+#include <boost/optional.hpp>
+#include <boost/optional/optional_io.hpp>
+
 #include "kudu/gutil/strings/strip.h"
 #include "kudu/security/cert.h"
 #include "kudu/security/crypto.h"
@@ -61,7 +64,7 @@ class CertTest : public KuduTest {
 TEST_F(CertTest, CertInputOutputPEM) {
   const Cert& cert = ca_cert_;
   string cert_str;
-  cert.ToString(&cert_str, DataFormat::PEM);
+  ASSERT_OK(cert.ToString(&cert_str, DataFormat::PEM));
   RemoveExtraWhitespace(&cert_str);
 
   string ca_input_cert(kCaCert);
@@ -100,6 +103,11 @@ TEST_F(CertTest, CertMismatchesRsaPrivateKey) {
     EXPECT_TRUE(s.IsRuntimeError()) << s.ToString();
     ASSERT_STR_CONTAINS(s.ToString(), "certificate does not match private key");
   }
+}
+
+TEST_F(CertTest, TestGetKuduSpecificFieldsWhenMissing) {
+  EXPECT_EQ(boost::none, ca_cert_.UserId());
+  EXPECT_EQ(boost::none, ca_cert_.KuduKerberosPrincipal());
 }
 
 } // namespace security

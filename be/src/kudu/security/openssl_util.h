@@ -22,6 +22,7 @@
 #include <string>
 
 #include <openssl/pem.h>
+#include <openssl/ssl.h>
 #include <openssl/x509.h>
 
 #include "kudu/gutil/strings/substitute.h"
@@ -51,7 +52,12 @@ typedef struct x509_st X509;
 namespace kudu {
 namespace security {
 
+// Disable initialization of OpenSSL. Must be called before
+// any call to InitializeOpenSSL().
+Status DisableOpenSSLInitialization() WARN_UNUSED_RESULT;
+
 // Initializes static state required by the OpenSSL library.
+// This is a no-op if DisableOpenSSLInitialization() has been called.
 //
 // Safe to call multiple times.
 void InitializeOpenSSL();
@@ -99,6 +105,12 @@ template<> struct SslTypeTraits<X509_REQ> {
   static constexpr auto read_der = &d2i_X509_REQ_bio;
   static constexpr auto write_pem = &PEM_write_bio_X509_REQ;
   static constexpr auto write_der = &i2d_X509_REQ_bio;
+};
+template<> struct SslTypeTraits<EVP_PKEY> {
+  static constexpr auto free = &EVP_PKEY_free;
+};
+template<> struct SslTypeTraits<SSL_CTX> {
+  static constexpr auto free = &SSL_CTX_free;
 };
 
 template<typename SSL_TYPE, typename Traits = SslTypeTraits<SSL_TYPE>>

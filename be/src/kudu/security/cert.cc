@@ -22,16 +22,23 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
+
+#include <boost/optional.hpp>
 
 #include "kudu/security/crypto.h"
 #include "kudu/security/openssl_util.h"
 #include "kudu/security/openssl_util_bio.h"
+#include "kudu/util/scoped_cleanup.h"
 #include "kudu/util/status.h"
 
 using std::string;
 
 namespace kudu {
 namespace security {
+
+// This OID is generated via the UUID method.
+static const char* kKuduKerberosPrincipalOidStr = "2.25.243346677289068076843480765133256509912";
 
 string X509NameToString(X509_NAME* name) {
   CHECK(name);
@@ -41,6 +48,16 @@ string X509NameToString(X509_NAME* name) {
   BUF_MEM* membuf;
   OPENSSL_CHECK_OK(BIO_get_mem_ptr(bio.get(), &membuf));
   return string(membuf->data, membuf->length);
+}
+
+int GetKuduKerberosPrincipalOidNid() {
+  InitializeOpenSSL();
+
+  int nid = OBJ_txt2nid(kKuduKerberosPrincipalOidStr);
+  if (nid != NID_undef) return nid;
+  nid = OBJ_create(kKuduKerberosPrincipalOidStr, "kuduPrinc", "kuduKerberosPrincipal");
+  CHECK_NE(nid, NID_undef) << "could not create kuduPrinc oid";
+  return nid;
 }
 
 Status Cert::FromString(const std::string& data, DataFormat format) {
@@ -61,6 +78,31 @@ string Cert::SubjectName() const {
 
 string Cert::IssuerName() const {
   return X509NameToString(X509_get_issuer_name(data_.get()));
+}
+
+boost::optional<string> Cert::UserId() const {
+  X509_NAME* name = X509_get_subject_name(data_.get());
+  char buf[1024];
+  int len = X509_NAME_get_text_by_NID(name, NID_userId, buf, arraysize(buf));
+  if (len < 0) return boost::none;
+  return string(buf, len);
+}
+
+boost::optional<string> Cert::KuduKerberosPrincipal() const {
+  int idx = X509_get_ext_by_NID(data_.get(), GetKuduKerberosPrincipalOidNid(), -1);
+  if (idx < 0) return boost::none;
+  X509_EXTENSION* ext = X509_get_ext(data_.get(), idx);
+  ASN1_OCTET_STRING* octet_str = X509_EXTENSION_get_data(ext);
+  const unsigned char* octet_str_data = octet_str->data;
+  long len; // NOLINT(runtime/int)
+  int tag, xclass;
+  if (ASN1_get_object(&octet_str_data, &len, &tag, &xclass, octet_str->length) != 0 ||
+      tag != V_ASN1_UTF8STRING) {
+    LOG(DFATAL) << "invalid extension value in cert " << SubjectName();
+    return boost::none;
+  }
+
+  return string(reinterpret_cast<const char*>(octet_str_data), len);
 }
 
 Status Cert::CheckKeyMatch(const PrivateKey& key) const {
@@ -135,6 +177,13 @@ void Cert::AdoptAndAddRefRawData(X509* data) {
   AdoptRawData(data);
 }
 
+Status Cert::GetPublicKey(PublicKey* key) const {
+  EVP_PKEY* raw_key = X509_get_pubkey(data_.get());
+  OPENSSL_RET_IF_NULL(raw_key, "unable to get certificate public key");
+  key->AdoptRawData(raw_key);
+  return Status::OK();
+}
+
 Status CertSignRequest::FromString(const std::string& data, DataFormat format) {
   return ::kudu::security::FromString(data, format, &data_);
 }
@@ -145,6 +194,22 @@ Status CertSignRequest::ToString(std::string* data, DataFormat format) const {
 
 Status CertSignRequest::FromFile(const std::string& fpath, DataFormat format) {
   return ::kudu::security::FromFile(fpath, format, &data_);
+}
+
+CertSignRequest CertSignRequest::Clone() const {
+  CHECK_GT(CRYPTO_add(&data_->references, 1, CRYPTO_LOCK_X509_REQ), 1)
+    << "X509_REQ use-after-free detected";
+
+  CertSignRequest clone;
+  clone.AdoptRawData(GetRawData());
+  return clone;
+}
+
+Status CertSignRequest::GetPublicKey(PublicKey* key) const {
+  EVP_PKEY* raw_key = X509_REQ_get_pubkey(data_.get());
+  OPENSSL_RET_IF_NULL(raw_key, "unable to get CSR public key");
+  key->AdoptRawData(raw_key);
+  return Status::OK();
 }
 
 } // namespace security

@@ -35,6 +35,7 @@
 #include "kudu/util/env.h"
 #include "kudu/util/monotime.h"
 #include "kudu/util/path_util.h"
+#include "kudu/util/stopwatch.h"
 #include "kudu/util/subprocess.h"
 #include "kudu/util/test_util.h"
 
@@ -60,6 +61,12 @@ MiniKdc::MiniKdc(const MiniKdcOptions& options)
   }
   if (options_.data_root.empty()) {
     options_.data_root = JoinPathSegments(GetTestDataDirectory(), "krb5kdc");
+  }
+  if (options_.renew_lifetime.empty()) {
+    options_.renew_lifetime = "7d";
+  }
+  if (options_.ticket_lifetime.empty()) {
+    options_.ticket_lifetime = "24h";
   }
 }
 
@@ -133,6 +140,7 @@ Status GetBinaryPath(const string& binary, string* path) {
 
 
 Status MiniKdc::Start() {
+  SCOPED_LOG_SLOW_EXECUTION(WARNING, 100, "starting KDC");
   CHECK(!kdc_process_);
   VLOG(1) << "Starting Kerberos KDC: " << options_.ToString();
 
@@ -219,8 +227,8 @@ Status MiniKdc::CreateKrb5Conf() const {
     dns_lookup_kdc = false
     dns_lookup_realm = false
     forwardable = true
-    renew_lifetime = 7d
-    ticket_lifetime = 24h
+    renew_lifetime = $2
+    ticket_lifetime = $3
 
     # In miniclusters, we start daemons on local loopback IPs that
     # have no reverse DNS entries. So, disable reverse DNS.
@@ -234,14 +242,21 @@ Status MiniKdc::CreateKrb5Conf() const {
 [realms]
     $1 = {
         kdc = 127.0.0.1:$0
+        # This super-arcane syntax can be found documented in various Hadoop
+        # vendors' security guides and very briefly in the MIT krb5 docs.
+        # Basically, this one says to map anyone coming in as foo@OTHERREALM.COM
+        # and map them to a local user 'other-foo'
+        auth_to_local = RULE:[1:other-$$1@$$0](.*@OTHERREALM.COM$$)s/@.*//
     }
   )";
-  string file_contents = strings::Substitute(kFileTemplate, options_.port, options_.realm);
+  string file_contents = strings::Substitute(kFileTemplate, options_.port, options_.realm,
+                                             options_.renew_lifetime, options_.ticket_lifetime);
   return WriteStringToFile(Env::Default(), file_contents,
                            JoinPathSegments(options_.data_root, "krb5.conf"));
 }
 
 Status MiniKdc::WaitForKdcPorts() {
+  SCOPED_LOG_SLOW_EXECUTION(WARNING, 100, Substitute("waiting for KDC ports"));
   // We have to use 'lsof' to figure out which ports the KDC bound to if we
   // requested ephemeral ones. The KDC doesn't log the bound port or expose it
   // in any other fashion, and re-implementing lsof involves parsing a lot of
@@ -295,6 +310,7 @@ Status MiniKdc::WaitForKdcPorts() {
 }
 
 Status MiniKdc::CreateUserPrincipal(const string& username) {
+  SCOPED_LOG_SLOW_EXECUTION(WARNING, 100, Substitute("creating user principal $0", username));
   string kadmin;
   RETURN_NOT_OK(GetBinaryPath("kadmin.local", &kadmin));
   RETURN_NOT_OK(Subprocess::Call(MakeArgv({
@@ -304,6 +320,7 @@ Status MiniKdc::CreateUserPrincipal(const string& username) {
 
 Status MiniKdc::CreateServiceKeytab(const string& spn,
                                     string* path) {
+  SCOPED_LOG_SLOW_EXECUTION(WARNING, 100, Substitute("creating service keytab for $0", spn));
   string kt_path = spn;
   StripString(&kt_path, "/", '_');
   kt_path = JoinPathSegments(options_.data_root, kt_path) + ".keytab";
@@ -319,6 +336,7 @@ Status MiniKdc::CreateServiceKeytab(const string& spn,
 }
 
 Status MiniKdc::Kinit(const string& username) {
+  SCOPED_LOG_SLOW_EXECUTION(WARNING, 100, Substitute("kinit for $0", username));
   string kinit;
   RETURN_NOT_OK(GetBinaryPath("kinit", &kinit));
   Subprocess::Call(MakeArgv({ kinit, username }), username);
@@ -326,6 +344,7 @@ Status MiniKdc::Kinit(const string& username) {
 }
 
 Status MiniKdc::Kdestroy() {
+  SCOPED_LOG_SLOW_EXECUTION(WARNING, 100, "kdestroy");
   string kdestroy;
   RETURN_NOT_OK(GetBinaryPath("kdestroy", &kdestroy));
   return Subprocess::Call(MakeArgv({ kdestroy, "-A" }));

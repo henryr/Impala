@@ -25,9 +25,10 @@
 namespace kudu {
 namespace security {
 
+class SignedTokenPB;
+class TokenPB;
 class TokenSigningPublicKey;
 class TokenSigningPublicKeyPB;
-class SignedTokenPB;
 enum class VerificationResult;
 
 // Class responsible for verifying tokens provided to a server.
@@ -55,17 +56,26 @@ class TokenVerifier {
 
   // Return the highest key sequence number known by this instance.
   //
-  // If no keys are known, returns -1.
+  // If no keys are known, return -1.
   int64_t GetMaxKnownKeySequenceNumber() const;
 
-  // Import a set of public keys provided by a TokenSigner instance (which might
-  // be running on a remote node). If any public keys already exist with matching key
-  // sequence numbers, they are replaced by the new keys.
-  Status ImportPublicKeys(const std::vector<TokenSigningPublicKeyPB>& public_keys)
-    WARN_UNUSED_RESULT;
+  // Import a set of public keys provided by a TokenSigner instance
+  // (which might be running on a remote node). If any public keys already
+  // exist with matching key sequence numbers, they are replaced by
+  // the new keys.
+  Status ImportKeys(const std::vector<TokenSigningPublicKeyPB>& keys) WARN_UNUSED_RESULT;
 
-  // Verify the signature on the given token.
-  VerificationResult VerifyTokenSignature(const SignedTokenPB& signed_token) const;
+  // Export token signing public keys. Specifying the 'after_sequence_number'
+  // allows to get public keys with sequence numbers greater than
+  // 'after_sequence_number'. If the 'after_sequence_number' parameter is
+  // omitted, all known public keys are exported.
+  std::vector<TokenSigningPublicKeyPB> ExportKeys(
+      int64_t after_sequence_number = -1) const;
+
+  // Verify the signature on the given signed token, and deserialize the
+  // contents into 'token'.
+  VerificationResult VerifyTokenSignature(const SignedTokenPB& signed_token,
+                                          TokenPB* token) const;
 
   // TODO(PKI): should expire out old key versions at some point. eg only
   // keep old key versions until their expiration is an hour or two in the past?
@@ -74,9 +84,11 @@ class TokenVerifier {
   // void ExpireOldKeys();
 
  private:
+  typedef std::map<int64_t, std::unique_ptr<TokenSigningPublicKey>> KeysMap;
+
   // Lock protecting keys_by_seq_
   mutable RWMutex lock_;
-  std::map<int64_t, std::unique_ptr<TokenSigningPublicKey>> keys_by_seq_;
+  KeysMap keys_by_seq_;
 
   DISALLOW_COPY_AND_ASSIGN(TokenVerifier);
 };
@@ -102,6 +114,7 @@ enum class VerificationResult {
   INCOMPATIBLE_FEATURE
 };
 
+const char* VerificationResultToString(VerificationResult r);
 
 } // namespace security
 } // namespace kudu

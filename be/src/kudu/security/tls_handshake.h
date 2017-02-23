@@ -22,6 +22,7 @@
 
 #include <glog/logging.h>
 
+#include "kudu/security/cert.h"
 #include "kudu/security/openssl_util.h"
 #include "kudu/util/net/socket.h"
 #include "kudu/util/status.h"
@@ -97,12 +98,36 @@ class TlsHandshake {
   // round of messages.
   //
   // Returns any other status code on error.
-  Status Continue(const std::string& recv, std::string* send);
+  Status Continue(const std::string& recv, std::string* send) WARN_UNUSED_RESULT;
 
   // Finishes the handshake, wrapping the provided socket in the negotiated TLS
   // channel. This 'TlsHandshake' instance should not be used again after
   // calling this.
-  Status Finish(std::unique_ptr<Socket>* socket);
+  Status Finish(std::unique_ptr<Socket>* socket) WARN_UNUSED_RESULT;
+
+  // Finish the handshake, using the provided socket to verify the remote peer,
+  // but without wrapping the socket.
+  Status FinishNoWrap(const Socket& socket) WARN_UNUSED_RESULT;
+
+  // Retrieve the local certificate. This will return an error status if there
+  // is no local certificate.
+  //
+  // May only be called after 'Finish' or 'FinishNoWrap'.
+  Status GetLocalCert(Cert* cert) const WARN_UNUSED_RESULT;
+
+  // Retrieve the remote peer's certificate. This will return an error status if
+  // there is no remote certificate.
+  //
+  // May only be called after 'Finish' or 'FinishNoWrap'.
+  Status GetRemoteCert(Cert* cert) const WARN_UNUSED_RESULT;
+
+  // Retrieve the negotiated cipher suite. Only valid to call after the
+  // handshake is complete and before 'Finish()'.
+  std::string GetCipherSuite() const;
+
+  // Retrieve the negotiated TLS protocol version. Only valid to call after the
+  // handshake is complete and before 'Finish()'.
+  std::string GetProtocol() const;
 
  private:
   friend class TlsContext;
@@ -124,11 +149,17 @@ class TlsHandshake {
     return ssl_.get();
   }
 
+  // Populates local_cert_ and remote_cert_.
+  Status GetCerts() WARN_UNUSED_RESULT;
+
   // Verifies that the handshake is valid for the provided socket.
-  Status Verify(const Socket& socket) const;
+  Status Verify(const Socket& socket) const WARN_UNUSED_RESULT;
 
   // Owned SSL handle.
   c_unique_ptr<SSL> ssl_;
+
+  Cert local_cert_;
+  Cert remote_cert_;
 };
 
 } // namespace security

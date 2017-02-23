@@ -15,42 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#pragma once
+#include "kudu/security/kerberos_util.h"
+#include "kudu/gutil/strings/split.h"
 
-#include "kudu/security/openssl_util.h"
-#include "kudu/util/net/socket.h"
-#include "kudu/util/status.h"
-
-struct ssl_st;
-typedef ssl_st SSL;
+#include <array>
+#include <utility>
 
 namespace kudu {
 namespace security {
 
-class TlsSocket : public Socket {
- public:
+std::array<StringPiece, 3> SplitKerberosPrincipal(StringPiece principal) {
 
-  ~TlsSocket() override;
+  std::pair<StringPiece, StringPiece> user_realm = strings::Split(principal, "@");
+  std::pair<StringPiece, StringPiece> princ_host = strings::Split(user_realm.first, "/");
+  return {{princ_host.first, princ_host.second, user_realm.second}};
+}
 
-  Status Write(const uint8_t *buf, int32_t amt, int32_t *nwritten) override WARN_UNUSED_RESULT;
-
-  Status Writev(const struct ::iovec *iov,
-                int iov_len,
-                int32_t *nwritten) override WARN_UNUSED_RESULT;
-
-  Status Recv(uint8_t *buf, int32_t amt, int32_t *nread) override WARN_UNUSED_RESULT;
-
-  Status Close() override WARN_UNUSED_RESULT;
-
- private:
-
-  friend class TlsHandshake;
-
-  TlsSocket(int fd, c_unique_ptr<SSL> ssl);
-
-  // Owned SSL handle.
-  c_unique_ptr<SSL> ssl_;
-};
 
 } // namespace security
 } // namespace kudu

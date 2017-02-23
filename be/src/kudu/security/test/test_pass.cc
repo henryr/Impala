@@ -15,42 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#pragma once
+#include "kudu/security/test/test_pass.h"
 
-#include "kudu/security/openssl_util.h"
-#include "kudu/util/net/socket.h"
-#include "kudu/util/status.h"
+#include "kudu/util/env.h"
+#include "kudu/util/path_util.h"
 
-struct ssl_st;
-typedef ssl_st SSL;
+using std::string;
 
 namespace kudu {
 namespace security {
 
-class TlsSocket : public Socket {
- public:
+Status CreateTestHTPasswd(const string& dir,
+                          string* passwd_file) {
 
-  ~TlsSocket() override;
-
-  Status Write(const uint8_t *buf, int32_t amt, int32_t *nwritten) override WARN_UNUSED_RESULT;
-
-  Status Writev(const struct ::iovec *iov,
-                int iov_len,
-                int32_t *nwritten) override WARN_UNUSED_RESULT;
-
-  Status Recv(uint8_t *buf, int32_t amt, int32_t *nread) override WARN_UNUSED_RESULT;
-
-  Status Close() override WARN_UNUSED_RESULT;
-
- private:
-
-  friend class TlsHandshake;
-
-  TlsSocket(int fd, c_unique_ptr<SSL> ssl);
-
-  // Owned SSL handle.
-  c_unique_ptr<SSL> ssl_;
-};
+  // In the format of user:realm:digest. Digest is generated bases on
+  // password 'test'.
+  const char *kHTPasswd = "test:0.0.0.0:e4c02fbc8e89377a942ffc6b1bc3a566";
+  *passwd_file = JoinPathSegments(dir, "test.passwd");
+  RETURN_NOT_OK(WriteStringToFile(Env::Default(), kHTPasswd, *passwd_file));
+  return Status::OK();
+}
 
 } // namespace security
 } // namespace kudu

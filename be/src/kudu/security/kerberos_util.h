@@ -14,43 +14,16 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
 #pragma once
 
-#include "kudu/security/openssl_util.h"
-#include "kudu/util/net/socket.h"
-#include "kudu/util/status.h"
+#include <array>
 
-struct ssl_st;
-typedef ssl_st SSL;
+class StringPiece;
 
 namespace kudu {
 namespace security {
 
-class TlsSocket : public Socket {
- public:
-
-  ~TlsSocket() override;
-
-  Status Write(const uint8_t *buf, int32_t amt, int32_t *nwritten) override WARN_UNUSED_RESULT;
-
-  Status Writev(const struct ::iovec *iov,
-                int iov_len,
-                int32_t *nwritten) override WARN_UNUSED_RESULT;
-
-  Status Recv(uint8_t *buf, int32_t amt, int32_t *nread) override WARN_UNUSED_RESULT;
-
-  Status Close() override WARN_UNUSED_RESULT;
-
- private:
-
-  friend class TlsHandshake;
-
-  TlsSocket(int fd, c_unique_ptr<SSL> ssl);
-
-  // Owned SSL handle.
-  c_unique_ptr<SSL> ssl_;
-};
+std::array<StringPiece, 3> SplitKerberosPrincipal(StringPiece principal);
 
 } // namespace security
 } // namespace kudu
