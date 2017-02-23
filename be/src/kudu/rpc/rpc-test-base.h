@@ -50,10 +50,6 @@
 #include "kudu/util/test_util.h"
 #include "kudu/util/trace.h"
 
-DECLARE_string(rpc_ssl_server_certificate);
-DECLARE_string(rpc_ssl_private_key);
-DECLARE_string(rpc_ssl_certificate_authority);
-
 namespace kudu { namespace rpc {
 
 using kudu::rpc_test::AddRequestPB;
@@ -184,10 +180,12 @@ class GenericCalculatorService : public ServiceIf {
 
     PushTwoStringsResponsePB resp;
     resp.set_size1(sidecar1.size());
-    resp.set_data1((const char*)sidecar1.data(), sidecar1.size());
+    resp.set_data1(reinterpret_cast<const char*>(sidecar1.data()), sidecar1.size());
     resp.set_size2(sidecar2.size());
-    resp.set_data2((const char*)sidecar2.data(), sidecar2.size());
+    resp.set_data2(reinterpret_cast<const char*>(sidecar2.data()), sidecar2.size());
 
+    // Drop the sidecars etc, just to confirm that it's safe to do so.
+    incoming->DiscardTransfer();
     incoming->RespondSuccess(resp);
   }
 
@@ -262,8 +260,8 @@ class CalculatorService : public CalculatorServiceIf {
   void WhoAmI(const WhoAmIRequestPB* /*req*/,
               WhoAmIResponsePB* resp,
               RpcContext* context) override {
-    const UserCredentials& creds = context->user_credentials();
-    resp->mutable_credentials()->set_real_user(creds.real_user());
+    const RemoteUser& user = context->remote_user();
+    resp->mutable_credentials()->set_real_user(user.username());
     resp->set_address(context->remote_address().ToString());
     context->RespondSuccess();
   }
@@ -322,7 +320,7 @@ class CalculatorService : public CalculatorServiceIf {
   bool AuthorizeDisallowAlice(const google::protobuf::Message* /*req*/,
                               google::protobuf::Message* /*resp*/,
                               RpcContext* context) override {
-    if (context->user_credentials().real_user() == "alice") {
+    if (context->remote_user().username() == "alice") {
       context->RespondFailure(Status::NotAuthorized("alice is not allowed to call this method"));
       return false;
     }
@@ -332,7 +330,7 @@ class CalculatorService : public CalculatorServiceIf {
   bool AuthorizeDisallowBob(const google::protobuf::Message* /*req*/,
                             google::protobuf::Message* /*resp*/,
                             RpcContext* context) override {
-    if (context->user_credentials().real_user() == "bob") {
+    if (context->remote_user().username() == "bob") {
       context->RespondFailure(Status::NotAuthorized("bob is not allowed to call this method"));
       return false;
     }
@@ -399,16 +397,12 @@ class RpcTestBase : public KuduTest {
   std::shared_ptr<Messenger> CreateMessenger(const string &name,
                                              int n_reactors = 1,
                                              bool enable_ssl = false) {
-    if (enable_ssl) {
-      std::string server_cert_path = GetTestPath("server-cert.pem");
-      std::string private_key_path = GetTestPath("server-key.pem");
-      CHECK_OK(security::CreateSSLServerCert(server_cert_path));
-      CHECK_OK(security::CreateSSLPrivateKey(private_key_path));
-      FLAGS_rpc_ssl_server_certificate = server_cert_path;
-      FLAGS_rpc_ssl_private_key = private_key_path;
-      FLAGS_rpc_ssl_certificate_authority = server_cert_path;
-    }
     MessengerBuilder bld(name);
+
+    if (enable_ssl) {
+      bld.enable_inbound_tls();
+    }
+
     bld.set_num_reactors(n_reactors);
     bld.set_connection_keepalive_time(
       MonoDelta::FromMilliseconds(keepalive_time_ms_));

@@ -14,41 +14,28 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_RPC_NEGOTIATION_H
-#define KUDU_RPC_NEGOTIATION_H
 
-#include <iosfwd>
+#include "kudu/rpc/remote_user.h"
 
-#include "kudu/gutil/ref_counted.h"
-#include "kudu/util/monotime.h"
+#include <boost/optional.hpp>
+#include <string>
+
+#include "kudu/gutil/strings/substitute.h"
+
+using std::string;
 
 namespace kudu {
 namespace rpc {
 
-class Connection;
-enum class RpcAuthentication;
-
-enum class AuthenticationType {
-  INVALID,
-  SASL,
-  TOKEN,
-  CERTIFICATE,
-};
-const char* AuthenticationTypeToString(AuthenticationType t);
-
-std::ostream& operator<<(std::ostream& o, AuthenticationType authentication_type);
-
-class Negotiation {
- public:
-
-  // Perform negotiation for a connection (either server or client)
-  static void RunNegotiation(const scoped_refptr<Connection>& conn,
-                             RpcAuthentication authentication,
-                             MonoTime deadline);
- private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(Negotiation);
-};
+string RemoteUser::ToString() const {
+  string ret;
+  strings::SubstituteAndAppend(&ret, "{username='$0'", username_);
+  if (principal_) {
+    strings::SubstituteAndAppend(&ret, ", principal='$0'", *principal_);
+  }
+  ret.append("}");
+  return ret;
+}
 
 } // namespace rpc
 } // namespace kudu
-#endif // KUDU_RPC_NEGOTIATION_H

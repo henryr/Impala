@@ -48,10 +48,10 @@ class RpcSidecar {
   static std::unique_ptr<RpcSidecar> FromFaststring(std::unique_ptr<faststring> data);
   static std::unique_ptr<RpcSidecar> FromSlice(Slice slice);
 
-  // Utility method to parse a series of sidecar slices into 'sidecars' from 'buffer' + a
-  // set of offsets. 'sidecars' must have length >= TransferLimits::kMaxSidecars, and will
-  // be filled from index 0.
-  // TODO: Consider a vector instead here if there's no perf. impact.
+  // Utility method to parse a series of sidecar slices into 'sidecars' from 'buffer' and
+  // a set of offsets. 'sidecars' must have length >= TransferLimits::kMaxSidecars, and
+  // will be filled from index 0.
+  // TODO(henryr): Consider a vector instead here if there's no perf. impact.
   static Status ParseSidecars(
       const ::google::protobuf::RepeatedField<::google::protobuf::uint32>& offsets,
       Slice buffer, Slice* sidecars);

@@ -14,41 +14,44 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_RPC_NEGOTIATION_H
-#define KUDU_RPC_NEGOTIATION_H
 
-#include <iosfwd>
+#include "kudu/rpc/user_credentials.h"
 
-#include "kudu/gutil/ref_counted.h"
-#include "kudu/util/monotime.h"
+#include <string>
+
+#include <boost/functional/hash.hpp>
+
+#include "kudu/gutil/strings/substitute.h"
+
+using std::string;
 
 namespace kudu {
 namespace rpc {
 
-class Connection;
-enum class RpcAuthentication;
+bool UserCredentials::has_real_user() const {
+  return !real_user_.empty();
+}
 
-enum class AuthenticationType {
-  INVALID,
-  SASL,
-  TOKEN,
-  CERTIFICATE,
-};
-const char* AuthenticationTypeToString(AuthenticationType t);
+void UserCredentials::set_real_user(const string& real_user) {
+  real_user_ = real_user;
+}
 
-std::ostream& operator<<(std::ostream& o, AuthenticationType authentication_type);
+string UserCredentials::ToString() const {
+  // Does not print the password.
+  return strings::Substitute("{real_user=$0}", real_user_);
+}
 
-class Negotiation {
- public:
+size_t UserCredentials::HashCode() const {
+  size_t seed = 0;
+  if (has_real_user()) {
+    boost::hash_combine(seed, real_user());
+  }
+  return seed;
+}
 
-  // Perform negotiation for a connection (either server or client)
-  static void RunNegotiation(const scoped_refptr<Connection>& conn,
-                             RpcAuthentication authentication,
-                             MonoTime deadline);
- private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(Negotiation);
-};
+bool UserCredentials::Equals(const UserCredentials& other) const {
+  return real_user() == other.real_user();
+}
 
 } // namespace rpc
 } // namespace kudu
-#endif // KUDU_RPC_NEGOTIATION_H

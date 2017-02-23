@@ -17,18 +17,21 @@
 
 #pragma once
 
+#include <cstdlib>
 #include <memory>
 #include <set>
 #include <string>
 #include <vector>
 
+#include <boost/optional.hpp>
 #include <sasl/sasl.h>
 
-#include "kudu/gutil/gscoped_ptr.h"
+#include "kudu/rpc/negotiation.h"
 #include "kudu/rpc/rpc_header.pb.h"
 #include "kudu/rpc/sasl_common.h"
 #include "kudu/rpc/sasl_helper.h"
 #include "kudu/security/tls_handshake.h"
+#include "kudu/security/token.pb.h"
 #include "kudu/util/monotime.h"
 #include "kudu/util/net/socket.h"
 #include "kudu/util/status.h"
@@ -53,7 +56,11 @@ class ClientNegotiation {
   // provided socket. After completing the negotiation process by setting the
   // desired options and calling Negotiate(), the socket can be retrieved with
   // 'release_socket'.
-  explicit ClientNegotiation(std::unique_ptr<Socket> socket);
+  //
+  // The provided TlsContext must outlive this negotiation instance.
+  explicit ClientNegotiation(std::unique_ptr<Socket> socket,
+                             const security::TlsContext* tls_context,
+                             const boost::optional<security::SignedTokenPB>& authn_token);
 
   // Enable PLAIN authentication.
   // Must be called before Negotiate().
@@ -65,8 +72,21 @@ class ClientNegotiation {
   Status EnableGSSAPI();
 
   // Returns mechanism negotiated by this connection.
-  // Must be called before Negotiate().
+  // Must be called after Negotiate().
   SaslMechanism::Type negotiated_mechanism() const;
+
+  // Returns the negotiated authentication type for the connection.
+  // Must be called after Negotiate().
+  AuthenticationType negotiated_authn() const {
+    DCHECK_NE(negotiated_authn_, AuthenticationType::INVALID);
+    return negotiated_authn_;
+  }
+
+  // Returns true if TLS was negotiated.
+  // Must be called after Negotiate().
+  bool tls_negotiated() const {
+    return tls_negotiated_;
+  }
 
   // Returns the set of RPC system features supported by the remote server.
   // Must be called before Negotiate().
@@ -81,21 +101,9 @@ class ClientNegotiation {
     return std::move(server_features_);
   }
 
-  // Specify IP:port of local side of connection.
-  // Must be called before Negotiate(). Required for some mechanisms.
-  void set_local_addr(const Sockaddr& addr);
-
-  // Specify IP:port of remote side of connection.
-  // Must be called before Negotiate(). Required for some mechanisms.
-  void set_remote_addr(const Sockaddr& addr);
-
   // Specify the fully-qualified domain name of the remote server.
   // Must be called before Negotiate(). Required for some mechanisms.
   void set_server_fqdn(const std::string& domain_name);
-
-  // Allow TLS to be used on the connection. 'tls_context' must outlive this
-  // ClientNegotiation.
-  void EnableTls(const security::TlsContext* tls_context);
 
   // Set deadline for connection negotiation.
   void set_deadline(const MonoTime& deadline);
@@ -155,13 +163,29 @@ class ClientNegotiation {
   // Handle a TLS_HANDSHAKE response message from the server.
   Status HandleTlsHandshake(const NegotiatePB& response) WARN_UNUSED_RESULT;
 
+  // Authenticate to the server using SASL.
+  // 'recv_buf' allows a receive buffer to be reused.
+  Status AuthenticateBySasl(faststring* recv_buf) WARN_UNUSED_RESULT;
+
+  // Authenticate to the server using a token.
+  // 'recv_buf' allows a receive buffer to be reused.
+  Status AuthenticateByToken(faststring* recv_buf) WARN_UNUSED_RESULT;
+
   // Send an SASL_INITIATE message to the server.
+  // Returns:
+  //  Status::OK if the SASL_SUCCESS message is expected next.
+  //  Status::Incomplete if the SASL_CHALLENGE message is expected next.
+  //  Any other status indicates an error.
   Status SendSaslInitiate() WARN_UNUSED_RESULT;
 
   // Send a SASL_RESPONSE message to the server.
   Status SendSaslResponse(const char* resp_msg, unsigned resp_msg_len) WARN_UNUSED_RESULT;
 
   // Handle case when server sends SASL_CHALLENGE response.
+  // Returns:
+  //  Status::OK if a SASL_SUCCESS message is expected next.
+  //  Status::Incomplete if another SASL_CHALLENGE message is expected.
+  //  Any other status indicates an error.
   Status HandleSaslChallenge(const NegotiatePB& response) WARN_UNUSED_RESULT;
 
   // Handle case when server sends SASL_SUCCESS response.
@@ -175,9 +199,6 @@ class ClientNegotiation {
   // otherwise returns an appropriate error status.
   Status DoSaslStep(const std::string& in, const char** out, unsigned* out_len) WARN_UNUSED_RESULT;
 
-  // Decode the provided SASL-encoded data and append it to 'plaintext'.
-  Status SaslDecode(const std::string& encoded, std::string* plaintext) WARN_UNUSED_RESULT;
-
   Status SendConnectionContext() WARN_UNUSED_RESULT;
 
   // The socket to the remote server.
@@ -185,21 +206,33 @@ class ClientNegotiation {
 
   // SASL state.
   std::vector<sasl_callback_t> callbacks_;
-  gscoped_ptr<sasl_conn_t, SaslDeleter> sasl_conn_;
+  std::unique_ptr<sasl_conn_t, SaslDeleter> sasl_conn_;
   SaslHelper helper_;
+  boost::optional<std::string> nonce_;
 
   // TLS state.
   const security::TlsContext* tls_context_;
   security::TlsHandshake tls_handshake_;
   bool tls_negotiated_;
 
+  // TSK state.
+  boost::optional<security::SignedTokenPB> authn_token_;
+
   // Authentication state.
   std::string plain_auth_user_;
   std::string plain_pass_;
-  gscoped_ptr<sasl_secret_t, FreeDeleter> psecret_;
+  std::unique_ptr<sasl_secret_t, decltype(std::free)*> psecret_;
+
+  // The set of features advertised by the client. Filled in when we send
+  // the first message. This is not necessarily constant since some features
+  // may be dynamically enabled.
+  std::set<RpcFeatureFlag> client_features_;
 
   // The set of features supported by the server. Filled in during negotiation.
   std::set<RpcFeatureFlag> server_features_;
+
+  // The authentication type. Filled in during negotiation.
+  AuthenticationType negotiated_authn_;
 
   // The SASL mechanism used by the connection. Filled in during negotiation.
   SaslMechanism::Type negotiated_mech_;

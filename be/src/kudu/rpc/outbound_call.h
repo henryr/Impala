@@ -31,6 +31,7 @@
 #include "kudu/rpc/remote_method.h"
 #include "kudu/rpc/response_callback.h"
 #include "kudu/rpc/transfer.h"
+#include "kudu/rpc/user_credentials.h"
 #include "kudu/util/locks.h"
 #include "kudu/util/monotime.h"
 #include "kudu/util/net/sockaddr.h"
@@ -54,36 +55,6 @@ class RpcCallInProgressPB;
 class RpcController;
 class RpcSidecar;
 
-// Client-side user credentials, such as a user's username & password.
-// In the future, we will add Kerberos credentials.
-//
-// TODO(mpercy): this is actually used server side too -- should
-// we instead introduce a RemoteUser class or something?
-// TODO(todd): this should move into a standalone header.
-class UserCredentials {
- public:
-   UserCredentials();
-
-  // Real user.
-  bool has_real_user() const;
-  void set_real_user(const std::string& real_user);
-  const std::string& real_user() const { return real_user_; }
-
-  // Copy state from another object to this one.
-  void CopyFrom(const UserCredentials& other);
-
-  // Returns a string representation of the object, not including the password field.
-  std::string ToString() const;
-
-  std::size_t HashCode() const;
-  bool Equals(const UserCredentials& other) const;
-
- private:
-  // Remember to update HashCode() and Equals() when new fields are added.
-  std::string real_user_;
-
-  DISALLOW_COPY_AND_ASSIGN(UserCredentials);
-};
 
 // Used to key on Connection information.
 // For use as a key in an unordered STL collection, use ConnectionIdHash and ConnectionIdEqual.
@@ -96,14 +67,14 @@ class ConnectionId {
   ConnectionId(const ConnectionId& other);
 
   // Convenience constructor.
-  ConnectionId(const Sockaddr& remote, const UserCredentials& user_credentials);
+  ConnectionId(const Sockaddr& remote, UserCredentials user_credentials);
 
   // The remote address.
   void set_remote(const Sockaddr& remote);
   const Sockaddr& remote() const { return remote_; }
 
   // The credentials of the user associated with this connection, if any.
-  void set_user_credentials(const UserCredentials& user_credentials);
+  void set_user_credentials(UserCredentials user_credentials);
   const UserCredentials& user_credentials() const { return user_credentials_; }
   UserCredentials* mutable_user_credentials() { return &user_credentials_; }
 
@@ -159,9 +130,9 @@ class OutboundCall {
   // ownership of any sidecars that should accompany this request.
   //
   // Because the request data is fully serialized by this call, 'req' may be subsequently
-  // mutated with no ill effects. 'sidecars' will have been moved-from.
+  // mutated with no ill effects.
   void SetRequestPayload(const google::protobuf::Message& req,
-      std::vector<std::unique_ptr<RpcSidecar>> sidecars);
+      std::vector<std::unique_ptr<RpcSidecar>>&& sidecars);
 
   // Assign the call ID for this call. This is called from the reactor
   // thread once a connection has been assigned. Must only be called once.
@@ -205,11 +176,6 @@ class OutboundCall {
   const std::set<RpcFeatureFlag>& required_rpc_features() const {
     return required_rpc_features_;
   }
-
-  // Assume ownership of all sidecar objects in 'sidecars'.
-  // void TransferOutboundSidecars(std::vector<gscoped_ptr<RpcSidecar>> sidecars) {
-  //   sidecars_ = std::move(sidecars);
-  // }
 
   std::string ToString() const;
 

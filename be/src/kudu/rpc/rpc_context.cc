@@ -23,6 +23,7 @@
 
 #include "kudu/rpc/outbound_call.h"
 #include "kudu/rpc/inbound_call.h"
+#include "kudu/rpc/remote_user.h"
 #include "kudu/rpc/result_tracker.h"
 #include "kudu/rpc/rpc_sidecar.h"
 #include "kudu/rpc/service_if.h"
@@ -150,8 +151,12 @@ Status RpcContext::GetInboundSidecar(int idx, Slice* slice) {
   return call_->GetInboundSidecar(idx, slice);
 }
 
-const UserCredentials& RpcContext::user_credentials() const {
-  return call_->user_credentials();
+const RemoteUser& RpcContext::remote_user() const {
+  return call_->remote_user();
+}
+
+void RpcContext::DiscardTransfer() {
+  call_->DiscardTransfer();
 }
 
 const Sockaddr& RpcContext::remote_address() const {
@@ -159,8 +164,16 @@ const Sockaddr& RpcContext::remote_address() const {
 }
 
 std::string RpcContext::requestor_string() const {
-  return call_->user_credentials().ToString() + " at " +
+  return call_->remote_user().ToString() + " at " +
     call_->remote_address().ToString();
+}
+
+std::string RpcContext::method_name() const {
+  return call_->remote_method().method_name();
+}
+
+std::string RpcContext::service_name() const {
+  return call_->remote_method().service_name();
 }
 
 MonoTime RpcContext::GetClientDeadline() const {

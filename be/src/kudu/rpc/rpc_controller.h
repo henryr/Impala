@@ -198,6 +198,10 @@ class RpcController {
   friend class OutboundCall;
   friend class Proxy;
 
+  // Set the outbound call_'s request parameter, and transfer ownership of
+  // outbound_sidecars_ to call_ in preparation for serialization.
+  void SetRequestParam(const google::protobuf::Message& req);
+
   MonoDelta timeout_;
   std::unordered_set<uint32_t> required_server_features_;
 
@@ -211,13 +215,6 @@ class RpcController {
   std::shared_ptr<OutboundCall> call_;
 
   std::vector<std::unique_ptr<RpcSidecar>> outbound_sidecars_;
-
-  // Set the outbound call_'s request parameter, and transfer ownership of
-  // outbound_sidecars_ to call_ in preparation for serialization.
-  void SetRequestParam(const google::protobuf::Message& req);
-
-  // Move all sidecars into call_ once it is set.
-  // void TransferOutboundSidecars();
 
   DISALLOW_COPY_AND_ASSIGN(RpcController);
 };

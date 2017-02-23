@@ -32,7 +32,7 @@ namespace rpc {
 class SliceSidecar : public RpcSidecar {
  public:
   explicit SliceSidecar(Slice slice) : slice_(slice) { }
-  virtual Slice AsSlice() const { return slice_; }
+  Slice AsSlice() const override { return slice_; }
 
  private:
   const Slice slice_;
@@ -41,7 +41,7 @@ class SliceSidecar : public RpcSidecar {
 class FaststringSidecar : public RpcSidecar {
  public:
   explicit FaststringSidecar(unique_ptr<faststring> data) : data_(std::move(data)) { }
-  virtual Slice AsSlice() const { return *data_; }
+  Slice AsSlice() const override { return *data_; }
 
  private:
   const unique_ptr<faststring> data_;
@@ -59,6 +59,8 @@ unique_ptr<RpcSidecar> RpcSidecar::FromSlice(Slice slice) {
 Status RpcSidecar::ParseSidecars(
     const ::google::protobuf::RepeatedField<::google::protobuf::uint32>& offsets,
     Slice buffer, Slice* sidecars) {
+  if (offsets.size() == 0) return Status::OK();
+
   int last = offsets.size() - 1;
   if (last >= TransferLimits::kMaxSidecars) {
     return Status::Corruption(strings::Substitute(
@@ -66,35 +68,31 @@ Status RpcSidecar::ParseSidecars(
             last, TransferLimits::kMaxSidecars));
   }
 
-  if (last >= 0) {
-    for (int i = 0; i < last; ++i) {
-      uint32_t cur_offset = offsets.Get(i);
-      uint32_t next_offset = offsets.Get(i + 1);
-      if (next_offset > buffer.size()) {
-        return Status::Corruption(strings::Substitute(
-                "Invalid sidecar offsets; sidecar $0 apparently starts at $1,"
-                " has length $2, but the entire message has length $3",
-                i, cur_offset, (next_offset - cur_offset), buffer.size()));
-      }
-      if (next_offset < cur_offset) {
-        return Status::Corruption(strings::Substitute(
-                "Invalid sidecar offsets; sidecar $0 apparently starts at $1,"
-                " but has negative length $2.",
-                i, cur_offset, (next_offset - cur_offset)));
-      }
-
-      sidecars[i] = Slice(buffer.data() + cur_offset, next_offset - cur_offset);
+  for (int i = 0; i < last; ++i) {
+    int64_t cur_offset = offsets.Get(i);
+    int64_t next_offset = offsets.Get(i + 1);
+    if (next_offset > buffer.size()) {
+      return Status::Corruption(strings::Substitute(
+              "Invalid sidecar offsets; sidecar $0 apparently starts at $1,"
+              " has length $2, but the entire message has length $3",
+              i, cur_offset, (next_offset - cur_offset), buffer.size()));
+    }
+    if (next_offset < cur_offset) {
+      return Status::Corruption(strings::Substitute(
+              "Invalid sidecar offsets; sidecar $0 apparently starts at $1,"
+              " but ends before that at offset $1.", i, cur_offset, next_offset));
     }
 
-    uint32_t cur_offset = offsets.Get(last);
-    if (cur_offset > buffer.size()) {
-      return Status::Corruption(strings::Substitute("Invalid sidecar offsets: sidecar $0 "
-              "starts at offset $1after message ends (message length $2).", last,
-              cur_offset, buffer.size()));
-    }
-    sidecars[last] =
-        Slice(buffer.data() + cur_offset, buffer.size() - cur_offset);
+    sidecars[i] = Slice(buffer.data() + cur_offset, next_offset - cur_offset);
   }
+
+  int64_t cur_offset = offsets.Get(last);
+  if (cur_offset > buffer.size()) {
+    return Status::Corruption(strings::Substitute("Invalid sidecar offsets: sidecar $0 "
+            "starts at offset $1after message ends (message length $2).", last,
+            cur_offset, buffer.size()));
+  }
+  sidecars[last] = Slice(buffer.data() + cur_offset, buffer.size() - cur_offset);
 
   return Status::OK();
 }

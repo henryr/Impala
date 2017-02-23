@@ -22,6 +22,7 @@ package kudu.rpc;
 option java_package = "org.apache.kudu.rpc";
 
 import "google/protobuf/descriptor.proto";
+import "kudu/security/token.proto";
 import "kudu/util/pb_util.proto";
 
 // The Kudu RPC protocol is similar to the RPC protocol of Hadoop and HBase.
@@ -51,6 +52,12 @@ message ConnectionContextPB {
   // Impersonation (effective user) was never supported, so we'll have
   // to add that back at some point later.
   optional UserInformationPB DEPRECATED_user_info = 2;
+
+  // If the server sends a nonce to the client during the SASL_SUCCESS
+  // negotiation step, the client is required to encode it with SASL integrity
+  // protection and return it in this field. The nonce protects the server
+  // against a Kerberos replay attack.
+  optional bytes encoded_nonce = 3 [(REDACT) = true];
 }
 
 // Features supported by the RPC system itself.
@@ -74,7 +81,42 @@ enum RpcFeatureFlag {
   // this flag, the connection will automatically be wrapped in a TLS protected
   // channel following a TLS handshake.
   TLS = 2;
+
+  // If both sides advertise TLS_AUTHENTICATION_ONLY, this means that they
+  // agree that, after handshaking TLS, they will *not* wrap the connection
+  // in a TLS-protected channel. Instead, they will use TLS only for its
+  // handshake-based authentication.
+  //
+  // This is currently used for loopback connections only, so that compute
+  // frameworks which schedule for locality don't pay encryption overhead.
+  TLS_AUTHENTICATION_ONLY = 3;
 };
+
+// An authentication type. This is modeled as a oneof in case any of these
+// authentication types, or any authentication types in the future, need to add
+// extra type-specific parameters during negotiation.
+message AuthenticationTypePB {
+  message Sasl {};
+  message Token {};
+  message Certificate {};
+
+  oneof type {
+    // The server and client mutually authenticate via SASL.
+    Sasl sasl = 1;
+
+    // The server authenticates the client via a signed token, and the client
+    // authenticates the server by verifying its certificate has been signed by
+    // a trusted CA.
+    //
+    // Token authentication requires the connection to be TLS encrypted.
+    Token token = 2;
+
+    // The server and client mutually authenticate by certificate.
+    //
+    // Certificate authentication requires the connection to be TLS encrypted.
+    Certificate certificate = 3;
+  }
+}
 
 // Message type passed back & forth for the SASL negotiation.
 message NegotiatePB {
@@ -86,6 +128,7 @@ message NegotiatePB {
     SASL_CHALLENGE = 3;
     SASL_RESPONSE  = 4;
     TLS_HANDSHAKE  = 5;
+    TOKEN_EXCHANGE = 6;
   }
 
   message SaslMechanism {
@@ -125,9 +168,22 @@ message NegotiatePB {
   // value matches the expected value.
   optional bytes channel_bindings = 6 [(REDACT) = true];
 
+  // A random nonce sent from the server to the client during the SASL_SUCCESS
+  // step when the Kerberos (GSSAPI) SASL mechanism is used with TLS. The nonce
+  // must be sent back to the server, wrapped in SASL integrity protection, as
+  // part of the connection context.
+  optional bytes nonce = 9 [(REDACT) = true];
+
   // During the NEGOTIATE step, contains the supported SASL mechanisms.
   // During the SASL_INITIATE step, contains the single chosen SASL mechanism.
   repeated SaslMechanism sasl_mechanisms = 4;
+
+  // During the client to server NEGOTIATE step, contains the supported authentication types.
+  // During the server to client NEGOTIATE step, contains the chosen authentication type.
+  repeated AuthenticationTypePB authn_types = 7;
+
+  // During the TOKEN_EXCHANGE step, contains the client's signed authentication token.
+  optional security.SignedTokenPB authn_token = 8;
 }
 
 message RemoteMethodPB {
@@ -202,6 +258,9 @@ message RequestHeader {
   // older clients for requests that are not.
   optional RequestIdPB request_id = 15;
 
+  // Byte offsets for side cars in the main body of the request message.
+  // These offsets are counted AFTER the message header, i.e., offset 0
+  // is the first byte after the bytes for this protobuf.
   repeated uint32 sidecar_offsets = 16;
 }
 
@@ -249,6 +308,10 @@ message ErrorStatusPB {
     // longer cached. It's unknown whether the request was executed or not.
     ERROR_REQUEST_STALE = 6;
 
+    // The server is not able to complete the connection or request at this
+    // time. The client may try again later.
+    ERROR_UNAVAILABLE = 7;
+
     // FATAL_* errors indicate that the client should shut down the connection.
     //------------------------------------------------------------
     // The RPC server is already shutting down.
@@ -261,6 +324,10 @@ message ErrorStatusPB {
     FATAL_VERSION_MISMATCH = 14;
     // Auth failed.
     FATAL_UNAUTHORIZED = 15;
+
+    // The authentication token is invalid or expired;
+    // the client should obtain a new one.
+    FATAL_INVALID_AUTHENTICATION_TOKEN = 16;
   }
 
   required string message = 1;

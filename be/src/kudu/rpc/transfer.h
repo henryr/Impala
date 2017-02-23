@@ -50,8 +50,10 @@ class TransferLimits {
  public:
   enum {
     kMaxSidecars = 10,
-    kMaxPayloadSlices = 12 // == kMaxSidecars + 2 (header + msg)
+    kMaxPayloadSlices = kMaxSidecars + 2 // (header + msg)
   };
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(TransferLimits);
 };
 
 // This class is used internally by the RPC layer to represent an inbound

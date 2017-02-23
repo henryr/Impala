@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 #include <list>
@@ -44,11 +45,13 @@
 #include "kudu/rpc/server_negotiation.h"
 #include "kudu/rpc/transfer.h"
 #include "kudu/security/tls_context.h"
+#include "kudu/security/token_verifier.h"
 #include "kudu/util/errno.h"
 #include "kudu/util/flag_tags.h"
 #include "kudu/util/metrics.h"
 #include "kudu/util/monotime.h"
 #include "kudu/util/net/socket.h"
+#include "kudu/util/scoped_cleanup.h"
 #include "kudu/util/status.h"
 #include "kudu/util/threadpool.h"
 #include "kudu/util/trace.h"
@@ -57,37 +60,123 @@ using std::string;
 using std::shared_ptr;
 using strings::Substitute;
 
-DEFINE_string(rpc_ssl_server_certificate, "", "Path to the SSL certificate to be used for the RPC "
-    "layer.");
-DEFINE_string(rpc_ssl_private_key, "",
-    "Path to the private key to be used to complement the public key present in "
-    "--ssl_server_certificate");
-DEFINE_string(rpc_ssl_certificate_authority, "",
-    "Path to the certificate authority to be used by the client side of the connection to verify "
-    "the validity of the certificate presented by the server.");
+DEFINE_string(rpc_authentication, "optional",
+              "Whether to require RPC connections to authenticate. Must be one "
+              "of 'disabled', 'optional', or 'required'. If 'optional', "
+              "authentication will be used when the remote end supports it. If "
+              "'required', connections which are not able to authenticate "
+              "(because the remote end lacks support) are rejected. Secure "
+              "clusters should use 'required'.");
+DEFINE_string(rpc_encryption, "optional",
+              "Whether to require RPC connections to be encrypted. Must be one "
+              "of 'disabled', 'optional', or 'required'. If 'optional', "
+              "encryption will be used when the remote end supports it. If "
+              "'required', connections which are not able to use encryption "
+              "(because the remote end lacks support) are rejected. If 'disabled', "
+              "encryption will not be used, and RPC authentication "
+              "(--rpc_authentication) must also be disabled as well. "
+              "Secure clusters should use 'required'.");
+TAG_FLAG(rpc_authentication, evolving);
+TAG_FLAG(rpc_encryption, evolving);
+
+DEFINE_string(rpc_certificate_file, "",
+              "Path to a PEM encoded X509 certificate to use for securing RPC "
+              "connections with SSL/TLS. If set, '--rpc_private_key_file' and "
+              "'--rpc_ca_certificate_file' must be set as well.");
+DEFINE_string(rpc_private_key_file, "",
+              "Path to a PEM encoded private key paired with the certificate "
+              "from '--rpc_certificate_file'");
+DEFINE_string(rpc_ca_certificate_file, "",
+              "Path to the PEM encoded X509 certificate of the trusted external "
+              "certificate authority. The provided certificate should be the root "
+              "issuer of the certificate passed in '--rpc_certificate_file'.");
+
+// Setting TLS certs and keys via CLI flags is only necessary for external
+// PKI-based security, which is not yet production ready. Instead, see
+// internal PKI (ipki) and Kerberos-based authentication.
+TAG_FLAG(rpc_certificate_file, experimental);
+TAG_FLAG(rpc_private_key_file, experimental);
+TAG_FLAG(rpc_ca_certificate_file, experimental);
 
 DEFINE_int32(rpc_default_keepalive_time_ms, 65000,
              "If an RPC connection from a client is idle for this amount of time, the server "
              "will disconnect the client.");
-
-TAG_FLAG(rpc_ssl_server_certificate, experimental);
-TAG_FLAG(rpc_ssl_private_key, experimental);
-TAG_FLAG(rpc_ssl_certificate_authority, experimental);
 TAG_FLAG(rpc_default_keepalive_time_ms, advanced);
 
-DEFINE_bool(server_require_kerberos, false,
-            "Whether to force all inbound RPC connections to authenticate "
-            "with Kerberos");
-// TODO(todd): this flag is too coarse-grained, since secure servers still
-// need to allow non-kerberized connections authenticated by tokens. But
-// it's a useful stop-gap.
-TAG_FLAG(server_require_kerberos, experimental);
+DECLARE_string(keytab_file);
 
 namespace kudu {
 namespace rpc {
 
 class Messenger;
 class ServerBuilder;
+
+template <typename T>
+static Status ParseTriState(const char* flag_name, const string& flag_value, T* tri_state) {
+  if (boost::iequals(flag_value, "required")) {
+    *tri_state = T::REQUIRED;
+  } else if (boost::iequals(flag_value, "optional")) {
+    *tri_state = T::OPTIONAL;
+  } else if (boost::iequals(flag_value, "disabled")) {
+    *tri_state = T::DISABLED;
+  } else {
+    return Status::InvalidArgument(Substitute(
+          "$0 flag must be one of 'required', 'optional', or 'disabled'",
+          flag_name));
+  }
+  return Status::OK();
+}
+
+static bool ValidateRpcAuthentication(const char* /*flag_name*/, const string& /*flag_value*/) {
+  RpcAuthentication authentication;
+  Status s = ParseTriState("--rpc_authentication", FLAGS_rpc_authentication, &authentication);
+  if (!s.ok()) {
+    LOG(ERROR) << s.message().ToString();
+    return false;
+  }
+
+  RpcEncryption encryption;
+  s = ParseTriState("--rpc_encryption", FLAGS_rpc_encryption, &encryption);
+  if (!s.ok()) {
+    // This will be caught by the rpc_encryption validator.
+    return true;
+  }
+
+  if (encryption == RpcEncryption::DISABLED && authentication != RpcAuthentication::DISABLED) {
+    LOG(ERROR) << "RPC authentication (--rpc_authentication) must be disabled "
+                  "if RPC encryption (--rpc_encryption) is disabled";
+    return false;
+  }
+
+  return true;
+}
+DEFINE_validator(rpc_authentication, &ValidateRpcAuthentication);
+
+static bool ValidateRpcEncryption(const char* /*flag_name*/, const string& /*flag_value*/) {
+  RpcEncryption encryption;
+  Status s = ParseTriState("--rpc_encryption", FLAGS_rpc_encryption, &encryption);
+  if (!s.ok()) {
+    LOG(ERROR) << s.message().ToString();
+    return false;
+  }
+  return true;
+}
+DEFINE_validator(rpc_encryption, &ValidateRpcEncryption);
+
+static bool ValidatePkiFlags(const char* /*flag_name*/, const string& /*flag_value*/) {
+  bool has_cert = !FLAGS_rpc_certificate_file.empty();
+  bool has_key = !FLAGS_rpc_private_key_file.empty();
+  bool has_ca = !FLAGS_rpc_ca_certificate_file.empty();
+
+  if (has_cert != has_key || has_cert != has_ca) {
+    LOG(ERROR) << "--rpc_certificate_file, --rpc_private_key_file, and "
+                  "--rpc_ca_certificate_file flags must be set as a group";
+    return false;
+  }
+
+  return true;
+}
+DEFINE_validator(rpc_certificate_file, &ValidatePkiFlags);
 
 MessengerBuilder::MessengerBuilder(std::string name)
     : name_(std::move(name)),
@@ -96,7 +185,9 @@ MessengerBuilder::MessengerBuilder(std::string name)
       num_reactors_(4),
       min_negotiation_threads_(0),
       max_negotiation_threads_(4),
-      coarse_timer_granularity_(MonoDelta::FromMilliseconds(100)) {}
+      coarse_timer_granularity_(MonoDelta::FromMilliseconds(100)),
+      enable_inbound_tls_(false) {
+}
 
 MessengerBuilder& MessengerBuilder::set_connection_keepalive_time(const MonoDelta &keepalive) {
   connection_keepalive_time_ = keepalive;
@@ -129,19 +220,48 @@ MessengerBuilder &MessengerBuilder::set_metric_entity(
   return *this;
 }
 
+MessengerBuilder& MessengerBuilder::enable_inbound_tls() {
+  enable_inbound_tls_ = true;
+  return *this;
+}
+
 Status MessengerBuilder::Build(shared_ptr<Messenger> *msgr) {
   RETURN_NOT_OK(SaslInit()); // Initialize SASL library before we start making requests
+
   Messenger* new_msgr(new Messenger(*this));
-  Status build_status = new_msgr->Init();
-  if (!build_status.ok()) {
-    // 'new_msgr' will be freed when 'retain_self_' is reset, so no need to explicitly free it.
-    new_msgr->AllExternalReferencesDropped();
-    return build_status;
+
+  auto cleanup = MakeScopedCleanup([&] () {
+      new_msgr->AllExternalReferencesDropped();
+  });
+
+  RETURN_NOT_OK(ParseTriState("--rpc_authentication",
+                              FLAGS_rpc_authentication,
+                              &new_msgr->authentication_));
+
+  RETURN_NOT_OK(ParseTriState("--rpc_encryption",
+                              FLAGS_rpc_encryption,
+                              &new_msgr->encryption_));
+
+  RETURN_NOT_OK(new_msgr->Init());
+  if (new_msgr->encryption_ != RpcEncryption::DISABLED && enable_inbound_tls_) {
+    auto* tls_context = new_msgr->mutable_tls_context();
+
+    if (!FLAGS_rpc_certificate_file.empty()) {
+      CHECK(!FLAGS_rpc_private_key_file.empty());
+      CHECK(!FLAGS_rpc_ca_certificate_file.empty());
+      // TODO(PKI): should we try and enforce that the server UUID and/or
+      // hostname is in the subject or alt names of the cert?
+      RETURN_NOT_OK(tls_context->LoadCertificateAuthority(FLAGS_rpc_ca_certificate_file));
+      RETURN_NOT_OK(tls_context->LoadCertificateAndKey(FLAGS_rpc_certificate_file,
+                                                       FLAGS_rpc_private_key_file));
+    } else {
+      RETURN_NOT_OK(tls_context->GenerateSelfSignedCertAndKey());
+    }
   }
 
   // See docs on Messenger::retain_self_ for info about this odd hack.
-  *msgr = shared_ptr<Messenger>(
-    new_msgr, std::mem_fun(&Messenger::AllExternalReferencesDropped));
+  cleanup.cancel();
+  *msgr = shared_ptr<Messenger>(new_msgr, std::mem_fun(&Messenger::AllExternalReferencesDropped));
   return Status::OK();
 }
 
@@ -191,7 +311,7 @@ Status Messenger::AddAcceptorPool(const Sockaddr &accept_addr,
   // Before listening, if we expect to require Kerberos, we want to verify
   // that everything is set up correctly. This way we'll generate errors on
   // startup rather than later on when we first receive a client connection.
-  if (FLAGS_server_require_kerberos) {
+  if (!FLAGS_keytab_file.empty()) {
     RETURN_NOT_OK_PREPEND(ServerNegotiation::PreflightCheckGSSAPI(),
                           "GSSAPI/Kerberos not properly configured");
   }
@@ -270,6 +390,10 @@ void Messenger::RegisterInboundSocket(Socket *new_socket, const Sockaddr &remote
 Messenger::Messenger(const MessengerBuilder &bld)
   : name_(bld.name_),
     closing_(false),
+    authentication_(RpcAuthentication::REQUIRED),
+    encryption_(RpcEncryption::REQUIRED),
+    tls_context_(new security::TlsContext()),
+    token_verifier_(new security::TokenVerifier()),
     rpcz_store_(new RpczStore()),
     metric_entity_(bld.metric_entity_),
     retain_self_(this) {
@@ -297,19 +421,7 @@ Reactor* Messenger::RemoteToReactor(const Sockaddr &remote) {
 }
 
 Status Messenger::Init() {
-  Status status;
-  server_tls_enabled_ = !FLAGS_rpc_ssl_server_certificate.empty()
-                     || !FLAGS_rpc_ssl_private_key.empty()
-                     || !FLAGS_rpc_ssl_certificate_authority.empty();
-
-  // Enable TLS unconditionally for client connections.
-  tls_context_.reset(new security::TlsContext());
   RETURN_NOT_OK(tls_context_->Init());
-  if (server_tls_enabled_) {
-    RETURN_NOT_OK(tls_context_->LoadCertificateAndKey(FLAGS_rpc_ssl_server_certificate,
-                                                      FLAGS_rpc_ssl_private_key));
-    RETURN_NOT_OK(tls_context_->LoadCertificateAuthority(FLAGS_rpc_ssl_certificate_authority));
-  }
   for (Reactor* r : reactors_) {
     RETURN_NOT_OK(r->Init());
   }

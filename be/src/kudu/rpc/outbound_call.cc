@@ -115,7 +115,7 @@ Status OutboundCall::SerializeTo(vector<Slice>* slices) {
 }
 
 void OutboundCall::SetRequestPayload(const Message& req,
-    vector<unique_ptr<RpcSidecar>> sidecars) {
+    vector<unique_ptr<RpcSidecar>>&& sidecars) {
   DCHECK_EQ(-1, sidecar_byte_size_);
 
   sidecars_ = move(sidecars);
@@ -372,41 +372,6 @@ void OutboundCall::DumpPB(const DumpRunningRpcsRequestPB& req,
 }
 
 ///
-/// UserCredentials
-///
-
-UserCredentials::UserCredentials() {}
-
-bool UserCredentials::has_real_user() const {
-  return !real_user_.empty();
-}
-
-void UserCredentials::set_real_user(const string& real_user) {
-  real_user_ = real_user;
-}
-
-void UserCredentials::CopyFrom(const UserCredentials& other) {
-  real_user_ = other.real_user_;
-}
-
-string UserCredentials::ToString() const {
-  // Does not print the password.
-  return StringPrintf("{real_user=%s}", real_user_.c_str());
-}
-
-size_t UserCredentials::HashCode() const {
-  size_t seed = 0;
-  if (has_real_user()) {
-    boost::hash_combine(seed, real_user());
-  }
-  return seed;
-}
-
-bool UserCredentials::Equals(const UserCredentials& other) const {
-  return real_user() == other.real_user();
-}
-
-///
 /// ConnectionId
 ///
 
@@ -416,17 +381,17 @@ ConnectionId::ConnectionId(const ConnectionId& other) {
   DoCopyFrom(other);
 }
 
-ConnectionId::ConnectionId(const Sockaddr& remote, const UserCredentials& user_credentials) {
+ConnectionId::ConnectionId(const Sockaddr& remote, UserCredentials user_credentials) {
   remote_ = remote;
-  user_credentials_.CopyFrom(user_credentials);
+  user_credentials_ = std::move(user_credentials);
 }
 
 void ConnectionId::set_remote(const Sockaddr& remote) {
   remote_ = remote;
 }
 
-void ConnectionId::set_user_credentials(const UserCredentials& user_credentials) {
-  user_credentials_.CopyFrom(user_credentials);
+void ConnectionId::set_user_credentials(UserCredentials user_credentials) {
+  user_credentials_ = std::move(user_credentials);
 }
 
 void ConnectionId::CopyFrom(const ConnectionId& other) {
@@ -442,7 +407,7 @@ string ConnectionId::ToString() const {
 
 void ConnectionId::DoCopyFrom(const ConnectionId& other) {
   remote_ = other.remote_;
-  user_credentials_.CopyFrom(other.user_credentials_);
+  user_credentials_ = other.user_credentials_;
 }
 
 size_t ConnectionId::HashCode() const {

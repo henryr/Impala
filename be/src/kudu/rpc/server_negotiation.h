@@ -24,7 +24,8 @@
 
 #include <sasl/sasl.h>
 
-#include "kudu/gutil/gscoped_ptr.h"
+#include "kudu/rpc/negotiation.h"
+#include "kudu/rpc/remote_user.h"
 #include "kudu/rpc/rpc_header.pb.h"
 #include "kudu/rpc/sasl_common.h"
 #include "kudu/rpc/sasl_helper.h"
@@ -39,6 +40,7 @@ class Slice;
 
 namespace security {
 class TlsContext;
+class TokenVerifier;
 }
 
 namespace rpc {
@@ -51,7 +53,11 @@ class ServerNegotiation {
   // provided socket. After completing the negotiation process by setting the
   // desired options and calling Negotiate((), the socket can be retrieved with
   // release_socket().
-  explicit ServerNegotiation(std::unique_ptr<Socket> socket);
+  //
+  // The provided TlsContext must outlive this negotiation instance.
+  explicit ServerNegotiation(std::unique_ptr<Socket> socket,
+                             const security::TlsContext* tls_context,
+                             const security::TokenVerifier* token_verifier);
 
   // Enable PLAIN authentication.
   // Despite PLAIN authentication taking a username and password, we disregard
@@ -66,6 +72,19 @@ class ServerNegotiation {
   // Returns mechanism negotiated by this connection.
   // Must be called after Negotiate().
   SaslMechanism::Type negotiated_mechanism() const;
+
+  // Returns the negotiated authentication type for the connection.
+  // Must be called after Negotiate().
+  AuthenticationType negotiated_authn() const {
+    DCHECK_NE(negotiated_authn_, AuthenticationType::INVALID);
+    return negotiated_authn_;
+  }
+
+  // Returns true if TLS was negotiated.
+  // Must be called after Negotiate().
+  bool tls_negotiated() const {
+    return tls_negotiated_;
+  }
 
   // Returns the set of RPC system features supported by the remote client.
   // Must be called after Negotiate().
@@ -82,23 +101,15 @@ class ServerNegotiation {
 
   // Name of the user that was authenticated.
   // Must be called after a successful Negotiate().
-  const std::string& authenticated_user() const;
-
-  // Specify IP:port of local side of connection.
-  // Must be called before Negotiate(). Required for some mechanisms.
-  void set_local_addr(const Sockaddr& addr);
-
-  // Specify IP:port of remote side of connection.
-  // Must be called before Negotiate(). Required for some mechanisms.
-  void set_remote_addr(const Sockaddr& addr);
+  //
+  // Subsequent calls will return bogus data.
+  RemoteUser take_authenticated_user() {
+    return std::move(authenticated_user_);
+  }
 
   // Specify the fully-qualified domain name of the remote server.
   // Must be called before Negotiate(). Required for some mechanisms.
   void set_server_fqdn(const std::string& domain_name);
-
-  // Allow TLS to be used on the connection. 'tls_context' must outlive this
-  // ServerNegotiation.
-  void EnableTls(const security::TlsContext* tls_context);
 
   // Set deadline for connection negotiation.
   void set_deadline(const MonoTime& deadline);
@@ -149,17 +160,31 @@ class ServerNegotiation {
   // Initialize the SASL server negotiation instance.
   Status InitSaslServer() WARN_UNUSED_RESULT;
 
-  // Handle case when client sends NEGOTIATE request.
+  // Handle case when client sends NEGOTIATE request. Builds the set of
+  // client-supported RPC features, determines a mutually supported
+  // authentication type to use for the connection, and sends a NEGOTIATE
+  // response.
   Status HandleNegotiate(const NegotiatePB& request) WARN_UNUSED_RESULT;
-
-  // Send a NEGOTIATE response to the client with the list of available mechanisms.
-  Status SendNegotiate(const std::set<SaslMechanism::Type>& server_mechs) WARN_UNUSED_RESULT;
 
   // Handle a TLS_HANDSHAKE request message from the server.
   Status HandleTlsHandshake(const NegotiatePB& request) WARN_UNUSED_RESULT;
 
   // Send a TLS_HANDSHAKE response message to the server with the provided token.
   Status SendTlsHandshake(std::string tls_token) WARN_UNUSED_RESULT;
+
+  // Authenticate the client using SASL. Populates the 'authenticated_user_'
+  // field with the SASL principal.
+  // 'recv_buf' allows a receive buffer to be reused.
+  Status AuthenticateBySasl(faststring* recv_buf) WARN_UNUSED_RESULT;
+
+  // Authenticate the client using a token. Populates the
+  // 'authenticated_user_' field with the token's principal.
+  // 'recv_buf' allows a receive buffer to be reused.
+  Status AuthenticateByToken(faststring* recv_buf) WARN_UNUSED_RESULT;
+
+  // Authenticate the client using the client's TLS certificate. Populates the
+  // 'authenticated_user_' field with the certificate's subject.
+  Status AuthenticateByCertificate() WARN_UNUSED_RESULT;
 
   // Handle case when client sends SASL_INITIATE request.
   // Returns Status::OK if the SASL negotiation is complete, or
@@ -175,9 +200,6 @@ class ServerNegotiation {
   // Send a SASL_SUCCESS response to the client.
   Status SendSaslSuccess() WARN_UNUSED_RESULT;
 
-  // Encode the provided data and append it to 'encoded'.
-  Status SaslEncode(const std::string& plaintext, std::string* encoded) WARN_UNUSED_RESULT;
-
   // Receive and validate the ConnectionContextPB.
   Status RecvConnectionContext(faststring* recv_buf) WARN_UNUSED_RESULT;
 
@@ -186,22 +208,31 @@ class ServerNegotiation {
 
   // SASL state.
   std::vector<sasl_callback_t> callbacks_;
-  gscoped_ptr<sasl_conn_t, SaslDeleter> sasl_conn_;
+  std::unique_ptr<sasl_conn_t, SaslDeleter> sasl_conn_;
   SaslHelper helper_;
+  boost::optional<std::string> nonce_;
 
   // TLS state.
   const security::TlsContext* tls_context_;
   security::TlsHandshake tls_handshake_;
   bool tls_negotiated_;
 
-  // The set of features supported by the client. Filled in during negotiation.
+  // TSK state.
+  const security::TokenVerifier* token_verifier_;
+
+  // The set of features supported by the client and server. Filled in during negotiation.
   std::set<RpcFeatureFlag> client_features_;
+  std::set<RpcFeatureFlag> server_features_;
 
   // The successfully-authenticated user, if applicable. Filled in during
   // negotiation.
-  std::string authenticated_user_;
+  RemoteUser authenticated_user_;
 
-  // The SASL mechanism. Filled in during negotiation.
+  // The authentication type. Filled in during negotiation.
+  AuthenticationType negotiated_authn_;
+
+  // The SASL mechanism. Filled in during negotiation if the negotiated
+  // authentication type is SASL.
   SaslMechanism::Type negotiated_mech_;
 
   // Negotiation timeout deadline.

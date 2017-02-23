@@ -14,41 +14,34 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#ifndef KUDU_RPC_NEGOTIATION_H
-#define KUDU_RPC_NEGOTIATION_H
+#pragma once
 
-#include <iosfwd>
-
-#include "kudu/gutil/ref_counted.h"
-#include "kudu/util/monotime.h"
+#include <string>
 
 namespace kudu {
 namespace rpc {
 
-class Connection;
-enum class RpcAuthentication;
-
-enum class AuthenticationType {
-  INVALID,
-  SASL,
-  TOKEN,
-  CERTIFICATE,
-};
-const char* AuthenticationTypeToString(AuthenticationType t);
-
-std::ostream& operator<<(std::ostream& o, AuthenticationType authentication_type);
-
-class Negotiation {
+// Client-side user credentials. Currently this is more-or-less a simple wrapper
+// around a username string. However, we anticipate moving more credentials such as
+// tokens into a per-Proxy structure rather than Messenger-wide, and this will
+// be the place to store them.
+class UserCredentials {
  public:
+  // Real user.
+  bool has_real_user() const;
+  void set_real_user(const std::string& real_user);
+  const std::string& real_user() const { return real_user_; }
 
-  // Perform negotiation for a connection (either server or client)
-  static void RunNegotiation(const scoped_refptr<Connection>& conn,
-                             RpcAuthentication authentication,
-                             MonoTime deadline);
+  // Returns a string representation of the object.
+  std::string ToString() const;
+
+  std::size_t HashCode() const;
+  bool Equals(const UserCredentials& other) const;
+
  private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(Negotiation);
+  // Remember to update HashCode() and Equals() when new fields are added.
+  std::string real_user_;
 };
 
 } // namespace rpc
 } // namespace kudu
-#endif // KUDU_RPC_NEGOTIATION_H

@@ -33,9 +33,7 @@
 
 using google::protobuf::FieldDescriptor;
 using google::protobuf::io::CodedOutputStream;
-using google::protobuf::Message;
 using google::protobuf::MessageLite;
-using std::shared_ptr;
 using std::unique_ptr;
 using std::vector;
 using strings::Substitute;
@@ -226,8 +224,8 @@ void InboundCall::DumpPB(const DumpRunningRpcsRequestPB& req,
                            .ToMicroseconds());
 }
 
-const UserCredentials& InboundCall::user_credentials() const {
-  return conn_->user_credentials();
+const RemoteUser& InboundCall::remote_user() const {
+  return conn_->remote_user();
 }
 
 const Sockaddr& InboundCall::remote_address() const {
@@ -302,12 +300,17 @@ vector<uint32_t> InboundCall::GetRequiredFeatures() const {
 }
 
 Status InboundCall::GetInboundSidecar(int idx, Slice* sidecar) const {
+  DCHECK(transfer_) << "Sidecars have been discarded";
   if (idx < 0 || idx >= header_.sidecar_offsets_size()) {
     return Status::InvalidArgument(strings::Substitute(
             "Index $0 does not reference a valid sidecar", idx));
   }
   *sidecar = inbound_sidecar_slices_[idx];
   return Status::OK();
+}
+
+void InboundCall::DiscardTransfer() {
+  transfer_.reset();
 }
 
 } // namespace rpc

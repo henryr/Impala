@@ -22,29 +22,38 @@
 
 #include <functional>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <thread>
 
+#include <gflags/gflags.h>
 #include <gtest/gtest.h>
 #include <sasl/sasl.h>
 
 #include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/map-util.h"
+#include "kudu/gutil/ref_counted.h"
+#include "kudu/gutil/strings/join.h"
 #include "kudu/gutil/strings/substitute.h"
+#include "kudu/gutil/walltime.h"
 #include "kudu/rpc/client_negotiation.h"
 #include "kudu/rpc/constants.h"
-#include "kudu/rpc/sasl_common.h"
+#include "kudu/rpc/negotiation.h"
 #include "kudu/rpc/server_negotiation.h"
+#include "kudu/security/crypto.h"
+#include "kudu/security/security-test-util.h"
 #include "kudu/security/test/mini_kdc.h"
 #include "kudu/security/tls_context.h"
+#include "kudu/security/tls_socket.h"
+#include "kudu/security/token_signer.h"
+#include "kudu/security/token_signing_key.h"
+#include "kudu/security/token_verifier.h"
 #include "kudu/util/monotime.h"
 #include "kudu/util/net/sockaddr.h"
 #include "kudu/util/net/socket.h"
 #include "kudu/util/subprocess.h"
-
-using std::string;
-using std::thread;
-using std::unique_ptr;
+#include "kudu/util/trace.h"
+#include "kudu/util/user.h"
 
 // HACK: MIT Kerberos doesn't have any way of determining its version number,
 // but the error messages in krb5-1.10 and earlier are broken due to
@@ -60,17 +69,577 @@ using std::unique_ptr;
 DEFINE_bool(is_test_child, false,
             "Used by tests which require clean processes. "
             "See TestDisableInit.");
+DECLARE_bool(rpc_encrypt_loopback_connections);
+DECLARE_bool(rpc_trace_negotiation);
+
+using std::string;
+using std::thread;
+using std::unique_ptr;
+
+using kudu::security::Cert;
+using kudu::security::PkiConfig;
+using kudu::security::PrivateKey;
+using kudu::security::SignedTokenPB;
+using kudu::security::TlsContext;
+using kudu::security::TokenSigner;
+using kudu::security::TokenSigningPrivateKey;
+using kudu::security::TokenVerifier;
 
 namespace kudu {
 namespace rpc {
 
-class TestNegotiation : public RpcTestBase {
+// The negotiation configuration for a client or server endpoint.
+struct EndpointConfig {
+  // The PKI configuration.
+  PkiConfig pki;
+  // The supported SASL mechanisms.
+  vector<SaslMechanism::Type> sasl_mechs;
+  // For the client, whether the client has the token.
+  // For the server, whether the server has the TSK.
+  bool token;
+};
+std::ostream& operator<<(std::ostream& o, EndpointConfig config) {
+  auto bool_string = [] (bool b) { return b ? "true" : "false"; };
+  o << "{pki: " << config.pki
+    << ", sasl-mechs: [" << JoinMapped(config.sasl_mechs, SaslMechanism::name_of, ", ")
+    << "], token: " << bool_string(config.token)
+    << "}";
+  return o;
+}
+
+// A description of a negotiation sequence, including client and server
+// configuration, as well as expected results.
+struct NegotiationDescriptor {
+  EndpointConfig client;
+  EndpointConfig server;
+
+  bool rpc_encrypt_loopback;
+
+  // The expected client status from negotiating.
+  Status client_status;
+  // The expected server status from negotiating.
+  Status server_status;
+
+  // The expected negotiated authentication type.
+  AuthenticationType negotiated_authn;
+
+  // The expected SASL mechanism, if SASL authentication is negotiated.
+  SaslMechanism::Type negotiated_mech;
+
+  // Whether the negotiation is expected to perform a TLS handshake.
+  bool tls_negotiated;
+};
+std::ostream& operator<<(std::ostream& o, NegotiationDescriptor c) {
+  auto bool_string = [] (bool b) { return b ? "true" : "false"; };
+  o << "{client: " << c.client
+    << ", server: " << c.server
+    << "}, rpc-encrypt-loopback: " << bool_string(c.rpc_encrypt_loopback);
+  return o;
+}
+
+class TestNegotiation : public RpcTestBase,
+                        public ::testing::WithParamInterface<NegotiationDescriptor> {
  public:
   void SetUp() override {
     RpcTestBase::SetUp();
     ASSERT_OK(SaslInit());
   }
 };
+
+TEST_P(TestNegotiation, TestNegotiation) {
+  NegotiationDescriptor desc = GetParam();
+
+  // Generate a trusted root certificate.
+  PrivateKey ca_key;
+  Cert ca_cert;
+  ASSERT_OK(GenerateSelfSignedCAForTests(&ca_key, &ca_cert));
+
+  // Create and configure a TLS context for each endpoint.
+  TlsContext client_tls_context;
+  TlsContext server_tls_context;
+  ASSERT_OK(client_tls_context.Init());
+  ASSERT_OK(server_tls_context.Init());
+  ASSERT_OK(ConfigureTlsContext(desc.client.pki, ca_cert, ca_key, &client_tls_context));
+  ASSERT_OK(ConfigureTlsContext(desc.server.pki, ca_cert, ca_key, &server_tls_context));
+
+  FLAGS_rpc_encrypt_loopback_connections = desc.rpc_encrypt_loopback;
+
+  // Generate an optional client token and server token verifier.
+  TokenSigner token_signer(60, 20, std::make_shared<TokenVerifier>());
+  {
+    unique_ptr<TokenSigningPrivateKey> key;
+    ASSERT_OK(token_signer.CheckNeedKey(&key));
+    // No keys are available yet, so should be able to add.
+    ASSERT_NE(nullptr, key.get());
+    ASSERT_OK(token_signer.AddKey(std::move(key)));
+  }
+  TokenVerifier token_verifier;
+  boost::optional<SignedTokenPB> authn_token;
+  if (desc.client.token) {
+    authn_token = SignedTokenPB();
+    security::TokenPB token;
+    token.set_expire_unix_epoch_seconds(WallTime_Now() + 60);
+    token.mutable_authn()->set_username("client-token");
+    ASSERT_TRUE(token.SerializeToString(authn_token->mutable_token_data()));
+    ASSERT_OK(token_signer.SignToken(&*authn_token));
+  }
+  if (desc.server.token) {
+    ASSERT_OK(token_verifier.ImportKeys(token_signer.verifier().ExportKeys()));
+  }
+
+  // Create the listening socket, client socket, and server socket.
+  Socket listening_socket;
+  ASSERT_OK(listening_socket.Init(0));
+  ASSERT_OK(listening_socket.BindAndListen(Sockaddr(), 1));
+  Sockaddr server_addr;
+  ASSERT_OK(listening_socket.GetSocketAddress(&server_addr));
+
+  unique_ptr<Socket> client_socket(new Socket());
+  ASSERT_OK(client_socket->Init(0));
+  client_socket->Connect(server_addr);
+
+  unique_ptr<Socket> server_socket(new Socket());
+  Sockaddr client_addr;
+  CHECK_OK(listening_socket.Accept(server_socket.get(), &client_addr, 0));
+
+  // Create and configure the client and server negotiation instances.
+  ClientNegotiation client_negotiation(std::move(client_socket),
+                                       &client_tls_context,
+                                       authn_token);
+  ServerNegotiation server_negotiation(std::move(server_socket),
+                                       &server_tls_context,
+                                       &token_verifier);
+
+  // Set client and server SASL mechanisms.
+  MiniKdc kdc;
+  bool kdc_started = false;
+  auto start_kdc_once = [&] () {
+    if (!kdc_started) {
+      kdc_started = true;
+      RETURN_NOT_OK(kdc.Start());
+    }
+    return Status::OK();
+  };
+  for (auto mech : desc.client.sasl_mechs) {
+    switch (mech) {
+      case SaslMechanism::INVALID: break;
+      case SaslMechanism::PLAIN:
+        ASSERT_OK(client_negotiation.EnablePlain("client-plain", "client-password"));
+        break;
+      case SaslMechanism::GSSAPI:
+        ASSERT_OK(start_kdc_once());
+        ASSERT_OK(kdc.CreateUserPrincipal("client-gssapi"));
+        ASSERT_OK(kdc.Kinit("client-gssapi"));
+        ASSERT_OK(kdc.SetKrb5Environment());
+        client_negotiation.set_server_fqdn("127.0.0.1");
+        ASSERT_OK(client_negotiation.EnableGSSAPI());
+        break;
+    }
+  }
+  for (auto mech : desc.server.sasl_mechs) {
+    switch (mech) {
+      case SaslMechanism::INVALID: break;
+      case SaslMechanism::PLAIN:
+        ASSERT_OK(server_negotiation.EnablePlain());
+        break;
+      case SaslMechanism::GSSAPI:
+        ASSERT_OK(start_kdc_once());
+        // Create the server principal and keytab.
+        string kt_path;
+        ASSERT_OK(kdc.CreateServiceKeytab("kudu/127.0.0.1", &kt_path));
+        CHECK_ERR(setenv("KRB5_KTNAME", kt_path.c_str(), 1 /*replace*/));
+        server_negotiation.set_server_fqdn("127.0.0.1");
+        ASSERT_OK(server_negotiation.EnableGSSAPI());
+        break;
+    }
+  }
+
+  // Run the client/server negotiation. Because negotiation is blocking, it
+  // has to be done on separate threads.
+  Status client_status;
+  Status server_status;
+  thread client_thread([&] () {
+      client_status = client_negotiation.Negotiate();
+      // Close the socket so that the server will not block forever on error.
+      client_negotiation.socket()->Close();
+  });
+  thread server_thread([&] () {
+      scoped_refptr<Trace> t(new Trace());
+      ADOPT_TRACE(t.get());
+      server_status = server_negotiation.Negotiate();
+      // Close the socket so that the client will not block forever on error.
+      server_negotiation.socket()->Close();
+
+      if (FLAGS_rpc_trace_negotiation || !server_status.ok()) {
+        string msg = Trace::CurrentTrace()->DumpToString();
+        if (!server_status.ok()) {
+          LOG(WARNING) << "Failed RPC negotiation. Trace:\n" << msg;
+        } else {
+          LOG(INFO) << "RPC negotiation tracing enabled. Trace:\n" << msg;
+        }
+      }
+  });
+  client_thread.join();
+  server_thread.join();
+
+  // Check the negotiation outcome against the expected outcome.
+  EXPECT_EQ(desc.client_status.CodeAsString(), client_status.CodeAsString());
+  EXPECT_EQ(desc.server_status.CodeAsString(), server_status.CodeAsString());
+  ASSERT_STR_MATCHES(client_status.ToString(), desc.client_status.ToString());
+  ASSERT_STR_MATCHES(server_status.ToString(), desc.server_status.ToString());
+
+  if (client_status.ok()) {
+    EXPECT_TRUE(server_status.ok());
+
+    // Make sure the negotiations agree with the expected values.
+    EXPECT_EQ(desc.negotiated_authn, client_negotiation.negotiated_authn());
+    EXPECT_EQ(desc.negotiated_mech, client_negotiation.negotiated_mechanism());
+    EXPECT_EQ(desc.negotiated_authn, server_negotiation.negotiated_authn());
+    EXPECT_EQ(desc.negotiated_mech, server_negotiation.negotiated_mechanism());
+    EXPECT_EQ(desc.tls_negotiated, server_negotiation.tls_negotiated());
+    EXPECT_EQ(desc.tls_negotiated, server_negotiation.tls_negotiated());
+
+    bool client_tls_socket = dynamic_cast<security::TlsSocket*>(client_negotiation.socket());
+    bool server_tls_socket = dynamic_cast<security::TlsSocket*>(server_negotiation.socket());
+    EXPECT_EQ(desc.rpc_encrypt_loopback, client_tls_socket);
+    EXPECT_EQ(desc.rpc_encrypt_loopback, server_tls_socket);
+
+    // Check that the expected user subject is authenticated.
+    RemoteUser remote_user = server_negotiation.take_authenticated_user();
+    switch (server_negotiation.negotiated_authn()) {
+      case AuthenticationType::SASL:
+        switch (server_negotiation.negotiated_mechanism()) {
+          case SaslMechanism::PLAIN:
+            EXPECT_EQ("client-plain", remote_user.username());
+            break;
+          case SaslMechanism::GSSAPI:
+            EXPECT_EQ("client-gssapi", remote_user.username());
+            EXPECT_EQ("client-gssapi@KRBTEST.COM", remote_user.principal().value_or(""));
+            break;
+          case SaslMechanism::INVALID: LOG(FATAL) << "invalid mechanism negotiated";
+        }
+        break;
+      case AuthenticationType::CERTIFICATE: {
+        // We expect the cert to be using the local username, because it hasn't
+        // logged in from any Keytab.
+        string expected;
+        CHECK_OK(GetLoggedInUser(&expected));
+        EXPECT_EQ(expected, remote_user.username());
+        EXPECT_FALSE(remote_user.principal());
+        break;
+      }
+      case AuthenticationType::TOKEN:
+        EXPECT_EQ("client-token", remote_user.username());
+        break;
+      case AuthenticationType::INVALID: LOG(FATAL) << "invalid authentication negotiated";
+    }
+  }
+}
+
+INSTANTIATE_TEST_CASE_P(NegotiationCombinations,
+                        TestNegotiation,
+                        ::testing::Values(
+
+        // client: no authn/mechs
+        // server: no authn/mechs
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::NONE,
+            {},
+            false,
+          },
+          EndpointConfig {
+            PkiConfig::NONE,
+            {},
+            false,
+          },
+          false,
+          Status::NotAuthorized(".*client is not configured with an authentication type"),
+          Status::NetworkError(""),
+          AuthenticationType::INVALID,
+          SaslMechanism::INVALID,
+          false,
+        },
+
+        // client: PLAIN
+        // server: no authn/mechs
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::PLAIN },
+            false,
+          },
+          EndpointConfig {
+            PkiConfig::NONE,
+            {},
+            false,
+          },
+          false,
+          Status::NotAuthorized(".* server mechanism list is empty"),
+          Status::NotAuthorized(".* server mechanism list is empty"),
+          AuthenticationType::INVALID,
+          SaslMechanism::INVALID,
+          false,
+        },
+
+        // client: PLAIN
+        // server: PLAIN
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::PLAIN },
+            false,
+          },
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::PLAIN },
+            false,
+          },
+          false,
+          Status::OK(),
+          Status::OK(),
+          AuthenticationType::SASL,
+          SaslMechanism::PLAIN,
+          false,
+        },
+
+        // client: GSSAPI
+        // server: GSSAPI
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::GSSAPI },
+            false,
+          },
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::GSSAPI },
+            false,
+          },
+          false,
+          Status::OK(),
+          Status::OK(),
+          AuthenticationType::SASL,
+          SaslMechanism::GSSAPI,
+          false,
+        },
+
+        // client: GSSAPI, PLAIN
+        // server: GSSAPI, PLAIN
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::GSSAPI, SaslMechanism::PLAIN },
+            false,
+          },
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::GSSAPI, SaslMechanism::PLAIN },
+            false,
+          },
+          false,
+          Status::OK(),
+          Status::OK(),
+          AuthenticationType::SASL,
+          SaslMechanism::GSSAPI,
+          false,
+        },
+
+        // client: GSSAPI, PLAIN
+        // server: GSSAPI
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::GSSAPI, SaslMechanism::PLAIN },
+            false,
+          },
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::GSSAPI },
+            false,
+          },
+          false,
+          Status::OK(),
+          Status::OK(),
+          AuthenticationType::SASL,
+          SaslMechanism::GSSAPI,
+          false,
+        },
+
+        // client: PLAIN
+        // server: GSSAPI
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::PLAIN },
+            false,
+          },
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::GSSAPI },
+            false,
+          },
+          false,
+          Status::NotAuthorized(".*client does not have Kerberos enabled"),
+          Status::NetworkError(""),
+          AuthenticationType::INVALID,
+          SaslMechanism::INVALID,
+          false,
+        },
+
+        // client: GSSAPI,
+        // server: GSSAPI, self-signed cert
+        // loopback encryption
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::GSSAPI },
+            false,
+          },
+          EndpointConfig {
+            PkiConfig::SELF_SIGNED,
+            { SaslMechanism::GSSAPI },
+            false,
+          },
+          true,
+          Status::OK(),
+          Status::OK(),
+          AuthenticationType::SASL,
+          SaslMechanism::GSSAPI,
+          true,
+        },
+
+        // client: GSSAPI, signed-cert
+        // server: GSSAPI, self-signed cert
+        // This tests that the server will not advertise CERTIFICATE authentication,
+        // since it doesn't have a trusted cert.
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::SIGNED,
+            { SaslMechanism::GSSAPI },
+            false,
+          },
+          EndpointConfig {
+            PkiConfig::SELF_SIGNED,
+            { SaslMechanism::GSSAPI },
+            false,
+          },
+          false,
+          Status::OK(),
+          Status::OK(),
+          AuthenticationType::SASL,
+          SaslMechanism::GSSAPI,
+          true,
+        },
+
+        // client: PLAIN,
+        // server: PLAIN, self-signed cert
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::PLAIN },
+            false,
+          },
+          EndpointConfig {
+            PkiConfig::SELF_SIGNED,
+            { SaslMechanism::PLAIN },
+            false,
+          },
+          false,
+          Status::OK(),
+          Status::OK(),
+          AuthenticationType::SASL,
+          SaslMechanism::PLAIN,
+          true,
+        },
+
+        // client: signed-cert
+        // server: signed-cert
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::SIGNED,
+            { SaslMechanism::GSSAPI },
+            false,
+          },
+          EndpointConfig {
+            PkiConfig::SIGNED,
+            { SaslMechanism::GSSAPI },
+            false,
+          },
+          false,
+          Status::OK(),
+          Status::OK(),
+          AuthenticationType::CERTIFICATE,
+          SaslMechanism::INVALID,
+          true,
+        },
+
+        // client: token, trusted cert
+        // server: token, signed-cert, GSSAPI
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::TRUSTED,
+            { },
+            true,
+          },
+          EndpointConfig {
+            PkiConfig::SIGNED,
+            { SaslMechanism::PLAIN },
+            true,
+          },
+          false,
+          Status::OK(),
+          Status::OK(),
+          AuthenticationType::TOKEN,
+          SaslMechanism::INVALID,
+          true,
+        },
+
+        // client: PLAIN, token
+        // server: PLAIN, token, signed cert
+        // Test that the client won't negotiate token authn if it doesn't have a
+        // trusted cert. We aren't expecting this to happen in practice (the
+        // token and trusted CA cert should come as a package).
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::NONE,
+            { SaslMechanism::PLAIN },
+            true,
+          },
+          EndpointConfig {
+            PkiConfig::SIGNED,
+            { SaslMechanism::PLAIN },
+            true,
+          },
+          false,
+          Status::OK(),
+          Status::OK(),
+          AuthenticationType::SASL,
+          SaslMechanism::PLAIN,
+          true,
+        },
+
+        // client: PLAIN, GSSAPI, signed-cert, token
+        // server: PLAIN, GSSAPI, signed-cert, token
+        NegotiationDescriptor {
+          EndpointConfig {
+            PkiConfig::SIGNED,
+            { SaslMechanism::PLAIN, SaslMechanism::GSSAPI },
+            true,
+          },
+          EndpointConfig {
+            PkiConfig::SIGNED,
+            { SaslMechanism::PLAIN, SaslMechanism::GSSAPI },
+            true,
+          },
+          false,
+          Status::OK(),
+          Status::OK(),
+          AuthenticationType::CERTIFICATE,
+          SaslMechanism::INVALID,
+          true,
+        }
+));
 
 // A "Callable" that takes a socket for use with starting a thread.
 // Can be used for ServerNegotiation or ClientNegotiation threads.
@@ -110,29 +679,7 @@ static void RunNegotiationTest(const SocketCallable& server_runner,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void RunPlainNegotiationServer(unique_ptr<Socket> socket) {
-  ServerNegotiation server_negotiation(std::move(socket));
-  CHECK_OK(server_negotiation.EnablePlain());
-  CHECK_OK(server_negotiation.Negotiate());
-  CHECK(ContainsKey(server_negotiation.client_features(), APPLICATION_FEATURE_FLAGS));
-  CHECK_EQ("my-username", server_negotiation.authenticated_user());
-}
-
-static void RunPlainNegotiationClient(unique_ptr<Socket> socket) {
-  ClientNegotiation client_negotiation(std::move(socket));
-  CHECK_OK(client_negotiation.EnablePlain("my-username", "ignored password"));
-  CHECK_OK(client_negotiation.Negotiate());
-  CHECK(ContainsKey(client_negotiation.server_features(), APPLICATION_FEATURE_FLAGS));
-}
-
-// Test SASL negotiation using the PLAIN mechanism over a socket.
-TEST_F(TestNegotiation, TestPlainNegotiation) {
-  RunNegotiationTest(RunPlainNegotiationServer, RunPlainNegotiationClient);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-
+#ifndef __APPLE__
 template<class T>
 using CheckerFunction = std::function<void(const Status&, T&)>;
 
@@ -140,7 +687,10 @@ using CheckerFunction = std::function<void(const Status&, T&)>;
 // 'post_check' after negotiation to verify the result.
 static void RunGSSAPINegotiationServer(unique_ptr<Socket> socket,
                                        const CheckerFunction<ServerNegotiation>& post_check) {
-  ServerNegotiation server_negotiation(std::move(socket));
+  TlsContext tls_context;
+  CHECK_OK(tls_context.Init());
+  TokenVerifier token_verifier;
+  ServerNegotiation server_negotiation(std::move(socket), &tls_context, &token_verifier);
   server_negotiation.set_server_fqdn("127.0.0.1");
   CHECK_OK(server_negotiation.EnableGSSAPI());
   post_check(server_negotiation.Negotiate(), server_negotiation);
@@ -150,112 +700,14 @@ static void RunGSSAPINegotiationServer(unique_ptr<Socket> socket,
 // 'post_check' after negotiation to verify the result.
 static void RunGSSAPINegotiationClient(unique_ptr<Socket> conn,
                                        const CheckerFunction<ClientNegotiation>& post_check) {
-  ClientNegotiation client_negotiation(std::move(conn));
+  TlsContext tls_context;
+  CHECK_OK(tls_context.Init());
+  ClientNegotiation client_negotiation(std::move(conn), &tls_context, boost::none);
   client_negotiation.set_server_fqdn("127.0.0.1");
   CHECK_OK(client_negotiation.EnableGSSAPI());
   post_check(client_negotiation.Negotiate(), client_negotiation);
 }
 
-// Test configuring a client to allow but not require Kerberos/GSSAPI,
-// and connect to a server which requires Kerberos/GSSAPI.
-//
-// They should negotiate to use Kerberos/GSSAPI.
-TEST_F(TestNegotiation, TestRestrictiveServer_NonRestrictiveClient) {
-  MiniKdc kdc;
-  ASSERT_OK(kdc.Start());
-
-  // Create the server principal and keytab.
-  string kt_path;
-  ASSERT_OK(kdc.CreateServiceKeytab("kudu/127.0.0.1", &kt_path));
-  CHECK_ERR(setenv("KRB5_KTNAME", kt_path.c_str(), 1 /*replace*/));
-
-  // Create and kinit as a client user.
-  ASSERT_OK(kdc.CreateUserPrincipal("testuser"));
-  ASSERT_OK(kdc.Kinit("testuser"));
-  ASSERT_OK(kdc.SetKrb5Environment());
-
-  // Authentication should now succeed on both sides.
-  RunNegotiationTest(
-      std::bind(RunGSSAPINegotiationServer, std::placeholders::_1,
-                [](const Status& s, ServerNegotiation& server) {
-                  CHECK_OK(s);
-                  CHECK_EQ(SaslMechanism::GSSAPI, server.negotiated_mechanism());
-                  CHECK_EQ("testuser", server.authenticated_user());
-                }),
-      [](unique_ptr<Socket> socket) {
-        ClientNegotiation client_negotiation(std::move(socket));
-        client_negotiation.set_server_fqdn("127.0.0.1");
-        // The client enables both PLAIN and GSSAPI.
-        CHECK_OK(client_negotiation.EnablePlain("foo", "bar"));
-        CHECK_OK(client_negotiation.EnableGSSAPI());
-        CHECK_OK(client_negotiation.Negotiate());
-        CHECK_EQ(SaslMechanism::GSSAPI, client_negotiation.negotiated_mechanism());
-      });
-}
-
-// Test configuring a client to only support PLAIN, and a server which
-// only supports GSSAPI. This would happen, for example, if an old Kudu
-// client tries to talk to a secure-only cluster.
-TEST_F(TestNegotiation, TestNoMatchingMechanisms) {
-  MiniKdc kdc;
-  ASSERT_OK(kdc.Start());
-
-  // Create the server principal and keytab.
-  string kt_path;
-  ASSERT_OK(kdc.CreateServiceKeytab("kudu/localhost", &kt_path));
-  CHECK_ERR(setenv("KRB5_KTNAME", kt_path.c_str(), 1 /*replace*/));
-
-  RunNegotiationTest(
-      std::bind(RunGSSAPINegotiationServer, std::placeholders::_1,
-                [](const Status& s, ServerNegotiation& server) {
-                  // The client fails to find a matching mechanism and
-                  // doesn't send any failure message to the server.
-                  // Instead, it just disconnects.
-                  //
-                  // TODO(todd): this could produce a better message!
-                  ASSERT_STR_CONTAINS(s.ToString(), "got EOF from remote");
-                }),
-      [](unique_ptr<Socket> socket) {
-        ClientNegotiation client_negotiation(std::move(socket));
-        client_negotiation.set_server_fqdn("127.0.0.1");
-        // The client enables both PLAIN and GSSAPI.
-        CHECK_OK(client_negotiation.EnablePlain("foo", "bar"));
-        Status s = client_negotiation.Negotiate();
-        ASSERT_STR_CONTAINS(s.ToString(), "client does not have Kerberos enabled");
-      });
-}
-
-// Test SASL negotiation using the GSSAPI (kerberos) mechanism over a socket.
-TEST_F(TestNegotiation, TestGSSAPINegotiation) {
-  MiniKdc kdc;
-  ASSERT_OK(kdc.Start());
-
-  // Create the server principal and keytab.
-  string kt_path;
-  ASSERT_OK(kdc.CreateServiceKeytab("kudu/127.0.0.1", &kt_path));
-  CHECK_ERR(setenv("KRB5_KTNAME", kt_path.c_str(), 1 /*replace*/));
-
-  // Create and kinit as a client user.
-  ASSERT_OK(kdc.CreateUserPrincipal("testuser"));
-  ASSERT_OK(kdc.Kinit("testuser"));
-  ASSERT_OK(kdc.SetKrb5Environment());
-
-  // Authentication should succeed on both sides.
-  RunNegotiationTest(
-      std::bind(RunGSSAPINegotiationServer, std::placeholders::_1,
-                [](const Status& s, ServerNegotiation& server) {
-                  CHECK_OK(s);
-                  CHECK_EQ(SaslMechanism::GSSAPI, server.negotiated_mechanism());
-                  CHECK_EQ("testuser", server.authenticated_user());
-                }),
-      std::bind(RunGSSAPINegotiationClient, std::placeholders::_1,
-                [](const Status& s, ClientNegotiation& client) {
-                  CHECK_OK(s);
-                  CHECK_EQ(SaslMechanism::GSSAPI, client.negotiated_mechanism());
-                }));
-}
-
-#ifndef __APPLE__
 // Test invalid SASL negotiations using the GSSAPI (kerberos) mechanism over a socket.
 // This test is ignored on macOS because the system Kerberos implementation
 // (Heimdal) caches the non-existence of client credentials, which causes futher
@@ -305,7 +757,8 @@ TEST_F(TestNegotiation, TestGSSAPIInvalidNegotiation) {
                 [](const Status& s, ClientNegotiation& client) {
                   CHECK(s.IsNotAuthorized());
 #ifndef KRB5_VERSION_LE_1_10
-                  CHECK_EQ(s.message().ToString(), "No Kerberos credentials available");
+                  ASSERT_STR_MATCHES(s.ToString(),
+                                     "Not authorized: No Kerberos credentials available.*");
 #endif
                 }));
 
@@ -387,7 +840,10 @@ TEST_F(TestNegotiation, TestPreflight) {
 ////////////////////////////////////////////////////////////////////////////////
 
 static void RunTimeoutExpectingServer(unique_ptr<Socket> socket) {
-  ServerNegotiation server_negotiation(std::move(socket));
+  TlsContext tls_context;
+  CHECK_OK(tls_context.Init());
+  TokenVerifier token_verifier;
+  ServerNegotiation server_negotiation(std::move(socket), &tls_context, &token_verifier);
   CHECK_OK(server_negotiation.EnablePlain());
   Status s = server_negotiation.Negotiate();
   ASSERT_TRUE(s.IsNetworkError()) << "Expected client to time out and close the connection. Got: "
@@ -395,7 +851,9 @@ static void RunTimeoutExpectingServer(unique_ptr<Socket> socket) {
 }
 
 static void RunTimeoutNegotiationClient(unique_ptr<Socket> sock) {
-  ClientNegotiation client_negotiation(std::move(sock));
+  TlsContext tls_context;
+  CHECK_OK(tls_context.Init());
+  ClientNegotiation client_negotiation(std::move(sock), &tls_context, boost::none);
   CHECK_OK(client_negotiation.EnablePlain("test", "test"));
   MonoTime deadline = MonoTime::Now() - MonoDelta::FromMilliseconds(100L);
   client_negotiation.set_deadline(deadline);
@@ -412,7 +870,10 @@ TEST_F(TestNegotiation, TestClientTimeout) {
 ////////////////////////////////////////////////////////////////////////////////
 
 static void RunTimeoutNegotiationServer(unique_ptr<Socket> socket) {
-  ServerNegotiation server_negotiation(std::move(socket));
+  TlsContext tls_context;
+  CHECK_OK(tls_context.Init());
+  TokenVerifier token_verifier;
+  ServerNegotiation server_negotiation(std::move(socket), &tls_context, &token_verifier);
   CHECK_OK(server_negotiation.EnablePlain());
   MonoTime deadline = MonoTime::Now() - MonoDelta::FromMilliseconds(100L);
   server_negotiation.set_deadline(deadline);
@@ -422,7 +883,9 @@ static void RunTimeoutNegotiationServer(unique_ptr<Socket> socket) {
 }
 
 static void RunTimeoutExpectingClient(unique_ptr<Socket> socket) {
-  ClientNegotiation client_negotiation(std::move(socket));
+  TlsContext tls_context;
+  CHECK_OK(tls_context.Init());
+  ClientNegotiation client_negotiation(std::move(socket), &tls_context, boost::none);
   CHECK_OK(client_negotiation.EnablePlain("test", "test"));
   Status s = client_negotiation.Negotiate();
   ASSERT_TRUE(s.IsNetworkError()) << "Expected server to time out and close the connection. Got: "
@@ -537,73 +1000,6 @@ TEST_F(TestDisableInit, TestMultipleSaslInit_NoMutexImpl) {
   }
 }
 #endif
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Server which has TLS and SASL GSSAPI enabled.
-static void RunTlsGssapiNegotiationServer(unique_ptr<Socket> socket) {
-  ServerNegotiation server_negotiation(std::move(socket));
-
-  // TODO(PKI): switch this to use an in-memory cert and key.
-  std::string server_cert_path = JoinPathSegments(GetTestDataDirectory(), "server-cert.pem");
-  std::string private_key_path = JoinPathSegments(GetTestDataDirectory(), "server-key.pem");
-  ASSERT_OK(security::CreateSSLServerCert(server_cert_path));
-  ASSERT_OK(security::CreateSSLPrivateKey(private_key_path));
-
-  security::TlsContext tls_context;
-  ASSERT_OK(tls_context.Init());
-  ASSERT_OK(tls_context.LoadCertificateAndKey(server_cert_path, private_key_path));
-  server_negotiation.EnableTls(&tls_context);
-
-  server_negotiation.set_server_fqdn("127.0.0.1");
-  ASSERT_OK(server_negotiation.EnableGSSAPI());
-
-  ASSERT_OK(server_negotiation.Negotiate());
-  ASSERT_TRUE(ContainsKey(server_negotiation.client_features(), APPLICATION_FEATURE_FLAGS));
-  ASSERT_TRUE(ContainsKey(server_negotiation.client_features(), TLS));
-
-  ASSERT_EQ(SaslMechanism::GSSAPI, server_negotiation.negotiated_mechanism());
-  ASSERT_EQ("testuser", server_negotiation.authenticated_user());
-
-  // TODO(PKI): assert that TLS is actually negotiated.
-}
-
-static void RunTlsGssapiNegotiationClient(unique_ptr<Socket> socket) {
-  ClientNegotiation client_negotiation(std::move(socket));
-
-  security::TlsContext tls_context;
-  ASSERT_OK(tls_context.Init());
-  client_negotiation.EnableTls(&tls_context);
-
-  client_negotiation.set_server_fqdn("127.0.0.1");
-  CHECK_OK(client_negotiation.EnableGSSAPI());
-  CHECK_OK(client_negotiation.Negotiate());
-  CHECK(ContainsKey(client_negotiation.server_features(), APPLICATION_FEATURE_FLAGS));
-  CHECK(ContainsKey(client_negotiation.server_features(), TLS));
-
-  // TODO(PKI): assert that TLS is actually negotiated.
-}
-
-// Test TLS and GSSAPI (kerberos) SASL negotiation.
-TEST_F(TestNegotiation, TestTlsWithGssapiNegotiation) {
-  MiniKdc kdc;
-  ASSERT_OK(kdc.Start());
-
-  // Create the server principal and keytab.
-  string kt_path;
-  ASSERT_OK(kdc.CreateServiceKeytab("kudu/127.0.0.1", &kt_path));
-  CHECK_ERR(setenv("KRB5_KTNAME", kt_path.c_str(), 1 /*replace*/));
-
-  // Create and kinit as a client user.
-  ASSERT_OK(kdc.CreateUserPrincipal("testuser"));
-  ASSERT_OK(kdc.Kinit("testuser"));
-  ASSERT_OK(kdc.SetKrb5Environment());
-
-  // Authentication should succeed on both sides.
-  RunNegotiationTest(RunTlsGssapiNegotiationServer, RunTlsGssapiNegotiationClient);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace rpc
 } // namespace kudu

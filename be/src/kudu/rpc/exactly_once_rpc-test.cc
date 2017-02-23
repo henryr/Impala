@@ -179,7 +179,8 @@ class ExactlyOnceRpcTest : public RpcTestBase {
                                       now,
                                       std::move(messenger),
                                       value,
-                                      &latch_);
+                                      &latch_,
+                                      server_sleep);
     }
 
     void Start() {
@@ -483,7 +484,7 @@ TEST_F(ExactlyOnceRpcTest, TestExactlyOnceSemanticsWithConcurrentUpdaters) {
 }
 
 TEST_F(ExactlyOnceRpcTest, TestExactlyOnceSemanticsGarbageCollection) {
-  FLAGS_remember_clients_ttl_ms = 1000;
+  FLAGS_remember_clients_ttl_ms = 500;
   FLAGS_remember_responses_ttl_ms = 100;
 
   StartServer();
