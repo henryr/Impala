@@ -111,14 +111,18 @@ def bootstrap(toolchain_root, packages):
 
   for p in packages:
     pkg_name, pkg_version = unpack_name_and_version(p)
+    print("***** Bootstrapping {0} version {1} *****".format(pkg_name, pkg_version))
     if check_for_existing_package(toolchain_root, pkg_name, pkg_version, compiler):
+      print("No update necessary\n")
       continue
     if pkg_name != "kudu" or os.environ["KUDU_IS_SUPPORTED"] == "true":
       download_package(toolchain_root, pkg_name, pkg_version, compiler)
     else:
       build_kudu_stub(toolchain_root, pkg_version, compiler)
     write_version_file(toolchain_root, pkg_name, pkg_version, compiler,
-        get_platform_release_label())
+        get_platform_release_label(), os.environ["IMPALA_TOOLCHAIN_BUILD_ID"])
+
+    print("\n")
 
 def check_output(cmd_args):
   """Run the command and return the output. Raise an exception if the command returns
@@ -157,22 +161,34 @@ def check_custom_toolchain(toolchain_root, packages):
     print("    https://github.com/cloudera/native-toolchain")
     raise Exception("Toolchain bootstrap failed: required packages were missing")
 
+def make_version_string(pkg_name, pkg_version, compiler, label, toolchain_build_id):
+  return "{0}-{1}-{2}-{3}-{4}".format(
+    pkg_name, pkg_version, compiler, label, toolchain_build_id);
+
 def check_for_existing_package(toolchain_root, pkg_name, pkg_version, compiler):
   """Return true if toolchain_root already contains the package with the correct
   version and compiler.
   """
   version_file = version_file_path(toolchain_root, pkg_name, pkg_version)
   if not os.path.exists(version_file):
+    print("Could not find version file ${0}, "
+          "package will be downloaded.".format(version_file))
     return False
 
   label = get_platform_release_label()
-  pkg_version_string = "{0}-{1}-{2}-{3}".format(pkg_name, pkg_version, compiler, label)
   with open(version_file) as f:
-    return f.read().strip() == pkg_version_string
+    found_version_string = f.read().strip()
+    expected_version_string = make_version_string(
+      pkg_name, pkg_version, compiler, label, os.environ["IMPALA_TOOLCHAIN_BUILD_ID"])
+    if found_version_string != expected_version_string:
+      print("Version string on disk ({0}) does not match required ({1}), package will be "
+            "downloaded".format(found_version_string, expected_version_string))
+      return False
+  return True
 
-def write_version_file(toolchain_root, pkg_name, pkg_version, compiler, label):
+def write_version_file(toolchain_root, pkg_name, pkg_version, compiler, label, build_id):
   with open(version_file_path(toolchain_root, pkg_name, pkg_version), 'w') as f:
-    f.write("{0}-{1}-{2}-{3}".format(pkg_name, pkg_version, compiler, label))
+    f.write(make_version_string(pkg_name, pkg_version, compiler, label, build_id))
 
 def remove_existing_package(toolchain_root, pkg_name, pkg_version):
   dir_path = package_directory(toolchain_root, pkg_name, pkg_version)
@@ -337,6 +353,11 @@ if __name__ == "__main__":
   if not os.getenv("IMPALA_HOME"):
     print("Impala environment not set up correctly, make sure "
           "impala-config.sh is sourced.")
+    sys.exit(1)
+
+  if not os.getenv("IMPALA_TOOLCHAIN_BUILD_ID"):
+    print("No toolchain build ID ($IMPALA_TOOLCHAIN_BUILD_ID) configured. Make sure "
+          "impala-config.sh is sourced")
     sys.exit(1)
 
   # Create the destination directory if necessary
