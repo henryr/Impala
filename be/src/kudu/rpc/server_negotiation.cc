@@ -47,12 +47,14 @@
 #include "kudu/util/net/socket.h"
 #include "kudu/util/scoped_cleanup.h"
 #include "kudu/util/trace.h"
+#include "rpc/authentication-export.h"
 
 using std::set;
 using std::string;
 using std::unique_ptr;
 
 DECLARE_bool(rpc_encrypt_loopback_connections);
+DECLARE_bool(server_require_kerberos);
 
 namespace kudu {
 namespace rpc {
@@ -91,6 +93,11 @@ ServerNegotiation::ServerNegotiation(unique_ptr<Socket> socket,
       reinterpret_cast<int (*)()>(&ServerNegotiationGetoptCb), this));
   callbacks_.push_back(SaslBuildCallback(SASL_CB_SERVER_USERDB_CHECKPASS,
       reinterpret_cast<int (*)()>(&ServerNegotiationPlainAuthCb), this));
+
+  if (FLAGS_server_require_kerberos) {
+    callbacks_.push_back(SaslBuildCallback(SASL_CB_PROXY_POLICY,
+        reinterpret_cast<int (*)()>(&impala::ImpalaSaslAuthorizeInternal), nullptr));
+  }
   callbacks_.push_back(SaslBuildCallback(SASL_CB_LIST_END, nullptr, nullptr));
 }
 
@@ -298,17 +305,34 @@ Status ServerNegotiation::InitSaslServer() {
   // TODO(unknown): Support security flags.
   unsigned secflags = 0;
 
+  const char* service_name;
+  const char* realm;
+  if (FLAGS_server_require_kerberos) {
+    service_name = impala::GetSaslProtoName().c_str();
+    realm = impala::GetKerberosRealm().c_str();
+  } else {
+    service_name = kSaslProtoName;
+    realm = nullptr;
+  }
+
   sasl_conn_t* sasl_conn = nullptr;
   RETURN_NOT_OK_PREPEND(WrapSaslCall(nullptr /* no conn */, [&]() {
       return sasl_server_new(
           // Registered name of the service using SASL. Required.
-          kSaslProtoName,
+          service_name,
           // The fully qualified domain name of this server.
           helper_.server_fqdn(),
           // Permits multiple user realms on server. NULL == use default.
-          nullptr,
-          // Local and remote IP address strings. We don't use any mechanisms
-          // which need these.
+// <<<<<<< HEAD
+//           nullptr,
+//           // Local and remote IP address strings. We don't use any mechanisms
+//           // which need these.
+//           nullptr,
+//           nullptr,
+// =======
+          realm,
+          // Local and remote IP address strings. (NULL disables
+          // mechanisms which require this info.)
           nullptr,
           nullptr,
           // Connection-specific callbacks.
