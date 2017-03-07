@@ -194,9 +194,7 @@ void Scheduler::UpdateMembership(
 
   // If the delta transmitted by the statestore is empty we can skip processing
   // altogether and avoid making a copy of backend_config_.
-  if (delta.is_delta && delta.topic_entries.empty() && delta.topic_deletions.empty()) {
-    return;
-  }
+  if (delta.is_delta && delta.topic_entries.empty()) return;
 
   // This function needs to handle both delta and non-delta updates. To minimize the
   // time needed to hold locks, all updates are applied to a copy of backend_config_,
@@ -214,6 +212,14 @@ void Scheduler::UpdateMembership(
 
   // Process new entries to the topic
   for (const TTopicItem& item : delta.topic_entries) {
+    if (item.deleted) {
+      if (current_membership_.find(item.key) != current_membership_.end()) {
+        new_backend_config->RemoveBackend(current_membership_[item.key]);
+        current_membership_.erase(item.key);
+      }
+      continue;
+    }
+
     TBackendDescriptor be_desc;
     // Benchmarks have suggested that this method can deserialize
     // ~10m messages per second, so no immediate need to consider optimization.
@@ -243,14 +249,6 @@ void Scheduler::UpdateMembership(
     }
     new_backend_config->AddBackend(be_desc);
     current_membership_.insert(make_pair(item.key, be_desc));
-  }
-
-  // Process deletions from the topic
-  for (const string& backend_id : delta.topic_deletions) {
-    if (current_membership_.find(backend_id) != current_membership_.end()) {
-      new_backend_config->RemoveBackend(current_membership_[backend_id]);
-      current_membership_.erase(backend_id);
-    }
   }
 
   // If the local backend is not in our view of the membership list, we should add it
