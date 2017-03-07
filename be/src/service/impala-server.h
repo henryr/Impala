@@ -942,6 +942,10 @@ class ImpalaServer : public ImpalaServiceIf, public ImpalaHiveServer2ServiceIf,
 
   /// Container for a thread that runs ExpireQueries() if FLAGS_idle_query_timeout is set.
   boost::scoped_ptr<Thread> query_expiration_thread_;
+
+  /// Buffered list of requests seen since the last catalog version. When a new CATALOG
+  /// object update is seen, these are flushed to the catalog in one atomic update.
+  vector<TUpdateCatalogCacheRequest> update_reqs_;
 };
 
 /// Create an ImpalaServer and Thrift servers.
@@ -959,7 +963,6 @@ class ImpalaServer : public ImpalaServiceIf, public ImpalaHiveServer2ServiceIf,
 Status CreateImpalaServer(ExecEnv* exec_env, int beeswax_port, int hs2_port,
     int be_port, ThriftServer** beeswax_server, ThriftServer** hs2_server,
     ThriftServer** be_server, ImpalaServer** impala_server);
-
-}
+};
 
 #endif
