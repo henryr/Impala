@@ -350,6 +350,8 @@ include_directories(${KERBEROS_INCLUDE_DIR})
 ADD_THIRDPARTY_LIB(krb5
   SHARED_LIB "${KERBEROS_LIBRARY}")
 
+find_package(KerberosPrograms REQUIRED)
+
 ###################################################################
 
 # Required for KRPC_GENERATE, which converts protobuf to stubs.
