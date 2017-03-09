@@ -79,7 +79,8 @@ set(KRPC_LIBS
   libev
   rpc_header_proto
   rpc_introspection_proto
-  security)
+  security
+  token_proto)
 
 ADD_EXPORTABLE_LIBRARY(krpc
   SRCS ${KRPC_SRCS}
@@ -96,6 +97,7 @@ target_link_libraries(protoc-gen-krpc
     glog
     gflags
     pb_util_proto # TODO(KRPC): Why is this needed?
+    token_proto
     kudu_util)
 
 #### RPC test

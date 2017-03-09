@@ -35,21 +35,21 @@
 #include "kudu/util/scoped_cleanup.h"
 #include "kudu/util/thread.h"
 
-DEFINE_string(keytab_file, "",
-              "Path to the Kerberos Keytab file for this server. Specifying a "
-              "keytab file will cause the server to kinit, and enable Kerberos "
-              "to be used to authenticate RPC connections.");
-TAG_FLAG(keytab_file, stable);
+DECLARE_string(keytab_file); // , "",
+// "Path to the Kerberos Keytab file for this server. Specifying a "
+// "keytab file will cause the server to kinit, and enable Kerberos "
+// "to be used to authenticate RPC connections.");
+// TAG_FLAG(keytab_file, stable);
 
-DEFINE_string(principal, "kudu/_HOST",
-              "Kerberos principal that this daemon will log in as. The special token "
-              "_HOST will be replaced with the FQDN of the local host.");
-TAG_FLAG(principal, experimental);
+DECLARE_string(principal); // , "kudu/_HOST",
+//               "Kerberos principal that this daemon will log in as. The special token "
+//               "_HOST will be replaced with the FQDN of the local host.");
+// TAG_FLAG(principal, experimental);
 // This is currently tagged as unsafe because there is no way for users to configure
 // clients to expect a non-default principal. As such, configuring a server to login
 // as a different one would end up with a cluster that can't be connected to.
 // See KUDU-1884.
-TAG_FLAG(principal, unsafe);
+// TAG_FLAG(principal, unsafe);
 
 using std::mt19937;
 using std::random_device;

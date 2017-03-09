@@ -313,6 +313,7 @@ set (IMPALA_LINK_LIBS
   rpc_header_proto
   rpc_introspection_proto
   pb_util_proto
+  token_proto
   Runtime
   Scheduling
   security
@@ -364,6 +365,7 @@ set (IMPALA_DEPENDENCIES
   gutil
   glogstatic
   gflagsstatic
+  krb5
   pprofstatic
   protobuf
   libev
