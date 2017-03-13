@@ -59,6 +59,7 @@ Status RpcMgr::Init(int32_t num_reactor_threads) {
       METRIC_ENTITY_server.Instantiate(&registry_, "krpc-metrics"));
 
   bld.set_num_reactors(num_reactor_threads).set_metric_entity(entity);
+  bld.set_connection_keepalive_time(kudu::MonoDelta::FromSeconds(60 * 10));
   KUDU_RETURN_IF_ERROR(bld.Build(&messenger_), "Could not build messenger");
   return Status::OK();
 }
