@@ -1362,31 +1362,31 @@ void Coordinator::CancelFragmentInstances() {
   for (InstanceState* exec_state: fragment_instance_states_) {
     DCHECK(exec_state != nullptr);
 
-    // lock each exec_state individually to synchronize correctly with
-    // UpdateFragmentExecStatus() (which doesn't get the global lock_
-    // to set its status)
-    lock_guard<mutex> l(*exec_state->lock());
+    {
+      // lock each exec_state individually to synchronize correctly with
+      // UpdateFragmentExecStatus() (which doesn't get the global lock_
+      // to set its status)
+      lock_guard<mutex> l(*exec_state->lock());
 
-    // Nothing to cancel if the exec rpc was not sent, or if it is already finished.
-    if (!exec_state->rpc_sent() || exec_state->done()) {
-      all_rpcs_done.Notify();
-      continue;
+      // Nothing to cancel if the exec rpc was not sent, or if it is already finished.
+      if (!exec_state->rpc_sent() || exec_state->done()) {
+        all_rpcs_done.Notify();
+        continue;
+      }
+
+      /// If the status is not OK, we still try to cancel - !OK status might mean
+      /// communication failure between fragment instance and coordinator, but fragment
+      /// instance might still be running.
+
+      // set an error status to make sure we only cancel this once
+      exec_state->set_status(Status::CANCELLED);
+
+      ++num_cancelled;
+
+      VLOG_QUERY << "sending CancelPlanFragment rpc for instance_id="
+                 << exec_state->fragment_instance_id() << " backend="
+                 << exec_state->impalad_address();
     }
-
-    /// If the status is not OK, we still try to cancel - !OK status might mean
-    /// communication failure between fragment instance and coordinator, but fragment
-    /// instance might still be running.
-
-    // set an error status to make sure we only cancel this once
-    exec_state->set_status(Status::CANCELLED);
-
-    ++num_cancelled;
-    unique_ptr<TCancelPlanFragmentParams> params =
-        make_unique<TCancelPlanFragmentParams>();
-    params->protocol_version = ImpalaInternalServiceVersion::V1;
-    params->__set_fragment_instance_id(exec_state->fragment_instance_id());
-
-    unique_ptr<TCancelPlanFragmentResult> res = make_unique<TCancelPlanFragmentResult>();
 
     // Handle completion of RPC.
     auto completion_cb = [exec_state, barrier = &all_rpcs_done, query_id = query_id_]
@@ -1413,9 +1413,12 @@ void Coordinator::CancelFragmentInstances() {
       delete res;
     };
 
-    VLOG_QUERY << "sending CancelPlanFragment rpc for instance_id="
-               << exec_state->fragment_instance_id() << " backend="
-               << exec_state->impalad_address();
+    unique_ptr<TCancelPlanFragmentParams> params =
+        make_unique<TCancelPlanFragmentParams>();
+    params->protocol_version = ImpalaInternalServiceVersion::V1;
+    params->__set_fragment_instance_id(exec_state->fragment_instance_id());
+
+    unique_ptr<TCancelPlanFragmentResult> res = make_unique<TCancelPlanFragmentResult>();
 
     auto rpc = Rpc<ExecControlServiceProxy>::Make(
         exec_state->impalad_address(), ExecEnv::GetInstance()->rpc_mgr());
