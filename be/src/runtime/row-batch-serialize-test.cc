@@ -69,6 +69,8 @@ class RowBatchSerializeTest : public testing::Test {
     ProtoRowBatch pbrow_batch;
     EXPECT_OK(batch->Serialize(&pbrow_batch, full_dedup));
 
+    pbrow_batch.incoming_tuple_offsets = kudu::Slice(reinterpret_cast<const uint8_t*>(&pbrow_batch.tuple_offsets[0]),
+        pbrow_batch.tuple_offsets.size() * sizeof(int32_t));
     RowBatch deserialized_batch(row_desc, pbrow_batch, tracker_.get());
     if (print_batches) cout << PrintBatch(&deserialized_batch) << endl;
 
@@ -632,6 +634,8 @@ TEST_F(RowBatchSerializeTest, DedupPathologicalFull) {
   // Serialized data should only have one copy of each tuple.
   EXPECT_EQ(total_byte_size, pbrow_batch.header.uncompressed_size());
   LOG(INFO) << "Deserializing row batch";
+  pbrow_batch.incoming_tuple_offsets = kudu::Slice(reinterpret_cast<const uint8_t*>(&pbrow_batch.tuple_offsets[0]),
+      pbrow_batch.tuple_offsets.size() * sizeof(int32_t));
   RowBatch deserialized_batch(row_desc, pbrow_batch, tracker_.get());
   LOG(INFO) << "Verifying row batch";
   // Need to do special verification: comparing all duplicate strings is too slow.

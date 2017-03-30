@@ -72,10 +72,14 @@ void DataStreamService::TransmitData(const TransmitDataRequestPb* request,
            << " #rows=" << request->row_batch_header().num_rows()
            << " sender_id=" << request->sender_id();
   ProtoRowBatch batch;
-  batch.header = request->row_batch_header();
   Status status = FromKuduStatus(context->GetInboundSidecar(
       request->row_batch_header().tuple_data_sidecar_idx(), &batch.tuple_data));
   if (status.ok()) {
+    status = FromKuduStatus(context->GetInboundSidecar(
+        request->row_batch_header().tuple_offsets_sidecar_idx(), &batch.incoming_tuple_offsets));
+  }
+  if (status.ok()) {
+    batch.header.Swap((const_cast<TransmitDataRequestPb*>(request))->mutable_row_batch_header());
     TransmitDataCtx payload(batch, context, request, response);
     // AddData() is guaranteed to eventually respond to this RPC so we don't do it here.
     ExecEnv::GetInstance()->stream_mgr()->AddData(finst_id, move(payload));

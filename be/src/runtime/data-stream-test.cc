@@ -101,6 +101,10 @@ class ImpalaTestBackend : public DataStreamServiceIf {
     Status status = FromKuduStatus(context->GetInboundSidecar(
         request->row_batch_header().tuple_data_sidecar_idx(), &batch.tuple_data));
     if (status.ok()) {
+      status = FromKuduStatus(context->GetInboundSidecar(
+              request->row_batch_header().tuple_offsets_sidecar_idx(), &batch.incoming_tuple_offsets));
+    }
+    if (status.ok()) {
       mgr_->AddData(id, TransmitDataCtx(batch, context, request, response));
     } else {
       status.ToProto(response->mutable_status());

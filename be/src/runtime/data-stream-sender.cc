@@ -46,6 +46,7 @@
 
 using kudu::rpc::RpcController;
 using kudu::MonoDelta;
+using kudu::Slice;
 
 using std::condition_variable_any;
 using std::enable_shared_from_this;
@@ -240,6 +241,9 @@ Status DataStreamSender::Channel::SendBatch(ProtoRowBatch* batch) {
   int idx;
   rpc.AddSidecar(batch->tuple_data, &idx);
   batch->header.set_tuple_data_sidecar_idx(idx);
+
+  rpc.AddSidecar(Slice(reinterpret_cast<const uint8_t*>(&(batch->tuple_offsets[0])), batch->tuple_offsets.size() * sizeof(int32_t)), &idx);
+  batch->header.set_tuple_offsets_sidecar_idx(idx);
   *request->mutable_row_batch_header() = batch->header;
 
   // Set the number of attempts very high to try to outlast any situations where the

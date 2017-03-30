@@ -65,6 +65,10 @@ struct ProtoRowBatch {
     tuple_data = kudu::Slice(owned_tuple_data);
   }
 
+  std::vector<int32_t> tuple_offsets;
+
+  kudu::Slice incoming_tuple_offsets;
+
  private:
   std::string owned_tuple_data;
 };

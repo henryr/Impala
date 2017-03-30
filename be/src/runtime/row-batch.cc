@@ -115,12 +115,16 @@ RowBatch::RowBatch(const RowDescriptor& row_desc, const ProtoRowBatch& input_bat
   }
 
   // Convert input_batch.tuple_offsets into pointers
-  int tuple_idx = 0;
-  for (int32_t offset : input_batch.header.tuple_offsets()) {
+  // int tuple_idx = 0;
+  const int32_t* offsets = reinterpret_cast<const int32_t*>(input_batch.incoming_tuple_offsets.data());
+  int32_t num_offsets = input_batch.incoming_tuple_offsets.size() / sizeof(int32_t);
+  for (int i = 0; i < num_offsets; ++i) {
+    //for (int32_t offset : input_batch.header.tuple_offsets()) {
+    int32_t offset = offsets[i];
     if (offset == -1) {
-      tuple_ptrs_[tuple_idx++] = nullptr;
+      tuple_ptrs_[i] = nullptr;
     } else {
-      tuple_ptrs_[tuple_idx++] = reinterpret_cast<Tuple*>(tuple_data + offset);
+      tuple_ptrs_[i] = reinterpret_cast<Tuple*>(tuple_data + offset);
     }
   }
 
@@ -247,7 +251,9 @@ void RowBatch::SerializeInternal(
   // TODO: detect if serialized size is too large to allocate and return proper error.
   tuple_data_str.resize(size);
   output_batch->header.set_uncompressed_size(size);
-  output_batch->header.mutable_tuple_offsets()->Reserve(num_rows_ * num_tuples_per_row_);
+  output_batch->tuple_offsets.reserve(num_rows_ * num_tuples_per_row_);
+  output_batch->tuple_offsets.resize(0);
+  // output_batch->header.mutable_tuple_offsets()->Reserve(num_rows_ * num_tuples_per_row_);
 
   // Copy tuple data of unique tuples, including strings, into output_batch (converting
   // string pointers into offsets in the process).
@@ -260,31 +266,36 @@ void RowBatch::SerializeInternal(
       Tuple* tuple = GetRow(i)->GetTuple(j);
       if (UNLIKELY(tuple == NULL)) {
         // NULLs are encoded as -1
-        output_batch->header.add_tuple_offsets(-1);
+        output_batch->tuple_offsets.push_back(-1);
+        //output_batch->header.add_tuple_offsets(-1);
         continue;
       } else if (LIKELY(i > 0) && UNLIKELY(GetRow(i - 1)->GetTuple(j) == tuple)) {
         // Fast tuple deduplication for adjacent rows.
         int prev_row_idx =
-            output_batch->header.tuple_offsets_size() - num_tuples_per_row_;
-        output_batch->header.add_tuple_offsets(
-            output_batch->header.tuple_offsets(prev_row_idx));
+            output_batch->tuple_offsets.size() - num_tuples_per_row_;
+        //output_batch->header.add_tuple_offsets(
+        output_batch->tuple_offsets.push_back(
+            output_batch->tuple_offsets[prev_row_idx]);
         continue;
       } else if (UNLIKELY(distinct_tuples != NULL)) {
         if ((*desc)->byte_size() == 0) {
           // Zero-length tuples can be represented as NULL.
-          output_batch->header.add_tuple_offsets(-1);
+          //output_batch->header.add_tuple_offsets(-1);
+          output_batch->tuple_offsets.push_back(-1);
           continue;
         }
         int* dedupd_offset = distinct_tuples->FindOrInsert(tuple, offset);
         if (*dedupd_offset != offset) {
           // Repeat of tuple
           DCHECK_GE(*dedupd_offset, 0);
-          output_batch->header.add_tuple_offsets(*dedupd_offset);
+          //output_batch->header.add_tuple_offsets(*dedupd_offset);
+          output_batch->tuple_offsets.push_back(*dedupd_offset);
           continue;
         }
       }
       // Record offset before creating copy (which increments offset and tuple_data)
-      output_batch->header.add_tuple_offsets(offset);
+      //output_batch->header.add_tuple_offsets(offset);
+      output_batch->tuple_offsets.push_back(offset);
       tuple->DeepCopy(**desc, &tuple_data, &offset, /* convert_ptrs */ true);
       DCHECK_LE(offset, size);
     }
@@ -374,7 +385,9 @@ void RowBatch::TransferResourceOwnership(RowBatch* dest) {
 int RowBatch::GetBatchSize(const ProtoRowBatch& batch) {
   int result = batch.tuple_data.size();
   result += batch.header.row_tuples().size() * sizeof(int32_t);
-  result += batch.header.tuple_offsets().size() * sizeof(int32_t);
+  int32_t offsets_size = batch.incoming_tuple_offsets.size() / sizeof(int32_t);
+  result += offsets_size;
+  //result += batch.header.tuple_offsets().size() * sizeof(int32_t);
   return result;
 }
 
