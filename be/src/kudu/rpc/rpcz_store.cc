@@ -226,20 +226,23 @@ void RpczStore::DumpPB(const DumpRpczStoreRequestPB& req,
 void RpczStore::LogTrace(InboundCall* call) {
   int duration_ms = call->timing().TotalDuration().ToMilliseconds();
 
-  if (call->header_.has_timeout_millis() && call->header_.timeout_millis() > 0) {
-    double log_threshold = call->header_.timeout_millis() * 0.75f;
-    if (duration_ms > log_threshold) {
-      // TODO: consider pushing this onto another thread since it may be slow.
-      // The traces may also be too large to fit in a log message.
-      LOG(WARNING) << call->ToString() << " took " << duration_ms << "ms (client timeout "
-                   << call->header_.timeout_millis() << ").";
-      std::string s = call->trace()->DumpToString();
-      if (!s.empty()) {
-        LOG(WARNING) << "Trace:\n" << s;
-      }
-      return;
+
+  //if (call->header_.has_timeout_millis() && call->header_.timeout_millis() > 0) {
+
+  //  double log_threshold = call->header_.timeout_millis() * 0.75f;
+  //if (duration_ms > log_threshold) {
+  if (duration_ms > 2000) {
+    // TODO: consider pushing this onto another thread since it may be slow.
+    // The traces may also be too large to fit in a log message.
+    LOG(WARNING) << call->ToString() << " took " << duration_ms << "ms (client timeout "
+                 << call->header_.timeout_millis() << ").";
+    std::string s = call->trace()->DumpToString();
+    if (!s.empty()) {
+      LOG(WARNING) << call->ToString() << " trace:\n" << s;
     }
+    return;
   }
+  //  }
 
   if (PREDICT_FALSE(FLAGS_rpc_dump_all_traces)) {
     LOG(INFO) << call->ToString() << " took " << duration_ms << "ms. Trace:";

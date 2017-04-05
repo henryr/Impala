@@ -46,6 +46,7 @@
 #include "gen-cpp/ImpalaInternalService_types.h"
 #include "gen-cpp/Partitions_types.h"
 #include "gen-cpp/PlanNodes_types.h"
+#include "kudu/util/trace.h"
 #include "rpc/rpc.h"
 #include "rpc/thrift-util.h"
 #include "runtime/data-stream-mgr.h"
@@ -92,6 +93,7 @@ using std::unique_ptr;
 
 using kudu::MonoDelta;
 using kudu::rpc::RpcController;
+using kudu::Trace;
 
 DECLARE_int32(be_port);
 DECLARE_string(hostname);
@@ -1448,6 +1450,7 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
             << " instance=" << PrintId(params.fragment_instance_id)
             << " status=" << params.status.status_code
             << " done=" << (params.done ? "true" : "false");
+  TRACE_TO(Trace::CurrentTrace(), "Started UpdateFragmentExecStatus");
   int instance_state_idx = GetInstanceIdx(params.fragment_instance_id);
   if (instance_state_idx >= fragment_instance_states_.size()) {
     return Status(TErrorCode::INTERNAL_ERROR,
@@ -1460,6 +1463,7 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
   Status status(params.status);
   {
     lock_guard<mutex> l(*exec_state->lock());
+    TRACE_TO(Trace::CurrentTrace(), "Acquired ExecState lock");
     if (!status.ok()) {
       // During query cancellation, exec_state is set to CANCELLED. However, we might
       // process a non-error message from a fragment executor that is sent
@@ -1501,6 +1505,8 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
     progress_.Update(exec_state->UpdateNumScanRangesCompleted());
   }
 
+  TRACE_TO(Trace::CurrentTrace(), "Profile updates completed");
+
   if (params.done && params.__isset.insert_exec_status) {
     lock_guard<mutex> l(lock_);
     // Merge in table update data (partitions written to, files to be moved as part of
@@ -1523,6 +1529,7 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
     files_to_move_.insert(
         params.insert_exec_status.files_to_move.begin(),
         params.insert_exec_status.files_to_move.end());
+    TRACE_TO(Trace::CurrentTrace(), "Handled insert updates");
   }
 
   if (VLOG_FILE_IS_ON) {
@@ -1547,6 +1554,7 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
   if (!returned_all_results_ && !status.ok()) {
     UpdateStatus(status, exec_state->fragment_instance_id(),
         TNetworkAddressToString(exec_state->impalad_address()));
+    TRACE_TO(Trace::CurrentTrace(), "Status updated");
     return Status::OK();
   }
 
@@ -1571,6 +1579,7 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
     //     }
     //   }
     // }
+    TRACE_TO(Trace::CurrentTrace(), "Done processing complete, ready for notification");
     if (num_remaining_fragment_instances_.Add(-1) == 0) {
       std::lock_guard<SpinLock> sl(instance_completion_lock_);
       instance_completion_cv_.notify_all();
@@ -1582,6 +1591,7 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
   if (!params.done && returned_all_results_) {
     return Status::CANCELLED;
   }
+  TRACE_TO(Trace::CurrentTrace(), "Returning from coord method");
   return Status::OK();
 }
 

@@ -20,6 +20,7 @@
 #include "common/status.h"
 #include "gen-cpp/ImpalaInternalService_types.h"
 #include "gutil/strings/substitute.h"
+#include "kudu/util/trace.h"
 #include "kudu/rpc/rpc_context.h"
 #include "rpc/rpc.h"
 #include "rpc/thrift-util.h"
@@ -38,6 +39,7 @@
 
 using namespace impala;
 using kudu::rpc::RpcContext;
+using kudu::Trace;
 
 namespace impala {
 
@@ -156,14 +158,18 @@ void ExecControlService::ReportExecStatus(
   TReportExecStatusParams thrift_request;
   Status status =
       DeserializeFromSidecar(context, request->sidecar_idx(), &thrift_request);
+  TRACE_TO(Trace::CurrentTrace(), "Deserialization complete");
 
   TReportExecStatusResult return_val;
   if (status.ok()) {
     ExecEnv::GetInstance()->impala_server()->ReportExecStatus(
         return_val, thrift_request);
   }
+
+  TRACE_TO(Trace::CurrentTrace(), "Method complete");
   status.SetTStatus(&return_val);
   SerializeToSidecar(context, &return_val, response);
+  TRACE_TO(Trace::CurrentTrace(), "Response serialization complete");
   context->RespondSuccess();
 }
 
