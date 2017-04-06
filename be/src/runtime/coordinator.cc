@@ -753,8 +753,9 @@ Status Coordinator::UpdateStatus(const Status& status, const TUniqueId& instance
     if (!query_status_.ok()) return query_status_;
 
     query_status_ = status;
-    CancelInternal();
   }
+
+  CancelInternal();
 
   // Log the id of the fragment that first failed so we can track it down easier.
   VLOG_QUERY << "Query id=" << query_id_ << " failed because fragment id="
@@ -1532,20 +1533,20 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
     TRACE_TO(Trace::CurrentTrace(), "Handled insert updates");
   }
 
-  if (VLOG_FILE_IS_ON) {
-    stringstream s;
-    exec_state->profile()->PrettyPrint(&s);
-    VLOG_FILE << "profile for instance_id=" << exec_state->fragment_instance_id()
-              << "\n" << s.str();
-  }
-  // also print the cumulative profile
-  // TODO: fix the coordinator/PlanFragmentExecutor, so this isn't needed
-  if (VLOG_FILE_IS_ON) {
-    stringstream s;
-    query_profile_->PrettyPrint(&s);
-    VLOG_FILE << "cumulative profile for query_id=" << query_id_
-              << "\n" << s.str();
-  }
+  // if (VLOG_FILE_IS_ON) {
+  //   stringstream s;
+  //   exec_state->profile()->PrettyPrint(&s);
+  //   VLOG_FILE << "profile for instance_id=" << exec_state->fragment_instance_id()
+  //             << "\n" << s.str();
+  // }
+  // // also print the cumulative profile
+  // // TODO: fix the coordinator/PlanFragmentExecutor, so this isn't needed
+  // if (VLOG_FILE_IS_ON) {
+  //   stringstream s;
+  //   query_profile_->PrettyPrint(&s);
+  //   VLOG_FILE << "cumulative profile for query_id=" << query_id_
+  //             << "\n" << s.str();
+  // }
 
   // If all results are returned, we don't need to take any further notice of this
   // instance's status. Similarly, we don't need to call UpdateStatus() (which takes a
