@@ -123,6 +123,10 @@ class InboundCall {
   // The resulting slices refer to memory in this object.
   void SerializeResponseTo(std::vector<Slice>* slices) const;
 
+  OutboundTransfer* release_response_transfer() {
+    return response_transfer_.release();
+  }
+
   // See RpcContext::AddRpcSidecar()
   Status AddOutboundSidecar(std::unique_ptr<RpcSidecar> car, int* idx);
 
@@ -232,6 +236,11 @@ class InboundCall {
   // This is kept around because it retains the memory referred to
   // by 'serialized_request_' above.
   gscoped_ptr<InboundTransfer> transfer_;
+
+  // The transfer for the outbound response. We allocate this upon first
+  // receipt of the call on the reactor thread, so that we avoid a cross-thread
+  // allocation.
+  gscoped_ptr<OutboundTransfer> response_transfer_;
 
   // The buffers for serialized response. Set by SerializeResponseBuffer().
   faststring response_hdr_buf_;

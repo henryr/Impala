@@ -43,6 +43,7 @@ namespace rpc {
 
 InboundCall::InboundCall(Connection* conn)
   : conn_(conn),
+    response_transfer_(new OutboundTransfer()),
     trace_(new Trace),
     method_info_(nullptr) {
   RecordCallReceived();

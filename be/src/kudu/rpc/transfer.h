@@ -104,6 +104,8 @@ class InboundTransfer {
 // Upon completion of the transfer, a callback is triggered.
 class OutboundTransfer : public boost::intrusive::list_base_hook<> {
  public:
+  OutboundTransfer();
+
   // Factory methods for creating transfers associated with call requests
   // or responses. The 'payload' slices will be concatenated and
   // written to the socket. When the transfer completes or errors, the
@@ -118,14 +120,14 @@ class OutboundTransfer : public boost::intrusive::list_base_hook<> {
   // ------------------------------------------------------------
 
   // Create an outbound transfer for a call request.
-  static OutboundTransfer* CreateForCallRequest(int32_t call_id,
-                                                const std::vector<Slice> &payload,
-                                                TransferCallbacks *callbacks);
+  void InitForCallRequest(int32_t call_id,
+                          const std::vector<Slice> &payload,
+                          TransferCallbacks *callbacks);
 
   // Create an outbound transfer for a call response.
   // See above for details.
-  static OutboundTransfer* CreateForCallResponse(const std::vector<Slice> &payload,
-                                                 TransferCallbacks *callbacks);
+  void InitForCallResponse(const std::vector<Slice>& payload,
+                           TransferCallbacks *callbacks);
 
   // Destruct the transfer. A transfer object should never be deallocated
   // before it has either (a) finished transferring, or (b) been Abort()ed.
@@ -161,9 +163,9 @@ class OutboundTransfer : public boost::intrusive::list_base_hook<> {
   }
 
  private:
-  OutboundTransfer(int32_t call_id,
-                   const std::vector<Slice> &payload,
-                   TransferCallbacks *callbacks);
+  void SetPayload(const std::vector<Slice>& payload);
+
+  bool initted_;
 
   // Slices to send. Uses an array here instead of a vector to avoid an expensive
   // vector construction (improved performance a couple percent).

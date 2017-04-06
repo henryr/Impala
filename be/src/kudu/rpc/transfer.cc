@@ -135,29 +135,38 @@ string InboundTransfer::StatusAsString() const {
   return Substitute("$0/$1 bytes received", cur_offset_, total_length_);
 }
 
-OutboundTransfer* OutboundTransfer::CreateForCallRequest(
-    int32_t call_id,
-    const std::vector<Slice> &payload,
-    TransferCallbacks *callbacks) {
-  return new OutboundTransfer(call_id, payload, callbacks);
+void OutboundTransfer::InitForCallRequest(int32_t call_id,
+                                          const std::vector<Slice>& payload,
+                                          TransferCallbacks *callbacks) {
+  DCHECK(!initted_);
+  SetPayload(payload);
+  call_id_ = call_id;
+  callbacks_ = callbacks;
+  initted_ = true;
 }
 
-OutboundTransfer* OutboundTransfer::CreateForCallResponse(const std::vector<Slice> &payload,
-                                                          TransferCallbacks *callbacks) {
-  return new OutboundTransfer(kInvalidCallId, payload, callbacks);
+
+void OutboundTransfer::InitForCallResponse(const std::vector<Slice>& payload,
+                                           TransferCallbacks *callbacks) {
+  DCHECK(!initted_);
+  SetPayload(payload);
+  call_id_ = kInvalidCallId;
+  callbacks_ = callbacks;
+  initted_ = true;
 }
 
 
-OutboundTransfer::OutboundTransfer(int32_t call_id,
-                                   const std::vector<Slice> &payload,
-                                   TransferCallbacks *callbacks)
-  : cur_slice_idx_(0),
-    cur_offset_in_slice_(0),
-    callbacks_(callbacks),
-    call_id_(call_id),
-    aborted_(false) {
+OutboundTransfer::OutboundTransfer()
+    : initted_(false),
+      cur_slice_idx_(0),
+      cur_offset_in_slice_(0),
+      callbacks_(nullptr),
+      call_id_(-1),
+      aborted_(false) {
+}
+
+void OutboundTransfer::SetPayload(const std::vector<Slice>& payload) {
   CHECK(!payload.empty());
-
   n_payload_slices_ = payload.size();
   CHECK_LE(n_payload_slices_, arraysize(payload_slices_));
   for (int i = 0; i < payload.size(); i++) {
@@ -166,6 +175,8 @@ OutboundTransfer::OutboundTransfer(int32_t call_id,
 }
 
 OutboundTransfer::~OutboundTransfer() {
+  if (!initted_) return;
+
   if (!TransferFinished() && !aborted_) {
     callbacks_->NotifyTransferAborted(
       Status::RuntimeError("RPC transfer destroyed before it finished sending"));
