@@ -34,6 +34,7 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition_variable.hpp>
 
+#include "common/atomic.h"
 #include "common/global-types.h"
 #include "common/hdfs.h"
 #include "common/status.h"
@@ -442,6 +443,8 @@ class Coordinator { // NOLINT: The member variables could be re-ordered to save 
 
   /// True if and only if TearDown() has been called.
   bool torn_down_;
+
+  AtomicInt32 query_will_be_cancelled_;
 
   /// Returns a pretty-printed table of the current filter state.
   std::string FilterDebugString();

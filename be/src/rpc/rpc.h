@@ -115,8 +115,8 @@ class Rpc {
   // sidecars, an error is returned. This method may only be called after a synchronous
   // RPC invocation using Execute().
   Status GetInboundSidecar(int idx, kudu::Slice* sidecar) {
-    DCHECK(controller_.get() != nullptr);
-    return FromKuduStatus(controller_->GetInboundSidecar(idx, sidecar));
+    // DCHECK(controller_.get() != nullptr);
+    return FromKuduStatus(controller_.GetInboundSidecar(idx, sidecar));
   }
 
   /// Handles asynchronous execution, and retry. The completion callback 'cb' is
@@ -167,19 +167,19 @@ class Rpc {
     RETURN_IF_ERROR(CheckConfiguration());
     std::unique_ptr<P> proxy;
     RETURN_IF_ERROR(mgr_->GetProxy(remote_, &proxy));
-    controller_.reset(new kudu::rpc::RpcController());
+    // controller_.reset(new kudu::rpc::RpcController());
     for (int i = 0; i < max_rpc_attempts_; ++i) {
-      RETURN_IF_ERROR(InitController(controller_.get()));
-      ((proxy.get())->*func)(req, resp, controller_.get());
-      if (controller_->status().ok()) return Status::OK();
+      RETURN_IF_ERROR(InitController(&controller_));
+      ((proxy.get())->*func)(req, resp, &controller_);
+      if (controller_.status().ok()) return Status::OK();
 
       // Retry only if the remote is too busy. Otherwise we fail fast.
-      if (!IsRetryableError(*controller_)) return FromKuduStatus(controller_->status());
+      if (!IsRetryableError(controller_)) return FromKuduStatus(controller_.status());
 
       SleepForMs(retry_interval_ms_);
     }
 
-    return FromKuduStatus(controller_->status());
+    return FromKuduStatus(controller_.status());
   }
 
   /// Wrapper for Execute() that handles serialization from and to Thrift
@@ -291,7 +291,7 @@ class Rpc {
   // Rpc controller storage. Used only for synchronous RPCs so that the caller can access
   // sidecar memory after the RPC returns. For asynchronous RPCs the caller is called
   // with the controller as an argument.
-  std::unique_ptr<kudu::rpc::RpcController> controller_;
+  kudu::rpc::RpcController controller_;
 
   // List of outbound sidecars that will be serialized after the request payload during
   // Execute(). The memory backing these slices is not owned by this object.

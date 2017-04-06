@@ -1553,8 +1553,10 @@ Status Coordinator::UpdateFragmentExecStatus(const TReportExecStatusParams& para
   // lock) if status is ok(), which would be a no-op. Otherwise, call UpdateStatus() which
   // will start instance cancellation.
   if (!returned_all_results_ && !status.ok()) {
-    UpdateStatus(status, exec_state->fragment_instance_id(),
-        TNetworkAddressToString(exec_state->impalad_address()));
+    if (query_will_be_cancelled_.CompareAndSwap(0, 1)) {
+      UpdateStatus(status, exec_state->fragment_instance_id(),
+          TNetworkAddressToString(exec_state->impalad_address()));
+    }
     TRACE_TO(Trace::CurrentTrace(), "Status updated");
     return Status::OK();
   }
