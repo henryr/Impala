@@ -184,7 +184,6 @@ class Connection : public RefCountedThreadSafe<Connection> {
 
  private:
   friend struct CallAwaitingResponse;
-  friend class QueueTransferTask;
   friend struct ResponseTransferCallbacks;
 
   // A call which has been fully sent to the server, which we're waiting for

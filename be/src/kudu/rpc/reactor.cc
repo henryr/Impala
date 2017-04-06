@@ -85,6 +85,73 @@ Status ShutdownError(bool aborted) {
 }
 } // anonymous namespace
 
+struct DelayedTask {
+  DelayedTask(std::function<void(const Status&)> func,
+              MonoDelta when)
+      : func_(std::move(func)),
+        when_(when),
+        thread_(nullptr) {
+  }
+
+  void Run(ReactorThread* thread) {
+    DCHECK(thread_ == nullptr) << "Task has already been scheduled";
+    DCHECK(thread->IsCurrentThread());
+
+    // Schedule the task to run later.
+    thread_ = thread;
+    timer_.set(thread->loop_);
+    timer_.set<DelayedTask, &DelayedTask::TimerHandler>(this);
+    timer_.start(when_.ToSeconds(), // after
+                 0);                // repeat
+    thread_->scheduled_tasks_.insert(this);
+  }
+
+  void Abort(const Status& abort_status) {
+    func_(abort_status);
+    delete this;
+  }
+
+  void TimerHandler(ev::timer& watcher, int revents) {
+    // We will free this task's memory.
+    thread_->scheduled_tasks_.erase(this);
+
+    if (EV_ERROR & revents) {
+      string msg = "Delayed task got an error in its timer handler";
+      LOG(WARNING) << msg;
+      Abort(Status::Aborted(msg)); // Will delete 'this'.
+    } else {
+      func_(Status::OK());
+      delete this;
+    }
+  }
+
+  // User function to invoke when timer fires or when task is aborted.
+  const boost::function<void(const Status&)> func_;
+
+  // Delay to apply to this task.
+  const MonoDelta when_;
+
+  // Link back to registering reactor thread.
+  ReactorThread* thread_;
+
+  // libev timer. Set when Run() is invoked.
+  ev::timer timer_;
+};
+
+
+ReactorTask MakeDelayedTask(std::function<void(const Status &)> func,
+                            MonoDelta when) {
+  DelayedTask* dt = new DelayedTask(std::move(func), when);
+  ReactorTask rt;
+  rt.run_func = [=](ReactorThread* thread){
+    dt->Run(thread);
+  };
+  rt.abort_func = [=](const Status& s) {
+    dt->Abort(s);
+  };
+  return rt;
+}
+
 ReactorThread::ReactorThread(Reactor *reactor, const MessengerBuilder& bld)
   : loop_(kDefaultLibEvFlags),
     cur_time_(MonoTime::Now()),
@@ -154,11 +221,6 @@ void ReactorThread::ShutdownInternal() {
   scheduled_tasks_.clear();
 }
 
-ReactorTask::ReactorTask() {
-}
-ReactorTask::~ReactorTask() {
-}
-
 Status ReactorThread::GetMetrics(ReactorMetrics *metrics) {
   DCHECK(IsCurrentThread());
   metrics->num_client_connections_ = client_conns_.size();
@@ -200,13 +262,13 @@ void ReactorThread::AsyncHandler(ev::async& /*watcher*/, int /*revents*/) {
     return;
   }
 
-  boost::intrusive::list<ReactorTask> tasks;
+  std::deque<ReactorTask> tasks;
   reactor_->DrainTaskQueue(&tasks);
 
   while (!tasks.empty()) {
-    ReactorTask& task = tasks.front();
+    ReactorTask task = std::move(tasks.front());
     tasks.pop_front();
-    task.Run(this);
+    task.run_func(this);
   }
 }
 
@@ -453,45 +515,6 @@ void ReactorThread::DestroyConnection(Connection *conn,
   }
 }
 
-DelayedTask::DelayedTask(boost::function<void(const Status&)> func,
-                         MonoDelta when)
-    : func_(std::move(func)),
-      when_(when),
-      thread_(nullptr) {
-}
-
-void DelayedTask::Run(ReactorThread* thread) {
-  DCHECK(thread_ == nullptr) << "Task has already been scheduled";
-  DCHECK(thread->IsCurrentThread());
-
-  // Schedule the task to run later.
-  thread_ = thread;
-  timer_.set(thread->loop_);
-  timer_.set<DelayedTask, &DelayedTask::TimerHandler>(this);
-  timer_.start(when_.ToSeconds(), // after
-               0);                // repeat
-  thread_->scheduled_tasks_.insert(this);
-}
-
-void DelayedTask::Abort(const Status& abort_status) {
-  func_(abort_status);
-  delete this;
-}
-
-void DelayedTask::TimerHandler(ev::timer& watcher, int revents) {
-  // We will free this task's memory.
-  thread_->scheduled_tasks_.erase(this);
-
-  if (EV_ERROR & revents) {
-    string msg = "Delayed task got an error in its timer handler";
-    LOG(WARNING) << msg;
-    Abort(Status::Aborted(msg)); // Will delete 'this'.
-  } else {
-    func_(Status::OK());
-    delete this;
-  }
-}
-
 Reactor::Reactor(shared_ptr<Messenger> messenger,
                  int index, const MessengerBuilder& bld)
     : messenger_(std::move(messenger)),
@@ -520,9 +543,9 @@ void Reactor::Shutdown() {
   // because ScheduleReactorTask() tests the closing_ flag set above.
   Status aborted = ShutdownError(true);
   while (!pending_tasks_.empty()) {
-    ReactorTask& task = pending_tasks_.front();
+    ReactorTask task = std::move(pending_tasks_.front());
     pending_tasks_.pop_front();
-    task.Abort(aborted);
+    task.abort_func(aborted);
   }
 }
 
@@ -539,123 +562,75 @@ bool Reactor::closing() const {
   return closing_;
 }
 
-// Task to call an arbitrary function within the reactor thread.
-class RunFunctionTask : public ReactorTask {
- public:
-  explicit RunFunctionTask(boost::function<Status()> f)
-      : function_(std::move(f)), latch_(1) {}
-
-  void Run(ReactorThread* /*reactor*/) override {
-    status_ = function_();
-    latch_.CountDown();
-  }
-  void Abort(const Status& status) override {
-    status_ = status;
-    latch_.CountDown();
-  }
-
-  // Wait until the function has completed, and return the Status
-  // returned by the function.
-  Status Wait() {
-    latch_.Wait();
-    return status_;
-  }
-
- private:
-  boost::function<Status()> function_;
-  Status status_;
-  CountDownLatch latch_;
-};
-
 Status Reactor::GetMetrics(ReactorMetrics *metrics) {
   return RunOnReactorThread(boost::bind(&ReactorThread::GetMetrics, &thread_, metrics));
 }
 
-Status Reactor::RunOnReactorThread(const boost::function<Status()>& f) {
-  RunFunctionTask task(f);
-  ScheduleReactorTask(&task);
-  return task.Wait();
+Status Reactor::RunOnReactorThread(const std::function<Status()>& f) {
+  ReactorTask t;
+  Synchronizer sync;
+  t.run_func = [&](ReactorThread*) {
+    sync.StatusCB(f());
+  };
+  t.abort_func = [&](const Status& s) {
+    sync.StatusCB(s);
+  };
+  ScheduleReactorTask(std::move(t));
+  return sync.Wait();
 }
 
 Status Reactor::DumpRunningRpcs(const DumpRunningRpcsRequestPB& req,
                                 DumpRunningRpcsResponsePB* resp) {
-  return RunOnReactorThread(boost::bind(&ReactorThread::DumpRunningRpcs, &thread_,
-                                        boost::ref(req), resp));
+  return RunOnReactorThread(std::bind(&ReactorThread::DumpRunningRpcs, &thread_,
+                                      std::ref(req), resp));
 }
-
-class RegisterConnectionTask : public ReactorTask {
- public:
-  explicit RegisterConnectionTask(scoped_refptr<Connection> conn)
-      : conn_(std::move(conn)) {
-  }
-
-  void Run(ReactorThread* reactor) override {
-    reactor->RegisterConnection(std::move(conn_));
-    delete this;
-  }
-
-  void Abort(const Status& /*status*/) override {
-    // We don't need to Shutdown the connection since it was never registered.
-    // This is only used for inbound connections, and inbound connections will
-    // never have any calls added to them until they've been registered.
-    delete this;
-  }
-
- private:
-  scoped_refptr<Connection> conn_;
-};
 
 void Reactor::RegisterInboundSocket(Socket *socket, const Sockaddr& remote) {
   VLOG(3) << name_ << ": new inbound connection to " << remote.ToString();
   std::unique_ptr<Socket> new_socket(new Socket(socket->Release()));
-  auto task = new RegisterConnectionTask(
+  ReactorTask t;
+  scoped_refptr<Connection> conn(
       new Connection(&thread_, remote, std::move(new_socket), Connection::SERVER));
-  ScheduleReactorTask(task);
+  t.run_func = [=](ReactorThread* reactor) {
+    reactor->RegisterConnection(std::move(conn));
+  };
+  t.abort_func = [=](const Status& s) {
+    // Dummy function to avoid a runtime error.
+    // No abort_func implementation: we don't need to Shutdown the connection since it was never
+    // registered. This is only used for inbound connections, and inbound connections
+    // will never have any calls added to them until they've been registered.
+  };
+  ScheduleReactorTask(std::move(t));
 }
-
-// Task which runs in the reactor thread to assign an outbound call
-// to a connection.
-class AssignOutboundCallTask : public ReactorTask {
- public:
-  explicit AssignOutboundCallTask(shared_ptr<OutboundCall> call)
-      : call_(std::move(call)) {}
-
-  void Run(ReactorThread* reactor) override {
-    reactor->AssignOutboundCall(call_);
-    delete this;
-  }
-
-  void Abort(const Status& status) override {
-    call_->SetFailed(status);
-    delete this;
-  }
-
- private:
-  shared_ptr<OutboundCall> call_;
-};
 
 void Reactor::QueueOutboundCall(const shared_ptr<OutboundCall>& call) {
   DVLOG(3) << name_ << ": queueing outbound call "
            << call->ToString() << " to remote " << call->conn_id().remote().ToString();
-  AssignOutboundCallTask *task = new AssignOutboundCallTask(call);
-  ScheduleReactorTask(task);
+  ReactorTask t;
+  t.run_func = [=](ReactorThread* reactor) {
+    reactor->AssignOutboundCall(std::move(call));
+  };
+  t.abort_func = [=](const Status& s) {
+    call->SetFailed(s);
+  };
+  ScheduleReactorTask(std::move(t));
 }
 
-void Reactor::ScheduleReactorTask(ReactorTask *task) {
+void Reactor::ScheduleReactorTask(ReactorTask task) {
   {
     std::unique_lock<LockType> l(lock_);
     if (closing_) {
       // We guarantee the reactor lock is not taken when calling Abort().
       l.unlock();
-      task->Abort(ShutdownError(false));
+      task.abort_func(ShutdownError(false));
       return;
     }
-    pending_tasks_.push_back(*task);
+    pending_tasks_.emplace_back(std::move(task));
   }
   thread_.WakeThread();
 }
 
-bool Reactor::DrainTaskQueue(boost::intrusive::list<ReactorTask> *tasks) { // NOLINT(*)
+bool Reactor::DrainTaskQueue(std::deque<ReactorTask>* tasks) {
   std::lock_guard<LockType> l(lock_);
   if (closing_) {
     return false;
