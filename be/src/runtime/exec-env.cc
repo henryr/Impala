@@ -131,19 +131,19 @@ struct ExecEnv::KuduClientPtr {
 
 ExecEnv* ExecEnv::exec_env_ = nullptr;
 
-ExecEnv::ExecEnv()
-  : ExecEnv(FLAGS_hostname, FLAGS_be_port, FLAGS_state_store_subscriber_port,
-        FLAGS_webserver_port, FLAGS_state_store_host, FLAGS_state_store_port) {}
+ExecEnv::ExecEnv() : ExecEnv(FLAGS_hostname, FLAGS_be_port,
+    FLAGS_state_store_subscriber_port, FLAGS_webserver_port, FLAGS_state_store_host,
+    FLAGS_state_store_port) { }
 
-ExecEnv::ExecEnv(const string& hostname, int backend_port, int subscriber_port,
+ExecEnv::ExecEnv(const string& hostname, int backend_port, int data_service_port,
     int webserver_port, const string& statestore_host, int statestore_port)
   : obj_pool_(new ObjectPool),
     metrics_(new MetricGroup("impala-metrics")),
     stream_mgr_(new DataStreamMgr(metrics_.get())),
     impalad_client_cache_(
-        new ImpalaBackendClientCache(FLAGS_backend_client_connection_num_retries, 0,
-            FLAGS_backend_client_rpc_timeout_ms, FLAGS_backend_client_rpc_timeout_ms, "",
-            !FLAGS_ssl_client_ca_certificate.empty())),
+        new ImpalaBackendClientCache(FLAGS_backend_client_connection_num_retries,
+            0, FLAGS_backend_client_rpc_timeout_ms, FLAGS_backend_client_rpc_timeout_ms,
+            "", !FLAGS_ssl_client_ca_certificate.empty())),
     catalogd_client_cache_(
         new CatalogServiceClientCache(FLAGS_catalog_client_connection_num_retries, 0,
             FLAGS_catalog_client_rpc_timeout_ms, FLAGS_catalog_client_rpc_timeout_ms, "",
@@ -157,37 +157,37 @@ ExecEnv::ExecEnv(const string& hostname, int backend_port, int subscriber_port,
         CreateHdfsOpThreadPool("hdfs-worker-pool", FLAGS_num_hdfs_worker_threads, 1024)),
     tmp_file_mgr_(new TmpFileMgr),
     frontend_(new Frontend()),
-    exec_rpc_thread_pool_(new CallableThreadPool("exec-rpc-pool", "worker",
-        FLAGS_coordinator_rpc_threads, numeric_limits<int32_t>::max())),
-    async_rpc_pool_(new CallableThreadPool("rpc-pool", "async-rpc-sender", 8, 10000)),
+    exec_rpc_thread_pool_(new CallableThreadPool("exec-rpc-pool",
+        "worker", FLAGS_coordinator_rpc_threads, numeric_limits<int32_t>::max())),
     query_exec_mgr_(new QueryExecMgr()),
-    buffer_reservation_(nullptr),
-    buffer_pool_(nullptr),
     rpc_mgr_(new RpcMgr()),
     enable_webserver_(FLAGS_enable_webserver && webserver_port > 0),
-    backend_address_(MakeNetworkAddress(hostname, backend_port)) {
+    backend_address_(MakeNetworkAddress(hostname, backend_port)),
+    data_svc_port_(data_service_port) {
   request_pool_service_.reset(new RequestPoolService(metrics_.get()));
 
-  TNetworkAddress subscriber_address = MakeNetworkAddress(hostname, subscriber_port);
   TNetworkAddress statestore_address =
       MakeNetworkAddress(statestore_host, statestore_port);
+  TNetworkAddress data_stream_svc_address =
+      MakeNetworkAddress(FLAGS_hostname, data_service_port);
 
   statestore_subscriber_.reset(new StatestoreSubscriber(
-      Substitute("impalad@$0", TNetworkAddressToString(backend_address_)),
-      subscriber_address, statestore_address, metrics_.get()));
+          Substitute("impalad@$0", TNetworkAddressToString(backend_address_)),
+          data_stream_svc_address, statestore_address, metrics_.get()));
 
   if (FLAGS_is_coordinator) {
     scheduler_.reset(new Scheduler(statestore_subscriber_.get(),
-        statestore_subscriber_->id(), backend_address_, metrics_.get(), webserver_.get(),
-        request_pool_service_.get()));
+            statestore_subscriber_->id(), backend_address_, data_service_port,
+            metrics_.get(), webserver_.get(), request_pool_service_.get()));
   }
 
   if (FLAGS_disable_admission_control) {
     LOG(INFO) << "Admission control is disabled.";
   } else {
     admission_controller_.reset(new AdmissionController(statestore_subscriber_.get(),
-        request_pool_service_.get(), metrics_.get(), backend_address_));
+            request_pool_service_.get(), metrics_.get(), backend_address_));
   }
+
   exec_env_ = this;
 }
 
@@ -202,8 +202,10 @@ Status ExecEnv::InitForFeTests() {
   return Status::OK();
 }
 
-Status ExecEnv::StartServices() {
-  LOG(INFO) << "Starting global services";
+Status ExecEnv::Init() {
+  RETURN_IF_ERROR(ResolveAddr(backend_address(), &resolved_address_));
+  LOG(INFO) << "Service address resolved (" << backend_address() << " -> "
+            << resolved_address_ << ")";
 
   // Initialize global memory limit.
   // Depending on the system configuration, we will have to calculate the process
@@ -245,7 +247,7 @@ Status ExecEnv::StartServices() {
   RETURN_IF_ERROR(RegisterMemoryMetrics(
       metrics_.get(), true, buffer_reservation_.get(), buffer_pool_.get()));
 
-  RETURN_IF_ERROR(rpc_mgr_->Init(FLAGS_num_acceptor_threads));
+  RETURN_IF_ERROR(rpc_mgr_->Init(FLAGS_num_reactor_threads));
 
   // Limit of -1 means no memory limit.
   mem_tracker_.reset(new MemTracker(
@@ -287,7 +289,6 @@ Status ExecEnv::StartServices() {
   // Start services in order to ensure that dependencies between them are met
   if (enable_webserver_) {
     AddDefaultUrlCallbacks(webserver_.get(), mem_tracker_.get(), metrics_.get());
-    RETURN_IF_ERROR(webserver_->Start());
   } else {
     LOG(INFO) << "Not starting webserver";
   }
@@ -306,6 +307,14 @@ Status ExecEnv::StartServices() {
   } else {
     default_fs_ = "hdfs://";
   }
+
+  return Status::OK();
+}
+
+Status ExecEnv::StartServices() {
+  LOG(INFO) << "Starting global services on port: " << data_svc_port_;
+
+  if (enable_webserver_) RETURN_IF_ERROR(webserver_->Start());
   // Must happen after all topic registrations / callbacks are done
   if (statestore_subscriber_.get() != nullptr) {
     Status status = statestore_subscriber_->Start();
@@ -317,8 +326,7 @@ Status ExecEnv::StartServices() {
 
   // Do this last of all - now RPCs may arrive so all services should be up to handle
   // them.
-  RETURN_IF_ERROR(
-      rpc_mgr_->StartServices(subscriber_address_.port, FLAGS_num_acceptor_threads));
+  RETURN_IF_ERROR(rpc_mgr_->StartServices(data_svc_port_, FLAGS_num_acceptor_threads));
   return Status::OK();
 }
 
