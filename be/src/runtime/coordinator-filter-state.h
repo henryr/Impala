@@ -60,7 +60,8 @@ class Coordinator::FilterState {
     : desc_(desc), src_(src), pending_count_(0), first_arrival_time_(0L),
       completion_time_(0L), disabled_(false) { }
 
-  TBloomFilter* bloom_filter() { return bloom_filter_.get(); }
+  ProtoBloomFilter* bloom_filter() { return bloom_filter_.get(); }
+  ProtoBloomFilter* release_bloom_filter() { return bloom_filter_.release(); }
   boost::unordered_set<int>* src_fragment_instance_idxs() {
     return &src_fragment_instance_idxs_;
   }
@@ -79,7 +80,7 @@ class Coordinator::FilterState {
 
   /// Aggregates partitioned join filters and updates memory consumption.
   /// Disables filter if always_true filter is received or OOM is hit.
-  void ApplyUpdate(const TUpdateFilterParams& params, Coordinator* coord);
+  void ApplyUpdate(const ProtoBloomFilter& params, Coordinator* coord);
 
   /// Disables a filter. A disabled filter consumes no memory.
   void Disable(MemTracker* tracker);
@@ -104,7 +105,7 @@ class Coordinator::FilterState {
   /// In order to avoid memory spikes, an incoming filter is moved (vs. copied) to the
   /// output structure in the case of a broadcast join. Similarly, for partitioned joins,
   /// the filter is moved from the following member to the output structure.
-  std::unique_ptr<TBloomFilter> bloom_filter_;
+  std::unique_ptr<ProtoBloomFilter> bloom_filter_;
 
   /// Time at which first local filter arrived.
   int64_t first_arrival_time_;

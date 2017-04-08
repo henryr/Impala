@@ -32,12 +32,20 @@
 #include "exec/hdfs-scan-node-base.h"  // for PerVolumeStats
 #include "exec/exchange-node.h"
 #include "exec/scan-node.h"
+
+#include <boost/thread/lock_guard.hpp>
+#include <boost/thread/locks.hpp>
+#include <gutil/strings/substitute.h>
+
+#include "codegen/llvm-codegen.h"
+#include "gen-cpp/ImpalaInternalService.h"
+#include "rpc/rpc.h"
+#include "runtime/client-cache-types.h"
 #include "runtime/exec-env.h"
-#include "runtime/backend-client.h"
+#include "runtime/query-state.h"
 #include "runtime/runtime-filter-bank.h"
 #include "runtime/client-cache.h"
 #include "runtime/runtime-state.h"
-#include "runtime/query-state.h"
 #include "runtime/query-state.h"
 #include "runtime/data-stream-mgr.h"
 #include "runtime/mem-tracker.h"
@@ -421,12 +429,14 @@ Status FragmentInstanceState::WaitForOpen() {
 }
 
 void FragmentInstanceState::PublishFilter(
-    int32_t filter_id, const TBloomFilter& thrift_bloom_filter) {
-  VLOG_FILE << "PublishFilter(): instance_id=" << PrintId(instance_id())
-            << " filter_id=" << filter_id;
+    int32_t filter_id, const ProtoBloomFilter& bloom_filter_pb) {
+  // Defensively protect against blocking forever in case there's some problem with
+  // Prepare().
   // Wait until Prepare() is done, so we know that the filter bank is set up.
   if (!WaitForPrepare().ok()) return;
-  runtime_state_->filter_bank()->PublishGlobalFilter(filter_id, thrift_bloom_filter);
+
+  runtime_state()->filter_bank()->PublishGlobalFilter(
+      filter_id, bloom_filter_pb);
 }
 
 const TQueryCtx& FragmentInstanceState::query_ctx() const {
@@ -456,4 +466,3 @@ void FragmentInstanceState::PrintVolumeIds() {
       << "Hdfs split stats (<volume id>:<# splits>/<split lengths>) for query="
       << query_id() << ":\n" << str.str();
 }
-

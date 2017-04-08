@@ -295,7 +295,7 @@ const std::string& RuntimeState::GetEffectiveUser() const {
   return impala::GetEffectiveUser(query_ctx().session);
 }
 
-ImpalaBackendClientCache* RuntimeState::impalad_client_cache() {
+ImpalaInternalServiceClientCache* RuntimeState::impalad_client_cache() {
   return exec_env_->impalad_client_cache();
 }
 
