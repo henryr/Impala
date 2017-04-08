@@ -37,9 +37,6 @@ class CatalogServiceClient;
 typedef ClientCache<CatalogServiceClient> CatalogServiceClientCache;
 typedef ClientConnection<CatalogServiceClient> CatalogServiceConnection;
 
-class ImpalaBackendClient;
-typedef ClientCache<ImpalaBackendClient> ImpalaBackendClientCache;
-typedef ClientConnection<ImpalaBackendClient> ImpalaBackendConnection;
 }
 
 #endif

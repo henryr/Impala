@@ -319,6 +319,9 @@ error_codes = (
   ("KUDU_TIMESTAMP_OUT_OF_RANGE", 103,
    "Kudu table '$0' column '$1' contains an out of range timestamp. "
    "The valid date range is 1400-01-01..9999-12-31."),
+
+  ("DATASTREAM_RECVR_ALREADY_GONE", 104, "Datastream receiver already torn down"),
+
 )
 
 import sys
