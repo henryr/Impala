@@ -36,7 +36,7 @@ namespace impala {
     RPC_UPDATEFILTER,
     RPC_TRANSMITDATA,
     RPC_REPORTEXECSTATUS,
-    RPC_RANDOM    // This must be last.
+    RPC_ENDDATASTREAM
   };
 
   /// Test util function that can inject delay to specified RPC server handling
@@ -48,7 +48,6 @@ namespace impala {
     std::random_device rd;
     srand(rd());
     if (delay_ms == 0) return;
-    if (rpc_type == RPC_RANDOM) rpc_type = rand() % RPC_RANDOM;
     if (rpc_type == my_type) SleepForMs(delay_ms);
   }
 
