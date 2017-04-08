@@ -159,6 +159,7 @@ class StatestoreTest : public testing::Test {
   unique_ptr<Webserver> webserver_;
   vector<TestSubscriber*> subscribers_;
   vector<unique_ptr<RpcMgr>> rpc_mgrs_;
+  TNetworkAddress resolved_localhost_;
 
   virtual void SetUp() {
     // Speed up test execution by sending messages very frequently.
@@ -166,6 +167,9 @@ class StatestoreTest : public testing::Test {
     FLAGS_statestore_update_frequency_ms = 25;
     FLAGS_state_store_port = FindUnusedEphemeralPort();
     ASSERT_NE(-1, FLAGS_state_store_port);
+
+    ASSERT_OK(ResolveAddr(
+        MakeNetworkAddress("localhost", FLAGS_state_store_port), &resolved_localhost_));
 
     // Reduce timeout for heartbeats
     FLAGS_statestore_heartbeat_tcp_timeout_seconds = 1;
@@ -188,9 +192,9 @@ class StatestoreTest : public testing::Test {
       ASSERT_OK(rpc_mgrs_.back()->Init(1));
       int port = FindUnusedEphemeralPort();
       ASSERT_NE(-1, port) << "Could not find unused ephemeral port!";
-      unique_ptr<TestSubscriber> subscriber =
-          make_unique<TestSubscriber>(rpc_mgrs_.back().get(),
-              MakeNetworkAddress("localhost", FLAGS_state_store_port), port);
+      unique_ptr<TestSubscriber> subscriber = make_unique<TestSubscriber>(
+          rpc_mgrs_.back().get(), MakeNetworkAddress("localhost", FLAGS_state_store_port),
+          port);
       subscribers_.push_back(subscriber.get());
       ASSERT_OK(subscribers_.back()->rpc_mgr()->RegisterService(2, 10, move(subscriber)));
       ASSERT_OK(subscribers_.back()->rpc_mgr()->StartServices(port, 1));
@@ -220,8 +224,8 @@ TEST_F(StatestoreTest, SmokeTest) {
   RpcMgr rpc_mgr;
   rpc_mgr.Init(1);
   StatestoreSubscriber sub_will_start("sub1",
-      MakeNetworkAddress("localhost", FLAGS_state_store_port + 10),
-      MakeNetworkAddress("localhost", FLAGS_state_store_port), &rpc_mgr, metrics_.get());
+      MakeNetworkAddress(resolved_localhost_.hostname, FLAGS_state_store_port + 10),
+      resolved_localhost_, &rpc_mgr, metrics_.get());
 
   ASSERT_OK(sub_will_start.Start());
   ASSERT_OK(rpc_mgr.StartServices(FLAGS_state_store_port + 10, 2));
