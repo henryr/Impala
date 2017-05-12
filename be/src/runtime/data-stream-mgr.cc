@@ -157,7 +157,7 @@ void DataStreamMgr::AddData(const TUniqueId& fragment_instance_id,
     TransmitDataCtx&& payload) {
   VLOG_ROW << "AddData(): fragment_instance_id=" << fragment_instance_id
            << " node=" << payload.request->dest_node_id() << " size="
-           << RowBatch::GetBatchSize(payload.proto_batch);
+           << payload.proto_batch.GetSize();
   bool already_unregistered;
   shared_ptr<DataStreamRecvr> recvr;
   {

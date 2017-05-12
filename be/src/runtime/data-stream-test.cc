@@ -96,13 +96,13 @@ class ImpalaTestBackend : public DataStreamServiceIf {
     id.__set_hi(request->dest_fragment_instance_id().hi());
     id.__set_lo(request->dest_fragment_instance_id().lo());
 
-    ProtoRowBatch batch;
+    InboundProtoRowBatch batch;
     batch.header = request->row_batch_header();
     Status status = FromKuduStatus(context->GetInboundSidecar(
         request->row_batch_header().tuple_data_sidecar_idx(), &batch.tuple_data));
     if (status.ok()) {
       status = FromKuduStatus(context->GetInboundSidecar(
-              request->row_batch_header().tuple_offsets_sidecar_idx(), &batch.incoming_tuple_offsets));
+              request->row_batch_header().tuple_offsets_sidecar_idx(), &batch.tuple_offsets));
     }
     if (status.ok()) {
       mgr_->AddData(id, TransmitDataCtx(batch, context, request, response));
@@ -228,7 +228,6 @@ class DataStreamTest : public testing::Test {
 
   // receiving node
   DataStreamMgr* stream_mgr_;
-  unique_ptr<ImpalaTestBackend> backend_;
 
   // sending node(s)
   TDataStreamSink broadcast_sink_;

@@ -132,7 +132,8 @@ namespace impala {
 
 ExecEnv* ExecEnv::exec_env_ = nullptr;
 
-ExecEnv::ExecEnv() : ExecEnv(FLAGS_hostname, FLAGS_be_port, FLAGS_state_store_subscriber_port, FLAGS_webserver_port, FLAGS_state_store_host,
+ExecEnv::ExecEnv() : ExecEnv(FLAGS_hostname, FLAGS_be_port,
+    FLAGS_state_store_subscriber_port, FLAGS_webserver_port, FLAGS_state_store_host,
     FLAGS_state_store_port) { }
 
 // TODO: Need refactor to get rid of duplicated code.
@@ -141,9 +142,9 @@ ExecEnv::ExecEnv(const string& hostname, int backend_port, int data_service_port
   : metrics_(new MetricGroup("impala-metrics")),
     stream_mgr_(new DataStreamMgr(metrics_.get())),
     impalad_client_cache_(
-        new ImpalaInternalServiceClientCache(FLAGS_backend_client_connection_num_retries, 0,
-            FLAGS_backend_client_rpc_timeout_ms, FLAGS_backend_client_rpc_timeout_ms, "",
-            !FLAGS_ssl_client_ca_certificate.empty())),
+        new ImpalaInternalServiceClientCache(FLAGS_backend_client_connection_num_retries,
+            0, FLAGS_backend_client_rpc_timeout_ms, FLAGS_backend_client_rpc_timeout_ms,
+            "", !FLAGS_ssl_client_ca_certificate.empty())),
     catalogd_client_cache_(
         new CatalogServiceClientCache(FLAGS_catalog_client_connection_num_retries, 0,
             FLAGS_catalog_client_rpc_timeout_ms, FLAGS_catalog_client_rpc_timeout_ms, "",
@@ -309,7 +310,6 @@ Status ExecEnv::StartServices() {
   LOG(INFO) << "Starting global services on port: " << data_svc_port_;
 
   if (enable_webserver_) RETURN_IF_ERROR(webserver_->Start());
-
   // Must happen after all topic registrations / callbacks are done
   if (statestore_subscriber_.get() != nullptr) {
     Status status = statestore_subscriber_->Start();

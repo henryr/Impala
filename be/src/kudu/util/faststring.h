@@ -204,6 +204,27 @@ class faststring {
                        len_);
   }
 
+  faststring(faststring&& from) {
+    resize(from.length());
+    // TODO: This erases the initial_data_ optimization when moving.
+    if (from.data() == from.initial_data_) {
+      memcpy(data_, from.data(), from.length());
+    } else {
+      std::swap(data_, from.data_);
+    }
+  }
+
+  faststring& operator=(faststring&& from) {
+    resize(from.length());
+    // TODO: This erases the initial_data_ optimization when moving.
+    if (from.data() == from.initial_data_) {
+      memcpy(data_, from.data(), from.length());
+    } else {
+      std::swap(data_, from.data_);
+    }
+    return *this;
+  }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(faststring);
 

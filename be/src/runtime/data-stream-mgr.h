@@ -157,7 +157,7 @@ class TransmitDataResponsePb;
 struct TransmitDataCtx {
   /// Row batch attached to the request. The memory for the row batch is owned by the
   /// 'context' below.
-  ProtoRowBatch proto_batch;
+  InboundProtoRowBatch proto_batch;
 
   /// Must be responded to once this RPC is finished with.
   kudu::rpc::RpcContext* context;
@@ -175,7 +175,7 @@ struct TransmitDataCtx {
 
   RowBatch* row_batch;
 
-  TransmitDataCtx(const ProtoRowBatch& batch, kudu::rpc::RpcContext* context, const
+  TransmitDataCtx(const InboundProtoRowBatch& batch, kudu::rpc::RpcContext* context, const
       TransmitDataRequestPb* request, TransmitDataResponsePb* response)
       : proto_batch(batch), context(context), request(request), response(response),
         arrival_time_ms(MonotonicMillis()) { }
@@ -253,16 +253,20 @@ class DataStreamMgr {
  private:
   friend class DataStreamRecvr;
 
-  /// Threads that send replies to pending senders from all registered receivers.
+  /// Set of threads which deserialize buffered row batches, and deliver them to their
+  /// receivers. Used only for RPCs which were buffered after their channel's batch queue
+  /// was full.
   struct DeserializeWorkItem {
     TUniqueId fragment_instance_id;
     TransmitDataCtx ctx;
   };
   ThreadPool<DeserializeWorkItem> deserialize_pool_;
 
+  /// Add an RPC context to the deserialization pool.
   void EnqueueRowBatch(DeserializeWorkItem&& payload);
 
-  /// TODO
+  /// Periodically, notify all senders that have waited for too long for their receiver to
+  /// show up.
   boost::scoped_ptr<Thread> maintenance_thread_;
 
   /// Used to notify maintenance_thread_ that it should exit.
@@ -327,10 +331,7 @@ class DataStreamMgr {
 
   inline uint32_t GetHashValue(const TUniqueId& fragment_instance_id, PlanNodeId node_id);
 
-  /// Performs periodic maintenance tasks:
-  /// 1. Notifies every receiver to reply to its pending senders by calling
-  /// DataStreamRecvr::ReplyToPendingSenders().
-  /// 2. Notifies any sender that has been waiting for its receiver for more than
+  /// Notifies any sender that has been waiting for its receiver for more than
   /// FLAGS_datastream_sender_timeout_ms.
   ///
   /// Run by maintenance_thread_.

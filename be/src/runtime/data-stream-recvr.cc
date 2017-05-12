@@ -188,7 +188,7 @@ Status DataStreamRecvr::SenderQueue::GetBatch(RowBatch** next_batch) {
 void DataStreamRecvr::SenderQueue::AddBatch(TransmitDataCtx&& payload) {
   lock_guard<SpinLock> closing_lock(closing_lock_);
 
-  int batch_size = RowBatch::GetBatchSize(payload.proto_batch);
+  int batch_size = payload.proto_batch.GetSize();
 
   {
     unique_lock<SpinLock> l(lock_);
@@ -410,10 +410,6 @@ Status DataStreamRecvr::GetBatch(RowBatch** next_batch) {
   DCHECK(!is_merging_);
   DCHECK_EQ(sender_queues_.size(), 1);
   return sender_queues_[0]->GetBatch(next_batch);
-}
-
-void DataStreamRecvr::ReplyToPendingSenders() {
-  //for (SenderQueue* queue: sender_queues_) queue->CheckPendingSenders();
 }
 
 }

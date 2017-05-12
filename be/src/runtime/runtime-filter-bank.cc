@@ -160,7 +160,7 @@ void RuntimeFilterBank::UpdateFilterFromLocal(int32_t filter_id,
         coord, ExecEnv::GetInstance()->rpc_mgr());
 
     int sidecar_idx;
-    rpc.AddSidecar(proto->directory, &sidecar_idx);
+    rpc.AddSidecar(proto->directory_data, &sidecar_idx);
     (*params->mutable_bloom_filter()) = proto->header;
     params->mutable_bloom_filter()->set_directory_sidecar_idx(sidecar_idx);
 

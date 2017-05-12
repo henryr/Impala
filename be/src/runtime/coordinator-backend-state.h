@@ -174,7 +174,10 @@ class Coordinator::BackendState {
   /// indices of fragments executing on this backend, populated in Init()
   std::unordered_set<int> fragments_;
 
+  /// Fully resolved address of ImpalaInternalService on this backend.
   TNetworkAddress host_;
+
+  /// Port for datastream service.
   int32_t data_svc_port_;
 
   /// protects fields below

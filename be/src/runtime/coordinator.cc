@@ -94,8 +94,6 @@ using std::unique_ptr;
 using kudu::MonoDelta;
 using kudu::rpc::RpcController;
 
-DECLARE_int32(be_port);
-DECLARE_int32(state_store_subscriber_port);
 DECLARE_string(hostname);
 
 DEFINE_bool(insert_inherit_permissions, false, "If true, new directories created by "

@@ -362,22 +362,23 @@ void Coordinator::BackendState::PublishFilter(int32_t dst_fragment_idx,
     int32_t filter_id, shared_ptr<ProtoBloomFilter> proto_filter) {
   if (fragments_.count(dst_fragment_idx) == 0) return;
 
-  unique_ptr<PublishFilterRequestPb> request = make_unique<PublishFilterRequestPb>();
-
   TNetworkAddress address = MakeNetworkAddress(impalad_address().hostname,
       data_svc_port());
-  auto rpc = Rpc<DataStreamServiceProxy>::Make(address,
-      ExecEnv::GetInstance()->rpc_mgr());
+
+  auto rpc =
+      Rpc<DataStreamServiceProxy>::Make(address, ExecEnv::GetInstance()->rpc_mgr());
   rpc.SetTimeout(MonoDelta::FromMilliseconds(FLAGS_rpc_publish_filter_timeout_ms));
 
+  unique_ptr<PublishFilterRequestPb> request = make_unique<PublishFilterRequestPb>();
   request->set_fragment_idx(dst_fragment_idx);
   request->mutable_query_id()->set_lo(query_id_.lo);
   request->mutable_query_id()->set_hi(query_id_.hi);
   request->set_filter_id(filter_id);
+
   if (proto_filter != nullptr) {
     (*request->mutable_bloom_filter()) = proto_filter->header;
     int sidecar_idx;
-    rpc.AddSidecar(proto_filter->directory, &sidecar_idx);
+    rpc.AddSidecar(proto_filter->directory_data, &sidecar_idx);
     request->mutable_bloom_filter()->set_directory_sidecar_idx(sidecar_idx);
   } else {
     request->mutable_bloom_filter()->set_always_true(true);
@@ -385,14 +386,15 @@ void Coordinator::BackendState::PublishFilter(int32_t dst_fragment_idx,
     request->mutable_bloom_filter()->set_directory_sidecar_idx(-1);
   }
 
-  unique_ptr<PublishFilterResponsePb> response = make_unique<PublishFilterResponsePb>();
-
+  // Copying proto_filter here ensures that its lifetime will last at least until this
+  // callback completes.
   auto cb = [proto_filter]
       (const Status& status, PublishFilterRequestPb* request,
           PublishFilterResponsePb* response, RpcController* controller) {
     delete request;
     delete response;
   };
+  unique_ptr<PublishFilterResponsePb> response = make_unique<PublishFilterResponsePb>();
   rpc.ExecuteAsync(&DataStreamServiceProxy::PublishFilterAsync, request.release(),
       response.release(), cb);
 }

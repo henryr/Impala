@@ -44,27 +44,27 @@ struct ProtoBloomFilter {
   kudu::Slice directory;
 
   /// Assume ownership of a directory 'dir' by moving it.
-  void TransferDirectory(std::string&& dir) {
-    directory_data = std::move(dir);
-    directory = kudu::Slice(directory_data);
+  void TransferDirectory(kudu::faststring&& dir) {
+    *directory_data = std::move(dir);
+    directory = kudu::Slice(*directory_data);
   }
 
   /// Copy c'tor that ensures the underlying directory data is copied (otherwise the slice
   /// would be shallow-copied).
   ProtoBloomFilter(const ProtoBloomFilter& other) {
-    directory_data.resize(other.directory.size());
-    memcpy(const_cast<char*>(&directory_data.data()[0]), other.directory.data(),
+    directory_data->resize(other.directory.size());
+    memcpy(directory_data->data(), other.directory.data(),
         other.directory.size());
-    directory = kudu::Slice(directory_data);
+    directory = kudu::Slice(*directory_data);
     header = other.header;
   }
 
   ProtoBloomFilter() = default;
 
- private:
+  //private:
   /// If the directory data is owned by this object, it's stored here (and 'directory'
   /// refers to it).
-  std::string directory_data;
+  std::shared_ptr<kudu::faststring> directory_data = std::make_shared<kudu::faststring>();
 };
 
 /// A BloomFilter stores sets of items and offers a query operation indicating whether or

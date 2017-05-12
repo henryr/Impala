@@ -101,7 +101,7 @@ class DataStreamSender::Channel : public CacheLineAligned,
   // Asynchronously sends a row batch.
   // Returns the status of the most recently finished TransmitData
   // rpc (or OK if there wasn't one that hasn't been reported yet).
-  Status SendBatch(ProtoRowBatch* batch);
+  Status SendBatch(OutboundProtoRowBatch* batch);
 
   // Return status of last TransmitData rpc (initiated by the most recent call to either
   // SendBatch() or SendCurrentBatch()). Calls WaitForRpc(), and returns either when the
@@ -118,7 +118,7 @@ class DataStreamSender::Channel : public CacheLineAligned,
   Status FlushAndSendEos();
 
   int64_t num_data_bytes_sent() const { return num_data_bytes_sent_.Load(); }
-  ProtoRowBatch* proto_batch() { return &proto_batch_; }
+  OutboundProtoRowBatch* proto_batch() { return proto_batch_.get(); }
 
  private:
   DataStreamSender* parent_;
@@ -137,7 +137,7 @@ class DataStreamSender::Channel : public CacheLineAligned,
   scoped_ptr<RowBatch> batch_;
 
   // Serialized form of batch_.
-  ProtoRowBatch proto_batch_;
+  shared_ptr<OutboundProtoRowBatch> proto_batch_ = make_shared<OutboundProtoRowBatch>();
 
   /// Reference to 'this' which must exist for shared_from_this to correctly return the
   /// same shared_ptr. Set in Init(), and reset in Teardown().
@@ -171,7 +171,7 @@ Status DataStreamSender::Channel::Init() {
   return Status::OK();
 }
 
-Status DataStreamSender::Channel::SendBatch(ProtoRowBatch* batch) {
+Status DataStreamSender::Channel::SendBatch(OutboundProtoRowBatch* batch) {
   DCHECK(batch != NULL);
 
   VLOG_ROW << "Channel::SendBatch() instance_id=" << fragment_instance_id_
@@ -188,14 +188,16 @@ Status DataStreamSender::Channel::SendBatch(ProtoRowBatch* batch) {
     rpc_in_flight_ = true;
   }
 
-  int size = RowBatch::GetBatchSize(*batch);
+  int size = batch->GetSize();;
 
   // Completion callback for the TransmitData() RPC which is guaranteed to be called
   // exactly once. The DSS may be cancelled while waiting for this callback, so we need to
   // check that the parent channel still exists by passing in a weak ptr that might
   // expire.
+  shared_ptr<OutboundProtoRowBatch> ref = batch == proto_batch_.get() ? proto_batch_ : parent_->GetReferenceForBatch(batch);
   auto cb = [ptr = weak_ptr<DataStreamSender::Channel>(self_), size,
-      instance_id = fragment_instance_id_]
+      instance_id = fragment_instance_id_,
+      proto_batch = ref]
       (const Status& status, TransmitDataRequestPb* request,
       TransmitDataResponsePb* response, RpcController* controller) {
 
@@ -204,30 +206,30 @@ Status DataStreamSender::Channel::SendBatch(ProtoRowBatch* batch) {
     auto response_container = unique_ptr<TransmitDataResponsePb>(response);
 
     // Check if this query state still exists. If so, then 'this' will still be valid.
-    if (auto channel = ptr.lock()) {
-      {
-        lock_guard<SpinLock> l(channel->lock_);
-        Status rpc_status = status.ok() ? FromKuduStatus(controller->status()) : status;
+    auto channel = ptr.lock();
+    if (!channel) return;
+    {
+      lock_guard<SpinLock> l(channel->lock_);
+      Status rpc_status = status.ok() ? FromKuduStatus(controller->status()) : status;
 
-        int32_t status_code = response->status().status_code();
-        channel->recvr_gone_ = status_code == TErrorCode::DATASTREAM_RECVR_ALREADY_GONE;
+      int32_t status_code = response->status().status_code();
+      channel->recvr_gone_ = status_code == TErrorCode::DATASTREAM_RECVR_ALREADY_GONE;
 
-        if (!rpc_status.ok()) {
-          channel->last_rpc_status_ = rpc_status;
-        } else if (!channel->recvr_gone_) {
-          if (status_code != TErrorCode::OK) {
-            // Don't bubble up the 'receiver gone' status, because it's not an error.
-            channel->last_rpc_status_ = Status(response->status());
-          } else {
-            channel->num_data_bytes_sent_.Add(size);
-            VLOG_ROW << "incremented #data_bytes_sent="
-                     << channel->num_data_bytes_sent_.Load();
-          }
+      if (!rpc_status.ok()) {
+        channel->last_rpc_status_ = rpc_status;
+      } else if (!channel->recvr_gone_) {
+        if (status_code != TErrorCode::OK) {
+          // Don't bubble up the 'receiver gone' status, because it's not an error.
+          channel->last_rpc_status_ = Status(response->status());
+        } else {
+          channel->num_data_bytes_sent_.Add(size);
+          VLOG_ROW << "incremented #data_bytes_sent="
+                   << channel->num_data_bytes_sent_.Load();
         }
-        channel->rpc_in_flight_ = false;
       }
-      channel->rpc_done_cv_.notify_one();
+      channel->rpc_in_flight_ = false;
     }
+    channel->rpc_done_cv_.notify_one();
   };
 
   unique_ptr<TransmitDataRequestPb> request = make_unique<TransmitDataRequestPb>();
@@ -241,35 +243,22 @@ Status DataStreamSender::Channel::SendBatch(ProtoRowBatch* batch) {
       Rpc<DataStreamServiceProxy>::Make(address_, ExecEnv::GetInstance()->rpc_mgr());
 
   int idx;
-  rpc.AddSidecar(batch->tuple_data, &idx);
+  if (batch->header.compression_type() == THdfsCompression::LZ4) {
+    rpc.AddSidecar(batch->compressed_tuple_data, &idx);
+  } else {
+    rpc.AddSidecar(batch->tuple_data, &idx);
+  }
   batch->header.set_tuple_data_sidecar_idx(idx);
 
-  rpc.AddSidecar(Slice(reinterpret_cast<const uint8_t*>(&(batch->tuple_offsets[0])), batch->tuple_offsets.size() * sizeof(int32_t)), &idx);
+  rpc.AddSidecar(batch->tuple_offsets, &idx);
   batch->header.set_tuple_offsets_sidecar_idx(idx);
   *request->mutable_row_batch_header() = batch->header;
 
   // Set the number of attempts very high to try to outlast any situations where the
   // receiver is too busy.
-  //
-  // We set the timeout to 2 minutes to handle the case where the receiver has failed, but
-  // we have no notification of that fact (e.g. machine crash while waiting for a
-  // response). The callback *must* be called in order to free the request / response data
-  // structures, otherwise we could block indefinitely.
-  //
-  // This gives rise to the possibility of false negatives, if the receiver is simply
-  // buffering the response to the RPC because it is not ready to consume the batch. To
-  // mitigate this, we require the receiver to respond within half the timeout
-  // period. Even allowing for clock differences between nodes, we don't expect the rate
-  // difference to exceed T/2, so the false negative rate will be low.
-  //
-  // The receiver will respond with a 'queue full' message which will trigger a retry
-  // attempt.
-  //
-  // The retry interval is set very low - retries usually happen when the sender has
-  // signalled that we should try again because there is space free for a new batch.
   rpc.SetMaxAttempts(numeric_limits<int32_t>::max()) // Retry until failure or success.
-     .SetRetryInterval(1)
-      .SetTimeout(MonoDelta::FromMilliseconds(numeric_limits<int32_t>::max())) //MonoDelta::FromMilliseconds(FLAGS_datastream_sender_timeout_ms))
+     .SetRetryInterval(10)
+     .SetTimeout(MonoDelta::FromMilliseconds(numeric_limits<int32_t>::max()))
      .ExecuteAsync(&DataStreamServiceProxy::TransmitDataAsync, request.release(),
          response.release(), cb);
   return Status::OK();
@@ -309,9 +298,9 @@ Status DataStreamSender::Channel::AddRow(TupleRow* row) {
 Status DataStreamSender::Channel::SendCurrentBatch() {
   // make sure there's no in-flight RPC call that might still want to access proto_batch_
   WaitForRpc();
-  RETURN_IF_ERROR(parent_->SerializeBatch(batch_.get(), &proto_batch_));
+  RETURN_IF_ERROR(parent_->SerializeBatch(batch_.get(), proto_batch_.get()));
   batch_->Reset();
-  RETURN_IF_ERROR(SendBatch(&proto_batch_));
+  RETURN_IF_ERROR(SendBatch(proto_batch_.get()));
   return Status::OK();
 }
 
@@ -363,15 +352,7 @@ DataStreamSender::DataStreamSender(ObjectPool* pool, int sender_id,
   : DataSink(row_desc),
     sender_id_(sender_id),
     partition_type_(sink.output_partition.type),
-    current_channel_idx_(0),
-    flushed_(false),
-    closed_(false),
-    current_proto_batch_(&proto_batch1_),
-    serialize_batch_timer_(NULL),
-    bytes_sent_counter_(NULL),
-    total_sent_rows_counter_(NULL),
-    dest_node_id_(sink.dest_node_id),
-    next_unknown_partition_(0) {
+    dest_node_id_(sink.dest_node_id) {
   DCHECK_GT(destinations.size(), 0);
   DCHECK(sink.output_partition.type == TPartitionType::UNPARTITIONED
       || sink.output_partition.type == TPartitionType::HASH_PARTITIONED
@@ -396,6 +377,10 @@ DataStreamSender::DataStreamSender(ObjectPool* pool, int sender_id,
         pool, sink.output_partition.partition_exprs, &partition_expr_ctxs_);
     DCHECK(status.ok());
   }
+
+  // proto_batch1_ = make_shared<OutboundProtoRowBatch>();
+  // proto_batch2_ = make_shared<ProtoRowBatch>();
+  current_proto_batch_ = proto_batch1_.get();
 }
 
 string DataStreamSender::GetName() {
@@ -447,8 +432,8 @@ Status DataStreamSender::Send(RuntimeState* state, RowBatch* batch) {
     for (auto channel : channels_) {
       RETURN_IF_ERROR(channel->SendBatch(current_proto_batch_));
     }
-    current_proto_batch_ =
-        (current_proto_batch_ == &proto_batch1_) ? &proto_batch2_ : &proto_batch1_;
+    current_proto_batch_ = (current_proto_batch_ == proto_batch1_.get()) ?
+        proto_batch2_.get() : proto_batch1_.get();
   } else if (partition_type_ == TPartitionType::RANDOM) {
     // Round-robin batches among channels. Wait for the current channel to finish its
     // rpc before overwriting its batch.
@@ -522,15 +507,15 @@ void DataStreamSender::Close(RuntimeState* state) {
 }
 
 Status DataStreamSender::SerializeBatch(
-    RowBatch* src, ProtoRowBatch* dest, int num_receivers) {
+    RowBatch* src, OutboundProtoRowBatch* dest, int num_receivers) {
   VLOG_ROW << "serializing " << src->num_rows() << " rows";
   {
     SCOPED_TIMER(profile_->total_time_counter());
     SCOPED_TIMER(serialize_batch_timer_);
     RETURN_IF_ERROR(src->Serialize(dest));
-    int bytes = RowBatch::GetBatchSize(*dest);
+    int bytes = dest->GetSize();
     int uncompressed_bytes =
-        bytes - dest->tuple_data.size() + dest->header.uncompressed_size();
+        bytes - dest->tuple_data->length() + dest->header.uncompressed_size();
     // The size output_batch would be if we didn't compress tuple_data (will be equal to
     // actual batch size if tuple_data isn't compressed)
 

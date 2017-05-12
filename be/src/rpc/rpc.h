@@ -104,8 +104,8 @@ class Rpc {
   // request. 'idx' is set to the index of 'sidecar' in the outbound list.  The memory
   // that the sidecar slice points to is not owned by this Rpc object, and so must have a
   // lifetime as long as the rpc object itself.
-  Rpc& AddSidecar(kudu::Slice sidecar, int* idx) {
-    outbound_sidecars_.push_back(sidecar);
+  Rpc& AddSidecar(std::shared_ptr<kudu::faststring> sidecar, int* idx) {
+    outbound_sidecars_.push_back(std::move(sidecar));
     *idx = outbound_sidecars_.size() - 1;
     return *this;
   }
@@ -189,11 +189,11 @@ class Rpc {
   template <typename F, typename TREQ, typename TRESP>
   Status ExecuteWithThriftArgs(const F& func, TREQ* req, TRESP* resp) {
     ThriftWrapperPb request_proto;
-    string serialized;
+    auto serialized = std::make_shared<kudu::faststring>();
     ThriftSerializer serializer(true);
-    RETURN_IF_ERROR(serializer.Serialize(req, &serialized));
+    RETURN_IF_ERROR(serializer.Serialize(req, serialized.get()));
     int idx = -1;
-    AddSidecar(kudu::Slice(serialized), &idx);
+    AddSidecar(serialized, &idx);
     request_proto.set_sidecar_idx(idx);
 
     ThriftWrapperPb response_proto;
@@ -237,7 +237,7 @@ class Rpc {
 
   // List of outbound sidecars that will be serialized after the request payload during
   // Execute(). The memory backing these slices is not owned by this object.
-  std::vector<kudu::Slice> outbound_sidecars_;
+  std::vector<std::shared_ptr<kudu::faststring>> outbound_sidecars_;
 
   /// The RpcMgr handling this RPC.
   RpcMgr* mgr_ = nullptr;
@@ -273,7 +273,7 @@ class Rpc {
     for (const auto& sidecar : outbound_sidecars_) {
       int dummy;
       RETURN_IF_ERROR(FromKuduStatus(controller->AddOutboundSidecar(
-          kudu::rpc::RpcSidecar::FromSlice(sidecar), &dummy)));
+          kudu::rpc::RpcSidecar::FromSharedPtr(sidecar), &dummy)));
     }
     return Status::OK();
   }

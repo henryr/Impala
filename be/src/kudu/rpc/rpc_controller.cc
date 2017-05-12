@@ -132,5 +132,10 @@ void RpcController::SetRequestParam(const google::protobuf::Message& req) {
   call_->SetRequestPayload(req, std::move(outbound_sidecars_));
 }
 
+void RpcController::Cancel(const Status& reason) {
+  DCHECK(call_ != nullptr);
+  call_->SetFailed(reason);
+}
+
 } // namespace rpc
 } // namespace kudu

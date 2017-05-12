@@ -95,11 +95,6 @@ class DataStreamRecvr {
   const RowDescriptor& row_desc() const { return row_desc_; }
   MemTracker* mem_tracker() const { return mem_tracker_.get(); }
 
-  /// Loops over all channels and responds to any pending senders that have been waiting
-  /// long enough to be at risk of timing out on the sender side (defined as half
-  /// DATASTREAM_SENDER_TIMEOUT_MS).
-  void ReplyToPendingSenders();
-
  private:
   friend class DataStreamMgr;
   class SenderQueue;

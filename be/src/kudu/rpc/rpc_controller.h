@@ -194,6 +194,8 @@ class RpcController {
   // to this request.
   Status AddOutboundSidecar(std::unique_ptr<RpcSidecar> car, int* idx);
 
+  void Cancel(const kudu::Status& reason);
+
  private:
   friend class OutboundCall;
   friend class Proxy;

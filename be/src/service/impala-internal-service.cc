@@ -71,12 +71,12 @@ void DataStreamService::TransmitData(const TransmitDataRequestPb* request,
            << " node_id=" << request->dest_node_id()
            << " #rows=" << request->row_batch_header().num_rows()
            << " sender_id=" << request->sender_id();
-  ProtoRowBatch batch;
+  InboundProtoRowBatch batch;
   Status status = FromKuduStatus(context->GetInboundSidecar(
       request->row_batch_header().tuple_data_sidecar_idx(), &batch.tuple_data));
   if (status.ok()) {
     status = FromKuduStatus(context->GetInboundSidecar(
-        request->row_batch_header().tuple_offsets_sidecar_idx(), &batch.incoming_tuple_offsets));
+        request->row_batch_header().tuple_offsets_sidecar_idx(), &batch.tuple_offsets));
   }
   if (status.ok()) {
     batch.header.Swap((const_cast<TransmitDataRequestPb*>(request))->mutable_row_batch_header());

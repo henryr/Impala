@@ -430,8 +430,6 @@ Status FragmentInstanceState::WaitForOpen() {
 
 void FragmentInstanceState::PublishFilter(
     int32_t filter_id, const ProtoBloomFilter& bloom_filter_pb) {
-  // Defensively protect against blocking forever in case there's some problem with
-  // Prepare().
   // Wait until Prepare() is done, so we know that the filter bank is set up.
   if (!WaitForPrepare().ok()) return;
 

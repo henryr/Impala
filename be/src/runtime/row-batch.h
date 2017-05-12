@@ -25,6 +25,7 @@
 #include "codegen/impala-ir.h"
 #include "common/compiler-util.h"
 #include "common/logging.h"
+#include "kudu/util/faststring.h"
 #include "kudu/util/slice.h"
 #include "runtime/buffered-block-mgr.h"
 #include "runtime/bufferpool/buffer-pool.h"
@@ -48,29 +49,36 @@ class TupleDescriptor;
 /// data, whereas incoming ProtoRowBatches do not own the tuple data as it is backed by an
 /// accompanying RpcContext. These details are hidden from the user, as 'tuple_data'
 /// points to the tuple data wherever it lies.
-struct ProtoRowBatch {
+struct OutboundProtoRowBatch {
  public:
   /// Protobuf header, contains row batch metadata like #rows, compression etc.
   RowBatchPb header;
 
-  /// Points to the serialized tuple data, which may or may not be owned by this object.
+  std::shared_ptr<kudu::faststring> tuple_offsets = std::make_shared<kudu::faststring>();
+
+  std::shared_ptr<kudu::faststring> tuple_data = std::make_shared<kudu::faststring>();
+  std::shared_ptr<kudu::faststring> compressed_tuple_data =
+      std::make_shared<kudu::faststring>();
+
+  int GetSize() {
+    int result = header.compression_type() != THdfsCompression::LZ4 ?
+        tuple_data->length() : compressed_tuple_data->length();
+    result += header.row_tuples().size() * sizeof(int32_t);
+    return result + tuple_offsets->length();
+  }
+};
+
+struct InboundProtoRowBatch {
+ public:
+  RowBatchPb header;
+  kudu::Slice tuple_offsets;
   kudu::Slice tuple_data;
 
-  /// Transfer the tuple data argument to this ProtoRowBatch, which owns the associated
-  /// memory once this method returns. The argument will be set to the empty string. The
-  /// 'tuple_data' slice will be updated to point at the new data.
-  void TransferTupleData(std::string* new_tuple_data) {
-    owned_tuple_data.clear();
-    owned_tuple_data.swap(*new_tuple_data);
-    tuple_data = kudu::Slice(owned_tuple_data);
+  int GetSize() {
+    int result = tuple_data.size();
+    result += header.row_tuples().size() * sizeof(int32_t);
+    return result + tuple_offsets.size();
   }
-
-  std::vector<int32_t> tuple_offsets;
-
-  kudu::Slice incoming_tuple_offsets;
-
- private:
-  std::string owned_tuple_data;
 };
 
 /// A RowBatch encapsulates a batch of rows, each composed of a number of tuples.
@@ -85,9 +93,8 @@ struct ProtoRowBatch {
 ///      the data is in an io buffer that may not be attached to this row batch.  The
 ///      creator of that row batch has to make sure that the io buffer is not recycled
 ///      until all batches that reference the memory have been consumed.
-/// In order to minimize memory allocations, RowBatches and ProtoRowBatches that have been
-/// serialized and sent over the wire should be reused (this prevents compression_scratch_
-/// from being needlessly reallocated).
+/// In order to minimize memory allocations, OutboundProtoRowBatches that have been
+/// serialized and sent over the wire should be reused.
 //
 /// Row batches and memory usage: We attempt to stream row batches through the plan
 /// tree without copying the data. This means that row batches are often not-compact
@@ -123,7 +130,7 @@ class RowBatch {
   /// in the data back into pointers.
   /// TODO: figure out how to transfer the data from input_batch to this RowBatch
   /// (so that we don't need to make yet another copy)
-  RowBatch(const RowDescriptor& row_desc, const ProtoRowBatch& input_batch,
+  RowBatch(const RowDescriptor& row_desc, const InboundProtoRowBatch& input_batch,
       MemTracker* tracker);
 
   /// Releases all resources accumulated at this row batch.  This includes
@@ -338,10 +345,7 @@ class RowBatch {
   /// larger than the uncompressed data. Use output_batch.is_compressed to determine
   /// whether tuple_data is compressed. If an in-flight row is present in this row batch,
   /// it is ignored. This function does not Reset().
-  Status Serialize(ProtoRowBatch* output_batch);
-
-  /// Utility function: returns total size of batch.
-  static int GetBatchSize(const ProtoRowBatch& batch);
+  Status Serialize(OutboundProtoRowBatch* output_batch);
 
   int ALWAYS_INLINE num_rows() const { return num_rows_; }
   int ALWAYS_INLINE capacity() const { return capacity_; }
@@ -387,7 +391,7 @@ class RowBatch {
   bool UseFullDedup();
 
   /// Overload for testing that allows the test to force the deduplication level.
-  Status Serialize(ProtoRowBatch* output_batch, bool full_dedup);
+  Status Serialize(OutboundProtoRowBatch* output_batch, bool full_dedup);
 
   typedef FixedSizeHashTable<Tuple*, int> DedupMap;
 
@@ -399,7 +403,7 @@ class RowBatch {
   int64_t TotalByteSize(DedupMap* distinct_tuples);
 
   void SerializeInternal(
-      int64_t size, DedupMap* distinct_tuples, ProtoRowBatch* output_batch);
+      int64_t size, DedupMap* distinct_tuples, OutboundProtoRowBatch* output_batch);
 
   /// All members below need to be handled in RowBatch::AcquireState()
 
@@ -479,7 +483,7 @@ class RowBatch {
   /// to the RowBatchPb and avoids excess memory allocations: since we reuse RowBatches
   /// and RowBatchPbs, and assuming all row batches are roughly the same size, all strings
   /// will eventually be allocated to the right size.
-  std::string compression_scratch_;
+  //std::string compression_scratch_;
 };
 }
 

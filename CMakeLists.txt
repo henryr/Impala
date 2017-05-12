@@ -132,7 +132,7 @@ message(STATUS "Boost libraries: " ${Boost_LIBRARIES})
 find_package(OpenSSL 1.0.0 REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIR})
 set(OPENSSL_LIBS ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY})
-message(STATUS "OpenSSL: ${OPENSSL_LIBS}")
+message(STATUS "OpenSSL: ${OPENSSL_LIBRARIES}")
 
 find_package(Bzip2 REQUIRED)
 include_directories(${BZIP2_INCLUDE_DIR})

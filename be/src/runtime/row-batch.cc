@@ -37,6 +37,9 @@
 DECLARE_bool(enable_partitioned_hash_join);
 DECLARE_bool(enable_partitioned_aggregation);
 
+using kudu::Slice;
+using kudu::faststring;
+
 namespace impala {
 
 const int RowBatch::AT_CAPACITY_MEM_USAGE;
@@ -66,7 +69,7 @@ RowBatch::RowBatch(const RowDescriptor& row_desc, int capacity, MemTracker* mem_
   }
 }
 
-RowBatch::RowBatch(const RowDescriptor& row_desc, const ProtoRowBatch& input_batch,
+RowBatch::RowBatch(const RowDescriptor& row_desc, const InboundProtoRowBatch& input_batch,
     MemTracker* mem_tracker)
   : num_rows_(input_batch.header.num_rows()),
     capacity_(input_batch.header.num_rows()),
@@ -93,7 +96,7 @@ RowBatch::RowBatch(const RowDescriptor& row_desc, const ProtoRowBatch& input_bat
   if (input_batch.header.compression_type() != THdfsCompression::NONE) {
     // Decompress tuple data into data pool
     uint8_t* compressed_data =
-        (const_cast<ProtoRowBatch*>(&input_batch))->tuple_data.mutable_data();
+        (const_cast<InboundProtoRowBatch*>(&input_batch))->tuple_data.mutable_data();
     size_t compressed_size = input_batch.tuple_data.size();
 
     scoped_ptr<Codec> decompressor;
@@ -115,9 +118,9 @@ RowBatch::RowBatch(const RowDescriptor& row_desc, const ProtoRowBatch& input_bat
   }
 
   // Convert input_batch.tuple_offsets into pointers
-  // int tuple_idx = 0;
-  const int32_t* offsets = reinterpret_cast<const int32_t*>(input_batch.incoming_tuple_offsets.data());
-  int32_t num_offsets = input_batch.incoming_tuple_offsets.size() / sizeof(int32_t);
+  const int32_t* offsets =
+      reinterpret_cast<const int32_t*>(input_batch.tuple_offsets.data());
+  int32_t num_offsets = input_batch.tuple_offsets.size() / sizeof(int32_t);
   for (int i = 0; i < num_offsets; ++i) {
     //for (int32_t offset : input_batch.header.tuple_offsets()) {
     int32_t offset = offsets[i];
@@ -169,11 +172,11 @@ RowBatch::~RowBatch() {
   }
 }
 
-Status RowBatch::Serialize(ProtoRowBatch* output_batch) {
+Status RowBatch::Serialize(OutboundProtoRowBatch* output_batch) {
   return Serialize(output_batch, UseFullDedup());
 }
 
-Status RowBatch::Serialize(ProtoRowBatch* output_batch, bool full_dedup) {
+Status RowBatch::Serialize(OutboundProtoRowBatch* output_batch, bool full_dedup) {
   output_batch->header.Clear();
   output_batch->header.set_num_rows(num_rows_);
   output_batch->header.set_compression_type(THdfsCompression::NONE);
@@ -201,23 +204,22 @@ Status RowBatch::Serialize(ProtoRowBatch* output_batch, bool full_dedup) {
   }
 
   if (size > 0) {
-    // Try compressing tuple_data to compression_scratch_, swap if compressed data is
+    // Try compressing tuple_data to compressed_tuple_data_, swap if compressed data is
     // smaller
     scoped_ptr<Codec> compressor;
     RETURN_IF_ERROR(
         Codec::CreateCompressor(nullptr, false, THdfsCompression::LZ4, &compressor));
 
     int64_t compressed_size = compressor->MaxOutputLen(size);
-    if (compression_scratch_.size() < compressed_size) {
-      compression_scratch_.resize(compressed_size);
+    if (output_batch->compressed_tuple_data->length() < compressed_size) {
+      output_batch->compressed_tuple_data->resize(compressed_size);
     }
-    const uint8_t* input = output_batch->tuple_data.data();
-    uint8_t* compressed_output = (uint8_t*)(compression_scratch_.c_str());
+    const uint8_t* input = output_batch->tuple_data->data();
+    uint8_t* compressed_output = output_batch->compressed_tuple_data->data();
     RETURN_IF_ERROR(compressor->ProcessBlock(
         true, size, input, &compressed_size, &compressed_output));
     if (LIKELY(compressed_size < size)) {
-      compression_scratch_.resize(compressed_size);
-      output_batch->TransferTupleData(&compression_scratch_);
+      output_batch->compressed_tuple_data->resize(compressed_size);
       output_batch->header.set_compression_type(THdfsCompression::LZ4);
     }
   }
@@ -239,68 +241,59 @@ bool RowBatch::UseFullDedup() {
 }
 
 void RowBatch::SerializeInternal(
-    int64_t size, DedupMap* distinct_tuples, ProtoRowBatch* output_batch) {
+    int64_t size, DedupMap* distinct_tuples, OutboundProtoRowBatch* output_batch) {
   DCHECK(distinct_tuples == NULL || distinct_tuples->size() == 0);
   // TODO: max_size() is much larger than the amount of memory we could feasibly
   // allocate. Need better way to detect problem.
   // DCHECK_LE(size, output_batch->tuple_data().max_size());
 
-  string tuple_data_str;
-
   // TODO: track memory usage
   // TODO: detect if serialized size is too large to allocate and return proper error.
-  tuple_data_str.resize(size);
+  faststring* tuple_data = output_batch->tuple_data.get();
+  tuple_data->resize(size);
   output_batch->header.set_uncompressed_size(size);
-  output_batch->tuple_offsets.reserve(num_rows_ * num_tuples_per_row_);
-  output_batch->tuple_offsets.resize(0);
-  // output_batch->header.mutable_tuple_offsets()->Reserve(num_rows_ * num_tuples_per_row_);
+  output_batch->tuple_offsets->resize(num_rows_ * num_tuples_per_row_ * sizeof(int32_t));
+  int32_t* tuple_offsets =
+      reinterpret_cast<int32_t*>(output_batch->tuple_offsets->data());
 
   // Copy tuple data of unique tuples, including strings, into output_batch (converting
   // string pointers into offsets in the process).
   int offset = 0; // current offset into output_batch->tuple_data
-  char* tuple_data = const_cast<char*>(tuple_data_str.c_str());
-
+  int tuple_idx = 0;
+  char* tuple_data_ptr = reinterpret_cast<char*>(tuple_data->data());
   for (int i = 0; i < num_rows_; ++i) {
     vector<TupleDescriptor*>::const_iterator desc = row_desc_.tuple_descriptors().begin();
     for (int j = 0; desc != row_desc_.tuple_descriptors().end(); ++desc, ++j) {
       Tuple* tuple = GetRow(i)->GetTuple(j);
       if (UNLIKELY(tuple == NULL)) {
         // NULLs are encoded as -1
-        output_batch->tuple_offsets.push_back(-1);
-        //output_batch->header.add_tuple_offsets(-1);
+        tuple_offsets[tuple_idx++] = -1;
         continue;
       } else if (LIKELY(i > 0) && UNLIKELY(GetRow(i - 1)->GetTuple(j) == tuple)) {
         // Fast tuple deduplication for adjacent rows.
-        int prev_row_idx =
-            output_batch->tuple_offsets.size() - num_tuples_per_row_;
-        //output_batch->header.add_tuple_offsets(
-        output_batch->tuple_offsets.push_back(
-            output_batch->tuple_offsets[prev_row_idx]);
+        int prev_row_idx = tuple_idx - num_tuples_per_row_;
+        tuple_offsets[tuple_idx++] = tuple_offsets[prev_row_idx];
         continue;
       } else if (UNLIKELY(distinct_tuples != NULL)) {
         if ((*desc)->byte_size() == 0) {
           // Zero-length tuples can be represented as NULL.
-          //output_batch->header.add_tuple_offsets(-1);
-          output_batch->tuple_offsets.push_back(-1);
+          tuple_offsets[tuple_idx++] = -1;
           continue;
         }
         int* dedupd_offset = distinct_tuples->FindOrInsert(tuple, offset);
         if (*dedupd_offset != offset) {
           // Repeat of tuple
           DCHECK_GE(*dedupd_offset, 0);
-          //output_batch->header.add_tuple_offsets(*dedupd_offset);
-          output_batch->tuple_offsets.push_back(*dedupd_offset);
+          tuple_offsets[tuple_idx++] = *dedupd_offset;
           continue;
         }
       }
       // Record offset before creating copy (which increments offset and tuple_data)
-      //output_batch->header.add_tuple_offsets(offset);
-      output_batch->tuple_offsets.push_back(offset);
-      tuple->DeepCopy(**desc, &tuple_data, &offset, /* convert_ptrs */ true);
+      tuple_offsets[tuple_idx++] = offset;
+      tuple->DeepCopy(**desc, &tuple_data_ptr, &offset, /* convert_ptrs */ true);
       DCHECK_LE(offset, size);
     }
   }
-  output_batch->TransferTupleData(&tuple_data_str);
   DCHECK_EQ(offset, size);
 }
 
@@ -380,15 +373,6 @@ void RowBatch::TransferResourceOwnership(RowBatch* dest) {
     tuple_ptrs_ = NULL;
   }
   Reset();
-}
-
-int RowBatch::GetBatchSize(const ProtoRowBatch& batch) {
-  int result = batch.tuple_data.size();
-  result += batch.header.row_tuples().size() * sizeof(int32_t);
-  int32_t offsets_size = batch.incoming_tuple_offsets.size() / sizeof(int32_t);
-  result += offsets_size;
-  //result += batch.header.tuple_offsets().size() * sizeof(int32_t);
-  return result;
 }
 
 void RowBatch::AcquireState(RowBatch* src) {

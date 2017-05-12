@@ -80,7 +80,7 @@ class KUDU_EXPORT Slice {
     data_(reinterpret_cast<const uint8_t *>(s)),
     size_(strlen(s)) { }
 
-#ifdef KUDU_HEADERS_USE_RICH_SLICE
+  //#ifdef KUDU_HEADERS_USE_RICH_SLICE
   /// Create a slice that refers to the contents of a faststring.
   ///
   /// @note Further appends to the faststring may invalidate this slice.
@@ -100,7 +100,7 @@ class KUDU_EXPORT Slice {
     : data_(reinterpret_cast<const uint8_t*>(s.data())),
       size_(s.size()) {
   }
-#endif
+  //#endif
 
   /// @return A pointer to the beginning of the referenced data.
   const uint8_t* data() const { return data_; }

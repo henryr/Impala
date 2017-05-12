@@ -26,7 +26,6 @@
 #include "common/object-pool.h"
 #include "gen-cpp/ImpalaInternalService_types.h"
 #include "gen-cpp/Types_types.h"
-#include "runtime/client-cache-types.h"
 #include "runtime/tmp-file-mgr.h"
 #include "util/bloom-filter.h"
 #include "util/spinlock.h"

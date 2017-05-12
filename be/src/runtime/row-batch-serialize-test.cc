@@ -33,6 +33,7 @@
 #include "common/names.h"
 
 using namespace impala;
+using kudu::Slice;
 
 namespace impala {
 
@@ -40,6 +41,22 @@ const int NUM_ROWS = 20;
 const int MAX_STRING_LEN = 10;
 const int MAX_ARRAY_LEN = 3;
 const int NULL_VALUE_PERCENT = 10;
+
+namespace {
+
+InboundProtoRowBatch OutboundBatchToInbound(const OutboundProtoRowBatch& batch) {
+  InboundProtoRowBatch ret;
+  ret.header = batch.header;
+  ret.tuple_offsets = Slice(*batch.tuple_offsets);
+  if (ret.header.compression_type() == THdfsCompression::LZ4) {
+    ret.tuple_data = Slice(*batch.compressed_tuple_data);
+  } else {
+    ret.tuple_data = Slice(*batch.tuple_data);
+  }
+  return ret;
+}
+
+}
 
 class RowBatchSerializeTest : public testing::Test {
  protected:
@@ -66,12 +83,11 @@ class RowBatchSerializeTest : public testing::Test {
       bool full_dedup = false) {
     if (print_batches) cout << PrintBatch(batch) << endl;
 
-    ProtoRowBatch pbrow_batch;
+    OutboundProtoRowBatch pbrow_batch;
     EXPECT_OK(batch->Serialize(&pbrow_batch, full_dedup));
 
-    pbrow_batch.incoming_tuple_offsets = kudu::Slice(reinterpret_cast<const uint8_t*>(&pbrow_batch.tuple_offsets[0]),
-        pbrow_batch.tuple_offsets.size() * sizeof(int32_t));
-    RowBatch deserialized_batch(row_desc, pbrow_batch, tracker_.get());
+    RowBatch deserialized_batch(row_desc, OutboundBatchToInbound(pbrow_batch),
+        tracker_.get());
     if (print_batches) cout << PrintBatch(&deserialized_batch) << endl;
 
     EXPECT_EQ(batch->num_rows(), deserialized_batch.num_rows());
@@ -488,7 +504,7 @@ void RowBatchSerializeTest::TestDupRemoval(bool full_dedup) {
   vector<Tuple*> tuples;
   CreateTuples(tuple_desc, batch->tuple_data_pool(), num_distinct_tuples, 0, 10, &tuples);
   AddTuplesToRowBatch(num_rows, tuples, repeats, batch);
-  ProtoRowBatch pbrow_batch;
+  OutboundProtoRowBatch pbrow_batch;
   EXPECT_OK(batch->Serialize(&pbrow_batch, full_dedup));
   // Serialized data should only have one copy of each tuple.
   int64_t total_byte_size = 0; // Total size without duplication
@@ -625,18 +641,17 @@ TEST_F(RowBatchSerializeTest, DedupPathologicalFull) {
   // Full dedup should be automatically enabled because of row batch structure.
   EXPECT_TRUE(UseFullDedup(batch));
   LOG(INFO) << "Serializing row batch";
-  ProtoRowBatch pbrow_batch;
+  OutboundProtoRowBatch pbrow_batch;
   EXPECT_OK(batch->Serialize(&pbrow_batch));
-  LOG(INFO) << "Serialized batch size: " << pbrow_batch.tuple_data.size();
+  LOG(INFO) << "Serialized batch size: " << pbrow_batch.tuple_data->length();
   LOG(INFO) << "Serialized batch uncompressed size: "
             << pbrow_batch.header.uncompressed_size();
   LOG(INFO) << "Serialized batch expected size: " << total_byte_size;
   // Serialized data should only have one copy of each tuple.
   EXPECT_EQ(total_byte_size, pbrow_batch.header.uncompressed_size());
   LOG(INFO) << "Deserializing row batch";
-  pbrow_batch.incoming_tuple_offsets = kudu::Slice(reinterpret_cast<const uint8_t*>(&pbrow_batch.tuple_offsets[0]),
-      pbrow_batch.tuple_offsets.size() * sizeof(int32_t));
-  RowBatch deserialized_batch(row_desc, pbrow_batch, tracker_.get());
+  RowBatch deserialized_batch(row_desc, OutboundBatchToInbound(pbrow_batch),
+      tracker_.get());
   LOG(INFO) << "Verifying row batch";
   // Need to do special verification: comparing all duplicate strings is too slow.
   EXPECT_EQ(batch->num_rows(), deserialized_batch.num_rows());

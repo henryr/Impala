@@ -22,11 +22,13 @@
 #include <algorithm>
 
 #include "common/logging.h"
+#include "kudu/util/faststring.h"
 #include "runtime/runtime-state.h"
 #include "service/data_stream_service.pb.h"
 #include "util/hash-util.h"
 
 using namespace std;
+using kudu::faststring;
 
 namespace impala {
 
@@ -69,7 +71,8 @@ BloomFilter::~BloomFilter() {
 
 void BloomFilter::ToProto(ProtoBloomFilter* proto) const {
   proto->header.set_log_heap_space(log_num_buckets_ + LOG_BUCKET_BYTE_SIZE);
-  string tmp(reinterpret_cast<const char*>(directory_), directory_size());
+  faststring tmp(directory_size());
+  tmp.append(reinterpret_cast<const char*>(directory_), directory_size());
   proto->TransferDirectory(move(tmp));
   proto->header.set_always_true(false);
 }
@@ -178,7 +181,7 @@ void BloomFilter::Or(const ProtoBloomFilter& in, ProtoBloomFilter* out) {
   if (&in == out) return;
   out->header.set_always_true(out->header.always_true() || in.header.always_true());
   if (out->header.always_true()) {
-    out->TransferDirectory(string());
+    out->TransferDirectory(faststring());
     return;
   }
   DCHECK_EQ(in.directory.size(), out->directory.size())
