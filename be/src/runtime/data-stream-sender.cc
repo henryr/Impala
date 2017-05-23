@@ -378,8 +378,6 @@ DataStreamSender::DataStreamSender(ObjectPool* pool, int sender_id,
     DCHECK(status.ok());
   }
 
-  // proto_batch1_ = make_shared<OutboundProtoRowBatch>();
-  // proto_batch2_ = make_shared<ProtoRowBatch>();
   current_proto_batch_ = proto_batch1_.get();
 }
 

@@ -158,7 +158,7 @@ void DataStreamMgr::AddData(const TUniqueId& fragment_instance_id,
   VLOG_ROW << "AddData(): fragment_instance_id=" << fragment_instance_id
            << " node=" << payload.request->dest_node_id() << " size="
            << payload.proto_batch.GetSize();
-  bool already_unregistered;
+  bool already_unregistered = false;
   shared_ptr<DataStreamRecvr> recvr;
   {
     lock_guard<mutex> l(lock_);

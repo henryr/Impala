@@ -138,51 +138,53 @@ DataStreamRecvr::SenderQueue::SenderQueue(DataStreamRecvr* parent_recvr, int num
 Status DataStreamRecvr::SenderQueue::GetBatch(RowBatch** next_batch) {
   SCOPED_TIMER(recvr_->queue_get_batch_time_);
   unique_lock<SpinLock> l(lock_);
-  // wait until something shows up or we know we're done
-  while (!is_cancelled_ && batch_queue_.empty() && pending_senders_.empty()
-      && num_remaining_senders_ > 0) {
-    VLOG_ROW << "wait arrival fragment_instance_id=" << recvr_->fragment_instance_id()
-             << " node=" << recvr_->dest_node_id();
-    // Don't count time spent waiting on the sender as active time.
-    CANCEL_SAFE_SCOPED_TIMER(recvr_->data_arrival_timer_, &is_cancelled_);
-    CANCEL_SAFE_SCOPED_TIMER(recvr_->inactive_timer_, &is_cancelled_);
-    CANCEL_SAFE_SCOPED_TIMER(
-        received_first_batch_ ? nullptr : recvr_->first_batch_wait_total_timer_,
-        &is_cancelled_);
-    data_arrival_cv_.wait(l);
-  }
-
   // cur_batch_ must be replaced with the returned batch.
   current_batch_.reset();
   *next_batch = nullptr;
-  if (is_cancelled_) return Status::CANCELLED;
 
-  if (pending_senders_.empty() && batch_queue_.empty()) {
-    DCHECK_EQ(num_remaining_senders_, 0);
-    return Status::OK();
+  while (true) {
+    // wait until something shows up or we know we're done
+    while (!is_cancelled_ && batch_queue_.empty() && pending_senders_.empty()
+        && num_remaining_senders_ > 0) {
+      VLOG_ROW << "wait arrival fragment_instance_id=" << recvr_->fragment_instance_id()
+               << " node=" << recvr_->dest_node_id();
+      // Don't count time spent waiting on the sender as active time.
+      CANCEL_SAFE_SCOPED_TIMER(recvr_->data_arrival_timer_, &is_cancelled_);
+      CANCEL_SAFE_SCOPED_TIMER(recvr_->inactive_timer_, &is_cancelled_);
+      CANCEL_SAFE_SCOPED_TIMER(
+          received_first_batch_ ? nullptr : recvr_->first_batch_wait_total_timer_,
+          &is_cancelled_);
+      data_arrival_cv_.wait(l);
+    }
+
+    if (is_cancelled_) return Status::CANCELLED;
+
+    if (pending_senders_.empty() && batch_queue_.empty()) {
+      DCHECK_EQ(num_remaining_senders_, 0);
+      return Status::OK();
+    }
+
+    received_first_batch_ = true;
+
+    // We consumed a batch, or the batch queue is empty, so there's room in the queue. Ask
+    // the longest-blocked sender to try again.
+    if (!pending_senders_.empty()) {
+      SCOPED_TIMER(recvr_->pending_response_timer_);
+      recvr_->mgr_->EnqueueRowBatch(
+          {recvr_->fragment_instance_id(), move(pending_senders_.front())});
+      pending_senders_.pop();
+    }
+
+    if (!batch_queue_.empty()) {
+      RowBatch* result = batch_queue_.front().second;
+      recvr_->num_buffered_bytes_.Add(-batch_queue_.front().first);
+      VLOG_ROW << "fetched #rows=" << result->num_rows();
+      current_batch_.reset(result);
+      *next_batch = current_batch_.get();
+      batch_queue_.pop_front();
+      return Status::OK();
+    }
   }
-
-  received_first_batch_ = true;
-
-  if (!batch_queue_.empty()) {
-    RowBatch* result = batch_queue_.front().second;
-    recvr_->num_buffered_bytes_.Add(-batch_queue_.front().first);
-    VLOG_ROW << "fetched #rows=" << result->num_rows();
-    current_batch_.reset(result);
-    *next_batch = current_batch_.get();
-    batch_queue_.pop_front();
-  }
-
-  // We consumed a batch, or the batch queue is empty, so there's room in the queue. Ask
-  // the longest-blocked sender to try again.
-  if (!pending_senders_.empty()) {
-    SCOPED_TIMER(recvr_->pending_response_timer_);
-    recvr_->mgr_->EnqueueRowBatch(
-        {recvr_->fragment_instance_id(), move(pending_senders_.front())});
-    pending_senders_.pop();
-  }
-
-  return Status::OK();
 }
 
 void DataStreamRecvr::SenderQueue::AddBatch(TransmitDataCtx&& payload) {
