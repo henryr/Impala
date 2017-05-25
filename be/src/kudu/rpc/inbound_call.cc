@@ -139,6 +139,9 @@ void InboundCall::Respond(const MessageLite& response,
   TRACE_EVENT_ASYNC_END1("rpc", "InboundCall", this,
                          "method", remote_method_.method_name());
   TRACE_TO(trace_, "Queueing $0 response", is_success ? "success" : "failure");
+  if (remote_method().method_name() == "TransmitData") {
+    LOG(INFO) << "Call " << call_id() << " trace: " << trace()->DumpToString();
+  }
   RecordHandlingCompleted();
   conn_->rpcz_store()->AddCall(this);
   conn_->QueueResponseForCall(gscoped_ptr<InboundCall>(this));

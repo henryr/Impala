@@ -122,42 +122,56 @@ void RpcMgr::ToJson(Document* doc) {
     num_inbound_calls_in_flight += cnxn.calls_in_flight().size();
   }
 
-  map<string, map<string, vector<RpcCallInProgressPB>>> grouped_outbound_calls;
   for (const auto& cnxn: response.outbound_connections()) {
     num_outbound_calls_in_flight += cnxn.calls_in_flight().size();
-    for (const auto& call: cnxn.calls_in_flight()) {
-      if (!call.header().has_remote_method()) continue;
-      grouped_outbound_calls[call.header().remote_method().service_name()][call.header().remote_method().method_name()].push_back(call);
-    }
   }
 
-  Value outbound_calls(kArrayType);
-  for (const auto& entry: grouped_outbound_calls) {
-    for (const auto& method: entry.second) {
-      Value outbound_call(kObjectType);
-      Value name(method.first.c_str(), doc->GetAllocator());
-      outbound_call.AddMember("method_name", name, doc->GetAllocator());
-      Value service_name(entry.first.c_str(), doc->GetAllocator());
-      outbound_call.AddMember("service_name", service_name, doc->GetAllocator());
-
-      Value calls(kArrayType);
-      for (const auto& call_details: method.second) {
-        Value call(kObjectType);
-        call.AddMember("micros_elapsed", call_details.micros_elapsed(),
-            doc->GetAllocator());
-        if (call_details.header().has_request_id()) {
-          call.AddMember("attempt_no", call_details.header().request_id().attempt_no(),
-              doc->GetAllocator());
-        }
-        call.AddMember("call_id", call_details.header().call_id(), doc->GetAllocator());
-        calls.PushBack(call, doc->GetAllocator());
+  auto add_calls = [](Document* doc,
+      decltype(response.outbound_connections())& cnxns, const char* group_name) {
+    map<string, map<string, vector<RpcCallInProgressPB>>> grouped_calls;
+    for (const auto& cnxn: cnxns) {
+      // num_outbound_calls_in_flight += cnxn.calls_in_flight().size();
+      for (const auto& call: cnxn.calls_in_flight()) {
+        if (!call.header().has_remote_method()) continue;
+        string service_name = call.header().remote_method().service_name();
+        string method_name =  call.header().remote_method().method_name();
+        grouped_calls[service_name][method_name].push_back(call);
       }
-      outbound_call.AddMember("calls", calls, doc->GetAllocator());
-      outbound_calls.PushBack(outbound_call, doc->GetAllocator());
     }
-  }
 
-  doc->AddMember("outbound_calls", outbound_calls, doc->GetAllocator());
+    Value outbound_calls(kArrayType);
+    for (const auto& entry: grouped_calls) {
+      for (const auto& method: entry.second) {
+        Value outbound_call(kObjectType);
+        Value name(method.first.c_str(), doc->GetAllocator());
+        outbound_call.AddMember("method_name", name, doc->GetAllocator());
+        Value service_name(entry.first.c_str(), doc->GetAllocator());
+        outbound_call.AddMember("service_name", service_name, doc->GetAllocator());
+
+        Value calls(kArrayType);
+        for (const auto& call_details: method.second) {
+          Value call(kObjectType);
+          call.AddMember("micros_elapsed", call_details.micros_elapsed(),
+              doc->GetAllocator());
+          if (call_details.header().has_request_id()) {
+            call.AddMember("attempt_no", call_details.header().request_id().attempt_no(),
+                doc->GetAllocator());
+          }
+          call.AddMember("call_id", call_details.header().call_id(), doc->GetAllocator());
+          call.AddMember("trace", call_details.trace_buffer().c_str(), doc->GetAllocator());
+          call.AddMember("state", call_details.state(), doc->GetAllocator());
+          calls.PushBack(call, doc->GetAllocator());
+        }
+        outbound_call.AddMember(group_name, calls, doc->GetAllocator());
+        outbound_calls.PushBack(outbound_call, doc->GetAllocator());
+      }
+    }
+
+    doc->AddMember(group_name, outbound_calls, doc->GetAllocator());
+  };
+
+  add_calls(doc, response.outbound_connections(), "outbound_calls");
+  add_calls(doc, response.inbound_connections(), "inbound_calls");
 
   Value outbound_cnxns(kArrayType);
   for (const auto& cnxn: response.outbound_connections()) {

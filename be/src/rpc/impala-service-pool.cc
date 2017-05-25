@@ -132,10 +132,19 @@ void ImpalaServicePool::RunThread() {
       auto* method = &method_infos_[method_name];
       method->num_in_handlers.Add(1);
     }
+    int call_id = incoming->call_id();
+    string remote = incoming->remote_address().ToString();
+    if (method_name == "TransmitData") {
+      LOG(INFO) << "Handling TransmitData call: " << incoming->call_id() << " from "
+                << incoming->remote_address().ToString();
+    }
     service_->Handle(incoming.release());
     total_time = (MonoTime::Now() - now).ToMilliseconds();
     request_handle_time_->Update(total_time);
-
+    if (method_name == "TransmitData") {
+      LOG(INFO) << "Handled TransmitData call: " << call_id << " from "
+                << remote;
+    }
     {
       lock_guard<SpinLock> l(method_info_lock_);
       auto* method = &method_infos_[method_name];
