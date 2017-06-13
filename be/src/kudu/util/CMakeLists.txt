@@ -131,7 +131,7 @@ set(UTIL_SRCS
   debug/trace_event_impl_constants.cc
   debug/trace_event_synthetic_delay.cc
   env.cc
-  # env_posix.cc # Disabled due to compilation issues in Impala w/RHEL5.
+  env_posix.cc
   env_util.cc
   errno.cc
   faststring.cc

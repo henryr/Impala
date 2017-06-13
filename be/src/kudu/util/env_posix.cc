@@ -217,6 +217,10 @@ ssize_t pwritev(int fd, const struct iovec* iovec, int count, off_t offset) {
   }
   return total_written_bytes;
 }
+#elif !defined(HAVE_FALLOCATE)
+int fallocate(int fd, int mode, off_t offset, off_t len) {
+  return -1;
+}
 #endif
 
 
