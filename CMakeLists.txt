@@ -90,15 +90,13 @@ set_dep_root(LLVM)
 set(LLVM_DEBUG_ROOT $ENV{IMPALA_TOOLCHAIN}/llvm-$ENV{IMPALA_LLVM_DEBUG_VERSION})
 set_dep_root(LZ4)
 set_dep_root(OPENLDAP)
+set_dep_root(OPENSSL)
 set_dep_root(PROTOBUF)
 set_dep_root(RE2)
 set_dep_root(RAPIDJSON)
 set_dep_root(SNAPPY)
 set_dep_root(THRIFT)
 set_dep_root(ZLIB)
-if (APPLE)
-  set_dep_root(OPENSSL)
-endif()
 
 # The boost-cmake project hasn't been maintained for years. Let's make sure we
 # don't accidentally use it if it can be found.
@@ -130,10 +128,20 @@ set(LIBS ${LIBS} ${Boost_LIBRARIES})
 message(STATUS "Boost include dir: " ${Boost_INCLUDE_DIRS})
 message(STATUS "Boost libraries: " ${Boost_LIBRARIES})
 
-find_package(OpenSSL REQUIRED)
+find_package(OpenSSL 1.0.1 QUIET)
+if (NOT ${OPENSSL_FOUND})
+  set(OPENSSL_FOUND ON)
+  set(OPENSSL_STATIC_LINKING ON)
+  set(OPENSSL_INCLUDE_DIR ${OPENSSL_ROOT}/include)
+  set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT}/lib/libssl.a)
+  set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT}/lib/libcrypto.a)
+  set(OPENSSL_VERSION $ENV{IMPALA_OPENSSL_VERSION})
+endif()
+
 include_directories(${OPENSSL_INCLUDE_DIR})
 set(OPENSSL_LIBS ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY})
-message(STATUS "OpenSSL: ${OPENSSL_LIBS}")
+message(STATUS "OpenSSL lib: ${OPENSSL_LIBS}")
+message(STATUS "OpenSSL include path: ${OPENSSL_INCLUDE_DIR}")
 
 find_package(Bzip2 REQUIRED)
 include_directories(${BZIP2_INCLUDE_DIR})
@@ -304,10 +312,18 @@ ADD_THIRDPARTY_LIB(zlib
 ADD_THIRDPARTY_LIB(cyrus_sasl
   SHARED_LIB ${SASL_SHARED_LIB})
 
-ADD_THIRDPARTY_LIB(openssl_ssl
-  SHARED_LIB "${OPENSSL_SSL_LIBRARY}")
-ADD_THIRDPARTY_LIB(openssl_crypto
-  SHARED_LIB "${OPENSSL_CRYPTO_LIBRARY}")
+if (${OPENSSL_STATIC_LINKING})
+  message(STATUS "Statically linking against OpenSSL in toolchain")
+  ADD_THIRDPARTY_LIB(openssl_ssl
+    STATIC_LIB "${OPENSSL_SSL_LIBRARY}")
+  ADD_THIRDPARTY_LIB(openssl_crypto
+    STATIC_LIB "${OPENSSL_CRYPTO_LIBRARY}")
+else()
+  ADD_THIRDPARTY_LIB(openssl_ssl
+    SHARED_LIB "${OPENSSL_SSL_LIBRARY}")
+  ADD_THIRDPARTY_LIB(openssl_crypto
+    SHARED_LIB "${OPENSSL_CRYPTO_LIBRARY}")
+endif()
 
 if (NOT APPLE)
   find_library(RT_LIB_PATH rt)
