@@ -22,5 +22,9 @@
 /// This is a template that is populated by CMake with config information
 
 #cmakedefine HAVE_SCHED_GETCPU
+#cmakedefine IMPALA_HAVE_FALLOCATE
+#cmakedefine HAVE_PREADV
+#cmakedefine HAVE_PIPE2
+#cmakedefine HAVE_MAGIC_H
 
 #endif

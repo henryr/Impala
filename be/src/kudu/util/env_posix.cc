@@ -53,12 +53,19 @@
 #include "kudu/util/thread_restrictions.h"
 #include "kudu/util/trace.h"
 
+#include "common/config.h"
+
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
 #include <sys/sysctl.h>
 #else
 #include <linux/falloc.h>
+
+// RHEL5 compilation errors, due to issues with types.h
+#if defined(IMPALA_HAVE_FALLOCATE)
 #include <linux/fiemap.h>
+#endif
+
 #include <linux/fs.h>
 #if defined HAVE_MAGIC_H
 #include <linux/magic.h>
@@ -181,7 +188,13 @@ int fallocate(int fd, int mode, off_t offset, off_t len) {
   }
   return 0;
 }
+#elif !defined(IMPALA_HAVE_FALLOCATE)
+int fallocate(int fd, int mode, off_t offset, off_t len) {
+  return EOPNOTSUPP;
+}
+#endif
 
+#if !defined(HAVE_PREADV)
 // Simulates Linux's preadv API on OS X.
 ssize_t preadv(int fd, const struct iovec* iovec, int count, off_t offset) {
   ssize_t total_read_bytes = 0;
@@ -216,10 +229,6 @@ ssize_t pwritev(int fd, const struct iovec* iovec, int count, off_t offset) {
     offset += iovec[i].iov_len;
   }
   return total_written_bytes;
-}
-#elif !defined(HAVE_FALLOCATE)
-int fallocate(int fd, int mode, off_t offset, off_t len) {
-  return -1;
 }
 #endif
 
@@ -817,7 +826,7 @@ class PosixRWFile : public RWFile {
   }
 
   virtual Status GetExtentMap(ExtentMap* out) const OVERRIDE {
-#if !defined(__linux__)
+#if !defined(__linux__) || !defined(IMPALA_HAVE_FALLOCATE)
     return Status::NotSupported("GetExtentMap not supported on this platform");
 #else
     TRACE_EVENT1("io", "PosixRWFile::GetExtentMap", "path", filename_);
