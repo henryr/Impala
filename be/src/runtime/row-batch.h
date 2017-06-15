@@ -477,7 +477,7 @@ class RowBatch {
   // should go below here.
 
   /// Full row descriptor for rows in this batch.
-  RowDescriptor row_desc_;
+  const RowDescriptor& row_desc_;
 
   MemTracker* mem_tracker_;  // not owned
 
