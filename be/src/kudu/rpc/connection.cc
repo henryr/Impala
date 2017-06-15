@@ -407,30 +407,6 @@ struct ResponseTransferCallbacks : public TransferCallbacks {
   Connection *conn_;
 };
 
-// Reactor task which puts a transfer on the outbound transfer queue.
-class QueueTransferTask : public ReactorTask {
- public:
-  QueueTransferTask(gscoped_ptr<OutboundTransfer> transfer,
-                    Connection *conn)
-    : transfer_(std::move(transfer)),
-      conn_(conn)
-  {}
-
-  virtual void Run(ReactorThread *thr) OVERRIDE {
-    conn_->QueueOutbound(std::move(transfer_));
-    delete this;
-  }
-
-  virtual void Abort(const Status &status) OVERRIDE {
-    transfer_->Abort(status);
-    delete this;
-  }
-
- private:
-  gscoped_ptr<OutboundTransfer> transfer_;
-  Connection *conn_;
-};
-
 void Connection::QueueResponseForCall(gscoped_ptr<InboundCall> call) {
   // This is usually called by the IPC worker thread when the response
   // is set, but in some circumstances may also be called by the
@@ -449,9 +425,17 @@ void Connection::QueueResponseForCall(gscoped_ptr<InboundCall> call) {
   // After the response is sent, can delete the InboundCall object.
   // We set a dummy call ID and required feature set, since these are not needed
   // when sending responses.
-  gscoped_ptr<OutboundTransfer> t(OutboundTransfer::CreateForCallResponse(slices, cb));
+  OutboundTransfer* t = OutboundTransfer::CreateForCallResponse(slices, cb);
 
-  QueueTransferTask *task = new QueueTransferTask(std::move(t), this);
+  ReactorTask task;
+  task.run_func = [=](ReactorThread* thr) {
+    this->QueueOutbound(gscoped_ptr<OutboundTransfer>(t));
+  };
+  task.abort_func = [=](const Status& s) {
+    t->Abort(s);
+    delete t;
+  };
+
   reactor_thread_->reactor()->ScheduleReactorTask(task);
 }
 
@@ -651,43 +635,21 @@ std::string Connection::ToString() const {
     remote_.ToString());
 }
 
-// Reactor task that transitions this Connection from connection negotiation to
-// regular RPC handling. Destroys Connection on negotiation error.
-class NegotiationCompletedTask : public ReactorTask {
- public:
-  NegotiationCompletedTask(Connection* conn,
-                           Status negotiation_status,
-                           std::unique_ptr<ErrorStatusPB> rpc_error)
-    : conn_(conn),
-      negotiation_status_(std::move(negotiation_status)),
-      rpc_error_(std::move(rpc_error)) {
-  }
-
-  virtual void Run(ReactorThread *rthread) OVERRIDE {
-    rthread->CompleteConnectionNegotiation(conn_,
-                                           negotiation_status_,
-                                           std::move(rpc_error_));
-    delete this;
-  }
-
-  virtual void Abort(const Status &status) OVERRIDE {
-    DCHECK(conn_->reactor_thread()->reactor()->closing());
+void Connection::CompleteNegotiation(Status negotiation_status,
+    unique_ptr<ErrorStatusPB> rpc_error) {
+  ReactorTask task;
+  // The lambdas below need to hold a reference to the connection in case
+  // it has been closed before the task gets scheduled/aborted.
+  scoped_refptr<Connection> reffed_this(this);
+  task.run_func = [=, err=rpc_error.release()](ReactorThread* thread) {
+    thread->CompleteConnectionNegotiation(reffed_this.get(), negotiation_status, unique_ptr<ErrorStatusPB>(err));
+  };
+  task.abort_func = [=](const Status& status) {
+    DCHECK(reffed_this->reactor_thread()->reactor()->closing());
     VLOG(1) << "Failed connection negotiation due to shut down reactor thread: "
             << status.ToString();
-    delete this;
-  }
-
- private:
-  scoped_refptr<Connection> conn_;
-  const Status negotiation_status_;
-  std::unique_ptr<ErrorStatusPB> rpc_error_;
-};
-
-void Connection::CompleteNegotiation(Status negotiation_status,
-                                     unique_ptr<ErrorStatusPB> rpc_error) {
-  auto task = new NegotiationCompletedTask(
-      this, std::move(negotiation_status), std::move(rpc_error));
-  reactor_thread_->reactor()->ScheduleReactorTask(task);
+  };
+  reactor_thread_->reactor()->ScheduleReactorTask(std::move(task));
 }
 
 void Connection::MarkNegotiationComplete() {

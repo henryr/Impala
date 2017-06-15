@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include <functional>
 #include <list>
 #include <memory>
 #include <string>
@@ -30,6 +31,7 @@
 
 #include "kudu/gutil/gscoped_ptr.h"
 #include "kudu/gutil/ref_counted.h"
+#include "kudu/rpc/connection.h"
 #include "kudu/rpc/response_callback.h"
 #include "kudu/security/token.pb.h"
 #include "kudu/util/locks.h"
@@ -203,7 +205,7 @@ class Messenger {
   //
   // The status argument conveys whether 'func' was run correctly (i.e.
   // after the elapsed time) or not.
-  void ScheduleOnReactor(const boost::function<void(const Status&)>& func,
+  void ScheduleOnReactor(std::function<void(const Status&)> func,
                          MonoDelta when);
 
   const security::TlsContext& tls_context() const { return *tls_context_; }
@@ -227,8 +229,7 @@ class Messenger {
   RpcAuthentication authentication() const { return authentication_; }
   RpcEncryption encryption() const { return encryption_; }
 
-  ThreadPool* client_negotiation_pool() const { return client_negotiation_pool_.get(); }
-  ThreadPool* server_negotiation_pool() const { return server_negotiation_pool_.get(); }
+  ThreadPool* negotiation_pool(Connection::Direction dir);
 
   RpczStore* rpcz_store() { return rpcz_store_.get(); }
 
@@ -288,6 +289,8 @@ class Messenger {
 
   std::vector<Reactor*> reactors_;
 
+  // Separate client and server negotiation pools to avoid possibility of distributed
+  // deadlock. See KUDU-2041.
   gscoped_ptr<ThreadPool> client_negotiation_pool_;
   gscoped_ptr<ThreadPool> server_negotiation_pool_;
 
