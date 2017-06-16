@@ -84,6 +84,7 @@ set_dep_root(GFLAGS)
 set_dep_root(GLOG)
 set_dep_root(GPERFTOOLS)
 set_dep_root(GTEST)
+set_dep_root(KRB5)
 set_dep_root(LIBEV)
 set_dep_root(LLVM)
 set(LLVM_DEBUG_ROOT $ENV{IMPALA_TOOLCHAIN}/llvm-$ENV{IMPALA_LLVM_DEBUG_VERSION})
@@ -345,10 +346,16 @@ include_directories(SYSTEM ${CRCUTIL_INCLUDE_DIR})
 ADD_THIRDPARTY_LIB(crcutil
   STATIC_LIB "${CRCUTIL_STATIC_LIB}")
 
+# Be careful with Kerberos: we do not statically link against it. The headers and
+# libraries are always found in the toolchain if they exist for development, but building
+# Impala yields a binary that relies on the target operating system to have libkrb5.so
+# installed. Vendors should take care that the supported version of Kerberos on their
+# target platforms is compatible with $ENV{KRB5_VERSION}.
 find_package(Kerberos REQUIRED)
-include_directories(${KERBEROS_INCLUDE_DIR})
+include_directories(SYSTEM ${KERBEROS_INCLUDE_DIR})
 ADD_THIRDPARTY_LIB(krb5
   SHARED_LIB "${KERBEROS_LIBRARY}")
+message(STATUS "Kerberos include dir: " ${KERBEROS_INCLUDE_DIR})
 
 find_package(KerberosPrograms REQUIRED)
 
