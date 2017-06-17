@@ -53,6 +53,10 @@ namespace impala {
 // in FIFO order. Senders in that state will not be replied to until their row batch is
 // processed, or the receiver is closed; this ensures that only one row-batch per sender
 // is buffered in the blocked senders queue.
+
+thread_local list<RowBatch*> allocated_row_batches_;
+thread_local MemTracker tmp_mem_tracker_;
+
 class DataStreamRecvr::SenderQueue {
  public:
   SenderQueue(DataStreamRecvr* parent_recvr, int num_senders);
@@ -115,7 +119,7 @@ class DataStreamRecvr::SenderQueue {
   // The batch that was most recently returned via GetBatch(), i.e. the current batch
   // from this queue being processed by a consumer. Is destroyed when the next batch
   // is retrieved.
-  scoped_ptr<RowBatch> current_batch_;
+  unique_ptr<RowBatch> current_batch_;
 
   // Set to true when the first batch has been received
   bool received_first_batch_ = false;
@@ -133,7 +137,8 @@ Status DataStreamRecvr::SenderQueue::GetBatch(RowBatch** next_batch) {
   SCOPED_TIMER(recvr_->queue_get_batch_time_);
   unique_lock<SpinLock> l(lock_);
   // cur_batch_ must be replaced with the returned batch.
-  current_batch_.reset();
+  if (current_batch_) current_batch_->SetFree();
+  current_batch_.release();
   *next_batch = nullptr;
 
   while (true) {
@@ -225,8 +230,21 @@ void DataStreamRecvr::SenderQueue::AddBatch(unique_ptr<TransmitDataCtx>&& payloa
     // batch_queue_. Taking closing_lock_ at the beginning of this method ensures that
     // Close() cannot run until after the batch is added to the queue.
     // TODO: move this off this thread.
-    batch = new RowBatch(recvr_->row_desc(), payload->proto_batch, recvr_->mem_tracker());
+    batch = new RowBatch(recvr_->row_desc(), payload->proto_batch, &tmp_mem_tracker_); // recvr_->mem_tracker());
   }
+  // int alloc_batch_size = allocated_row_batches_.size();
+  auto it = allocated_row_batches_.begin();
+  while (it != allocated_row_batches_.end()) {
+    if ((*it)->IsFree()) {
+      delete *it;
+      it = allocated_row_batches_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  //int num_freed = alloc_batch_size - allocated_row_batches_.size();
+  //if (num_freed > 0) LOG(INFO) << "HNR: Freed " << num_freed << ", num remaining: " << allocated_row_batches_.size();
+  allocated_row_batches_.push_back(batch);
 
   {
     lock_guard<SpinLock> l(lock_);
@@ -282,7 +300,7 @@ void DataStreamRecvr::SenderQueue::Close() {
     blocked_senders_.pop();
   }
 
-  current_batch_.reset();
+  // current_batch_.reset();
 }
 
 Status DataStreamRecvr::CreateMerger(const TupleRowComparator& less_than) {

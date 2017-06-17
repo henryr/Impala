@@ -402,6 +402,9 @@ class RowBatch {
   /// string to prepend to the log message.
   void VLogRows(const std::string& context);
 
+  void SetFree() { is_free_.Store(1); }
+  bool IsFree() { return is_free_.Load() == 1; }
+
  private:
   friend class RowBatchSerializeBaseline;
   friend class RowBatchSerializeBenchmark;
@@ -497,6 +500,8 @@ class RowBatch {
 
   /// Pages attached to this row batch. See AddBuffer() for ownership semantics.
   std::vector<BufferInfo> buffers_;
+
+  AtomicInt32 is_free_;
 };
 }
 
