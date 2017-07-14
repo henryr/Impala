@@ -199,8 +199,9 @@ Status DataStreamSender::Channel::SendSerializedBatch(
   // exactly once. The DSS may be cancelled while waiting for this callback, so we need to
   // check that the parent channel still exists by passing in a weak ptr that might
   // expire.
+  int start_time = MonotonicMillis();
   auto rpc_complete_callback = [self_ptr = weak_ptr<DataStreamSender::Channel>(self_),
-      instance_id = fragment_instance_id_, proto_batch = batch]
+      instance_id = fragment_instance_id_, proto_batch = batch, start_time]
       (const Status& status, TransmitDataRequestPb* request,
       TransmitDataResponsePb* response, RpcController* controller) {
 
@@ -232,6 +233,17 @@ Status DataStreamSender::Channel::SendSerializedBatch(
         }
       }
       channel->rpc_in_flight_ = false;
+      channel->parent_->send_latencies_->Update(MonotonicMillis() - start_time);
+
+
+      channel->parent_->queue_latencies_->Update((controller->timings_.sending_time -
+              controller->timings_.queued_time).ToMilliseconds());
+      channel->parent_->sending_latencies_->Update((controller->timings_.sent_time -
+              controller->timings_.sending_time).ToMilliseconds());
+      channel->parent_->response_latencies_->Update((controller->timings_.response_time -
+              controller->timings_.sent_time).ToMilliseconds());
+      channel->parent_->callback_latencies_->Update(
+          (kudu::MonoTime::Now() - controller->timings_.response_time).ToMilliseconds());
     }
     channel->rpc_done_cv_.notify_one();
   };
@@ -364,6 +376,23 @@ DataStreamSender::DataStreamSender(int sender_id,
       proto_batches_.push_back(make_shared<OutboundProtoRowBatch>());
     }
   }
+
+  send_latencies_.reset(new HistogramMetric(
+      MakeTMetricDef("send-latencies", TMetricKind::HISTOGRAM, TUnit::TIME_MS),
+      30000, 3));
+
+  queue_latencies_.reset(new HistogramMetric(
+          MakeTMetricDef("queue-latencies", TMetricKind::HISTOGRAM, TUnit::TIME_MS),
+          30000, 3));
+  sending_latencies_.reset(new HistogramMetric(
+          MakeTMetricDef("sending-latencies", TMetricKind::HISTOGRAM, TUnit::TIME_MS),
+          30000, 3));
+  response_latencies_.reset(new HistogramMetric(
+          MakeTMetricDef("response-latencies", TMetricKind::HISTOGRAM, TUnit::TIME_MS),
+          30000, 3));
+  callback_latencies_.reset(new HistogramMetric(
+          MakeTMetricDef("callback-latencies", TMetricKind::HISTOGRAM, TUnit::TIME_MS),
+          30000, 3));
 }
 
 string DataStreamSender::GetName() {
@@ -485,7 +514,12 @@ Status DataStreamSender::FlushFinal(RuntimeState* state) {
   // the error is propagated back to the coordinator, which in turn cancels the query,
   // which will cause the remaining open channels to be closed.
   for (auto& channel: channels_) RETURN_IF_ERROR(channel->FlushAndSendEos());
+  profile_->AddInfoString("Send latencies: ", send_latencies_->ToHumanReadable());
 
+  profile_->AddInfoString("Queue latencies: ", queue_latencies_->ToHumanReadable());
+  profile_->AddInfoString("Sending latencies: ", sending_latencies_->ToHumanReadable());
+  profile_->AddInfoString("Response latencies: ", response_latencies_->ToHumanReadable());
+  profile_->AddInfoString("Callback latencies: ", callback_latencies_->ToHumanReadable());
   return Status::OK();
 }
 

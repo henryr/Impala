@@ -70,13 +70,13 @@ DECLARE_int32(num_reactor_threads);
 
 // We reserve contiguous memory for senders in SetUp. If a test uses more
 // senders, a DCHECK will fail and you should increase this value.
-static const int MAX_SENDERS = 16;
-static const int MAX_RECEIVERS = 16;
+static const int MAX_SENDERS = 256;
+static const int MAX_RECEIVERS = 256;
 static const PlanNodeId DEST_NODE_ID = 1;
-static const int BATCH_CAPACITY = 100;  // rows
-static const int PER_ROW_DATA = 8;
-static const int TOTAL_DATA_SIZE = 8 * 1024;
-static const int NUM_BATCHES = TOTAL_DATA_SIZE / BATCH_CAPACITY / PER_ROW_DATA;
+static const int BATCH_CAPACITY = 1024;  // rows
+static const int PER_ROW_DATA = 1024;
+static const int TOTAL_DATA_SIZE = 1024 * 1024 * 1024;
+static const int NUM_BATCHES = TOTAL_DATA_SIZE / (BATCH_CAPACITY * PER_ROW_DATA);
 
 using kudu::rpc::RpcContext;
 
@@ -365,7 +365,7 @@ class DataStreamTest : public testing::Test {
   // Start receiver (expecting given number of senders) in separate thread.
   void StartReceiver(TPartitionType::type stream_type, int num_senders, int receiver_num,
       int buffer_size, bool is_merging, TUniqueId* out_id = nullptr) {
-    VLOG_QUERY << "start receiver";
+    // VLOG_QUERY << "start receiver";
     RuntimeProfile* profile =
         obj_pool_.Add(new RuntimeProfile(&obj_pool_, "TestReceiver"));
     TUniqueId instance_id;
@@ -384,7 +384,7 @@ class DataStreamTest : public testing::Test {
   }
 
   void JoinReceivers() {
-    VLOG_QUERY << "join receiver\n";
+    //    VLOG_QUERY << "join receiver\n";
     for (int i = 0; i < receiver_info_.size(); ++i) {
       receiver_info_[i].thread_handle->join();
       receiver_info_[i].stream_recvr->Close();
@@ -394,18 +394,18 @@ class DataStreamTest : public testing::Test {
   // Deplete stream and print batches
   void ReadStream(ReceiverInfo* info) {
     RowBatch* batch;
-    VLOG_QUERY <<  "start reading";
+    // VLOG_QUERY <<  "start reading";
     while (!(info->status = info->stream_recvr->GetBatch(&batch)).IsCancelled() &&
         (batch != nullptr)) {
-      VLOG_QUERY << "read batch #rows=" << batch->num_rows();
+      //VLOG_QUERY << "read batch #rows=" << batch->num_rows();
       for (int i = 0; i < batch->num_rows(); ++i) {
         TupleRow* row = batch->GetRow(i);
         info->data_values.insert(*static_cast<int64_t*>(row->GetTuple(0)->GetSlot(0)));
       }
-      SleepForMs(100);  // slow down receiver to exercise buffering logic
+      //SleepForMs(100);  // slow down receiver to exercise buffering logic
     }
     if (info->status.IsCancelled()) VLOG_QUERY << "reader is cancelled";
-    VLOG_QUERY << "done reading";
+    // VLOG_QUERY << "done reading";
   }
 
   void ReadStreamMerging(ReceiverInfo* info, RuntimeProfile* profile) {
@@ -498,7 +498,7 @@ class DataStreamTest : public testing::Test {
 
   void StartSender(TPartitionType::type partition_type = TPartitionType::UNPARTITIONED,
                    int channel_buffer_size = 1024) {
-    VLOG_QUERY << "start sender";
+    // VLOG_QUERY << "start sender";
     int num_senders = sender_info_.size();
     ASSERT_LT(num_senders, MAX_SENDERS);
     sender_info_.push_back(SenderInfo());
@@ -509,7 +509,7 @@ class DataStreamTest : public testing::Test {
   }
 
   void JoinSenders() {
-    VLOG_QUERY << "join senders\n";
+    // VLOG_QUERY << "join senders\n";
     for (int i = 0; i < sender_info_.size(); ++i) {
       sender_info_[i].thread_handle->join();
     }
@@ -518,7 +518,7 @@ class DataStreamTest : public testing::Test {
   void Sender(
       int sender_num, int channel_buffer_size, TPartitionType::type partition_type) {
     RuntimeState state(TQueryCtx(), &exec_env_, desc_tbl_);
-    VLOG_QUERY << "create sender " << sender_num;
+    // VLOG_QUERY << "create sender " << sender_num;
     const TDataSink& sink = GetSink(partition_type);
     DataStreamSender sender(
         sender_num, row_desc_, sink.stream_sink, dest_, channel_buffer_size);
@@ -536,7 +536,7 @@ class DataStreamTest : public testing::Test {
     int next_val = 0;
     for (int i = 0; i < NUM_BATCHES; ++i) {
       GetNextBatch(batch.get(), &next_val);
-      VLOG_QUERY << "sender " << sender_num << ": #rows=" << batch->num_rows();
+      // VLOG_QUERY << "sender " << sender_num << ": #rows=" << batch->num_rows();
       info.status = sender.Send(&state, batch.get());
       if (!info.status.ok()) break;
     }
@@ -555,6 +555,7 @@ class DataStreamTest : public testing::Test {
     VLOG_QUERY << "Testing stream=" << stream_type << " #senders=" << num_senders
                << " #receivers=" << num_receivers << " buffer_size=" << buffer_size
                << " is_merging=" << is_merging;
+    int64_t start = MonotonicMillis();
     Reset();
     for (int i = 0; i < num_receivers; ++i) {
       StartReceiver(stream_type, num_senders, i, buffer_size, is_merging);
@@ -565,6 +566,7 @@ class DataStreamTest : public testing::Test {
     JoinSenders();
     CheckSenders();
     JoinReceivers();
+    LOG(INFO) << "Test finished in: "  << PrettyPrinter::Print(MonotonicMillis() - start, TUnit::TIME_MS);
     CheckReceivers(stream_type, num_senders);
   }
 };
@@ -625,6 +627,17 @@ TEST_F(DataStreamTest, BasicTest) {
     }
   }
 }
+
+TEST_F(DataStreamTest, HnrTest) {
+  TestStream(TPartitionType::RANDOM, 1, 16, 1024 * 1024, false);
+
+  TestStream(TPartitionType::RANDOM, 2, 16, 1024 * 1024, false);
+
+  TestStream(TPartitionType::RANDOM, 4, 16, 1024 * 1024, false);
+
+  TestStream(TPartitionType::RANDOM, 128, 16, 1024 * 1024, false);
+}
+
 
 // This test checks for the avoidance of IMPALA-2931, which is a crash that would occur if
 // the parent memtracker of a DataStreamRecvr's memtracker was deleted before the

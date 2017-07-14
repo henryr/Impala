@@ -29,6 +29,8 @@
 #include "kudu/util/monotime.h"
 #include "kudu/util/status.h"
 
+#include "kudu/rpc/outbound_call.h"
+
 namespace google {
 namespace protobuf {
 class Message;
@@ -73,6 +75,8 @@ enum class CredentialsPolicy {
 // of the call.
 class RpcController {
  public:
+  OutboundCallTimings timings_;
+
   RpcController();
   ~RpcController();
 

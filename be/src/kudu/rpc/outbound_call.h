@@ -55,6 +55,15 @@ class RpcCallInProgressPB;
 class RpcController;
 class RpcSidecar;
 
+struct OutboundCallTimings {
+  MonoTime start_time;
+  MonoTime queued_time;;
+  MonoTime sending_time;
+  MonoTime sent_time;
+  MonoTime response_time;
+  MonoTime callback_finished_time;
+};
+
 // Used to key on Connection information.
 // For use as a key in an unordered STL collection, use ConnectionIdHash and ConnectionIdEqual.
 // This class is copyable for STL compatibility, but not assignable (use CopyFrom() for that).
@@ -130,6 +139,8 @@ class OutboundCall {
     // The phase of sending a call over already established connection.
     REMOTE_CALL,
   };
+
+  OutboundCallTimings timings_;
 
   OutboundCall(const ConnectionId& conn_id, const RemoteMethod& remote_method,
                google::protobuf::Message* response_storage,

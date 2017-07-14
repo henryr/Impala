@@ -29,6 +29,8 @@
 #include "runtime/row-batch.h"
 #include "util/runtime-profile.h"
 
+#include "util/histogram-metric.h"
+
 namespace impala {
 
 class RowBatch;
@@ -153,6 +155,13 @@ class DataStreamSender : public DataSink {
   /// Used for Kudu partitioning to round-robin rows that don't correspond to a partition
   /// or when errors are encountered.
   int next_unknown_partition_ = 0;
+
+  std::unique_ptr<HistogramMetric> send_latencies_;
+
+  std::unique_ptr<HistogramMetric> queue_latencies_;
+  std::unique_ptr<HistogramMetric> sending_latencies_;
+  std::unique_ptr<HistogramMetric> response_latencies_;
+  std::unique_ptr<HistogramMetric> callback_latencies_;
 };
 
 }

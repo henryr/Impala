@@ -132,8 +132,9 @@ void ImpalaServicePool::RunThread() {
       auto* method = &method_infos_[method_name];
       method->num_in_handlers.Add(1);
     }
+    auto t = incoming->GetTimeReceived();
     service_->Handle(incoming.release());
-    total_time = (MonoTime::Now() - now).ToMilliseconds();
+    total_time = (MonoTime::Now() - t).ToMilliseconds();
     request_handle_time_->Update(total_time);
 
     {

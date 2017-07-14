@@ -77,7 +77,7 @@ OutboundCall::OutboundCall(const ConnectionId& conn_id,
   header_.set_call_id(kInvalidCallId);
   remote_method.ToPB(header_.mutable_remote_method());
   start_time_ = MonoTime::Now();
-
+  controller_->timings_.start_time = MonoTime::Now();
   if (!controller_->required_server_features().empty()) {
     required_rpc_features_.insert(RpcFeatureFlag::APPLICATION_FEATURE_FLAGS);
   }
@@ -247,8 +247,11 @@ void OutboundCall::SetResponse(gscoped_ptr<CallResponse> resp) {
                                 response_->InitializationErrorString()));
       return;
     }
-    set_state(FINISHED_SUCCESS);
+    controller_->timings_.response_time = MonoTime::Now();
+    set_state (FINISHED_SUCCESS);
     CallCallback();
+    controller_->timings_.callback_finished_time = MonoTime::Now();
+    //controller_->timings_ = timings_;
   } else {
     // Error
     gscoped_ptr<ErrorStatusPB> err(new ErrorStatusPB());
@@ -263,14 +266,17 @@ void OutboundCall::SetResponse(gscoped_ptr<CallResponse> resp) {
 }
 
 void OutboundCall::SetQueued() {
+  controller_->timings_.queued_time = MonoTime::Now();
   set_state(ON_OUTBOUND_QUEUE);
 }
 
 void OutboundCall::SetSending() {
+  controller_->timings_.sending_time = MonoTime::Now();
   set_state(SENDING);
 }
 
 void OutboundCall::SetSent() {
+  controller_->timings_.sent_time = MonoTime::Now();
   set_state(SENT);
 
   // This method is called in the reactor thread, so free the header buf,
