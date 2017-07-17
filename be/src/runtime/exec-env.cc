@@ -174,7 +174,7 @@ ExecEnv::ExecEnv(const string& hostname, int backend_port, int data_service_port
 
   statestore_subscriber_.reset(new StatestoreSubscriber(
           Substitute("impalad@$0", TNetworkAddressToString(backend_address_)),
-          MakeNetworkAddress(FLAGS_hostname, FLAGS_state_store_subscriber_port), statestore_address, metrics_.get()));
+          MakeNetworkAddress(FLAGS_hostname, FLAGS_state_store_subscriber_port), statestore_address, rpc_mgr_.get(), metrics_.get()));
 
   if (FLAGS_is_coordinator) {
     scheduler_.reset(new Scheduler(statestore_subscriber_.get(),
