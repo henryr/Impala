@@ -86,6 +86,7 @@ DECLARE_bool(is_coordinator);
 DECLARE_int32(webserver_port);
 DECLARE_int32(num_acceptor_threads);
 DECLARE_int32(num_reactor_threads);
+DEFINE_int32(data_svc_port, 29000, "TODO");
 
 // TODO: Remove the following RM-related flags in Impala 3.0.
 DEFINE_bool_hidden(enable_rm, false, "Deprecated");
@@ -132,7 +133,7 @@ struct ExecEnv::KuduClientPtr {
 ExecEnv* ExecEnv::exec_env_ = nullptr;
 
 ExecEnv::ExecEnv() : ExecEnv(FLAGS_hostname, FLAGS_be_port,
-    FLAGS_state_store_subscriber_port, FLAGS_webserver_port, FLAGS_state_store_host,
+    FLAGS_data_svc_port, FLAGS_webserver_port, FLAGS_state_store_host,
     FLAGS_state_store_port) { }
 
 ExecEnv::ExecEnv(const string& hostname, int backend_port, int data_service_port,
@@ -173,7 +174,7 @@ ExecEnv::ExecEnv(const string& hostname, int backend_port, int data_service_port
 
   statestore_subscriber_.reset(new StatestoreSubscriber(
           Substitute("impalad@$0", TNetworkAddressToString(backend_address_)),
-          data_stream_svc_address, statestore_address, metrics_.get()));
+          MakeNetworkAddress(FLAGS_hostname, FLAGS_state_store_subscriber_port), statestore_address, metrics_.get()));
 
   if (FLAGS_is_coordinator) {
     scheduler_.reset(new Scheduler(statestore_subscriber_.get(),
