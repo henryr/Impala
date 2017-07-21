@@ -18,8 +18,8 @@
  * limitations under the License.
  *
  ******************************************************************************/
-#include "transport/config.h"
-#ifdef HAVE_SASL_SASL_H
+#include <thrift/config.h>
+//#ifdef HAVE_SASL_SASL_H
 
 #include <cstring>
 #include <sstream>
@@ -255,4 +255,4 @@ uint8_t* TSaslServer::evaluateChallengeOrResponse(const uint8_t* response,
   return out;
 }
 };
-#endif
+// #endif

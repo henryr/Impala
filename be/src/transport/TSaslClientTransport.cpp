@@ -18,8 +18,8 @@
  * under the License.
  */
 
-#include "config.h"
-#ifdef HAVE_SASL_SASL_H
+#include <thrift/config.h>
+//#ifdef HAVE_SASL_SASL_H
 #include <stdint.h>
 #include <boost/shared_ptr.hpp>
 #include <boost/scoped_ptr.hpp>
@@ -74,4 +74,4 @@ void TSaslClientTransport::handleSaslStartMessage() {
 }
 }}}
 
-#endif
+//#endif

@@ -18,8 +18,8 @@
  * under the License.
  */
 
-#include "config.h"
-#ifdef HAVE_SASL_SASL_H
+#include <thrift/config.h>
+//#ifdef HAVE_SASL_SASL_H
 #include <stdint.h>
 #include <sstream>
 #include <boost/shared_ptr.hpp>
@@ -166,4 +166,4 @@ boost::shared_ptr<TTransport> TSaslServerTransport::Factory::getTransport(
 }
 
 }}}
-#endif
+// #endif

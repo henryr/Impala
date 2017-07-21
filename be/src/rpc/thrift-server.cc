@@ -35,7 +35,7 @@
 
 #include <sstream>
 #include "gen-cpp/Types_types.h"
-#include "rpc/TAcceptQueueServer.h"
+// #include "rpc/TAcceptQueueServer.h"
 #include "rpc/authentication.h"
 #include "rpc/thrift-server.h"
 #include "rpc/thrift-thread.h"
@@ -421,13 +421,13 @@ Status ThriftServer::Start() {
       break;
     case Threaded:
       if (FLAGS_enable_accept_queue_server) {
-        server_.reset(new TAcceptQueueServer(processor_, server_socket, transport_factory,
+        server_.reset(new TThreadedServer(processor_, server_socket, transport_factory,
             protocol_factory, thread_factory));
         if (metrics_ != NULL) {
           stringstream key_prefix_ss;
           key_prefix_ss << "impala.thrift-server." << name_;
-          (static_cast<TAcceptQueueServer*>(server_.get()))
-              ->InitMetrics(metrics_, key_prefix_ss.str());
+          // (static_cast<TThreadedServer*>(server_.get()))
+          //     ->InitMetrics(metrics_, key_prefix_ss.str());
         }
       } else {
         server_.reset(new TThreadedServer(processor_, server_socket, transport_factory,

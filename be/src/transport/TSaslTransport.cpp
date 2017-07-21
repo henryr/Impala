@@ -18,9 +18,9 @@
  * under the License.
  */
 
-#include "config.h"
+#include <thrift/config.h>
 
-#ifdef HAVE_SASL_SASL_H
+//#ifdef HAVE_SASL_SASL_H
 #include <stdint.h>
 #include <sstream>
 #include <boost/shared_ptr.hpp>
@@ -279,4 +279,4 @@ namespace apache { namespace thrift { namespace transport {
 }
 }
 
-#endif
+// #endif
