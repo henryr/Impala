@@ -1,0 +1,2 @@
+leak:libjvm.so
+leak:nflate
